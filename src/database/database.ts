@@ -3,5 +3,5 @@ import { databases } from './appwrite';
 
 @Injectable()
 export class Database {
-  public db = databases;
+  private db = databases.use('app');
 }
