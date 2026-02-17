@@ -5,8 +5,8 @@
  * You may modify these values as needed.
  */
 
-export const PROJECT_ID = process.env.APPWRITE_PROJECT;
-export const ENDPOINT = process.env.APPWRITE_ENDPOINT;
+export const PROJECT_ID = process.env.APPWRITE_PROJECT as string;
+export const ENDPOINT = process.env.APPWRITE_ENDPOINT as string;
 
 /**
  * API Key is required for server-side operations
