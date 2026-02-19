@@ -7,9 +7,10 @@ import { RpgAiService } from './modules/rpg/rpg.ai.service';
 import { AppwriteModule } from './common/appwrite/appwrite.module';
 import { ProfileController } from './modules/profile/profile.controller';
 import { ProfileService } from './modules/profile/profile.service';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
-  imports: [AppwriteModule, RpgModule, AiModule],
+  imports: [CacheModule.register(), AppwriteModule, RpgModule, AiModule],
   controllers: [AppController, ProfileController],
   providers: [AppService, RpgAiService, ProfileService],
 })
