@@ -6,9 +6,9 @@ import { Client, TablesDB, Users } from 'node-appwrite';
 @Injectable()
 export class Appwrite {
   private client: Client;
+  private db: DatabaseHandle<'app'>;
 
   users: Users;
-  db: DatabaseHandle<'app'>;
 
   constructor() {
     this.client = new Client()
@@ -20,5 +20,12 @@ export class Appwrite {
 
     this.users = new Users(this.client);
     this.db = createDatabasesApi(tablesDB).use('app');
+  }
+
+  get databases() {
+    return {
+      games: this.db.use('Games'),
+      rpgStories: this.db.use('RPG Stories'),
+    };
   }
 }
