@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AiModule } from 'src/common/ai/ai.module';
-import { DatabaseModule } from 'src/common/database/database.module';
+import { AppwriteModule } from 'src/common/appwrite/appwrite.module';
 import { RpgModule } from 'src/modules/rpg/rpg.module';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -11,7 +11,7 @@ describe('RpgController (e2e)', () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [RpgModule, AiModule, DatabaseModule],
+      imports: [RpgModule, AiModule, AppwriteModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
