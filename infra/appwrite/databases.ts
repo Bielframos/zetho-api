@@ -1,5 +1,4 @@
 import {
-  Client,
   TablesDB,
   ID,
   Query,
@@ -17,7 +16,6 @@ import type {
   RoleBuilder,
   RoleString,
 } from './types';
-import { PROJECT_ID, ENDPOINT, API_KEY } from './constants';
 
 const createQueryBuilder = <T>(): QueryBuilder<T> => ({
   equal: (field, value) => Query.equal(String(field), value as any),
@@ -420,13 +418,3 @@ export function createDatabasesApi(tablesDB: TablesDB): DatabaseTables {
     },
   } as DatabaseTables;
 }
-
-// Initialize client
-const client = new Client()
-  .setEndpoint(ENDPOINT)
-  .setProject(PROJECT_ID)
-  .setKey(API_KEY);
-
-const tablesDB = new TablesDB(client);
-
-export const databases: DatabaseTables = createDatabasesApi(tablesDB);

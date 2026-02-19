@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Database } from './database';
+import { Database } from './appwrite.provider';
 
 describe('Database', () => {
   let provider: Database;
