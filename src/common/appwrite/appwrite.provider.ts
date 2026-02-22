@@ -29,9 +29,11 @@ export class Appwrite {
   get databases() {
     return {
       api: this.tablesDB,
-      userProfilese: this.db.use('User Profiles'),
+      userProfiles: this.db.use('User Profiles'),
       games: this.db.use('Games'),
       zEntries: this.db.use('Z Entries'),
+      zEntriesReadonly: this.db.use('Z Entries (Read-only)'),
+      zStats: this.db.use('Z Entry Count'),
       rpgStories: this.db.use('RPG Stories'),
     };
   }
