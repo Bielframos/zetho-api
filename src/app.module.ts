@@ -1,17 +1,23 @@
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { RpgModule } from './modules/rpg/rpg.module';
-import { AiModule } from './common/ai/ai.module';
-import { RpgAiService } from './modules/rpg/rpg.ai.service';
-import { AppwriteModule } from './common/appwrite/appwrite.module';
-import { ProfileController } from './modules/profile/profile.controller';
-import { ProfileService } from './modules/profile/profile.service';
 import { CacheModule } from '@nestjs/cache-manager';
+import { Module } from '@nestjs/common';
+import { AiModule } from './common/ai/ai.module';
+import { AppwriteModule } from './common/appwrite/appwrite.module';
+import { RpgModule } from './modules/rpg/rpg.module';
+import { WebhookModule } from './modules/webhook/webhook.module';
+import { ProfileModule } from './modules/profile/profile.module';
 
 @Module({
-  imports: [CacheModule.register(), AppwriteModule, RpgModule, AiModule],
-  controllers: [AppController, ProfileController],
-  providers: [AppService, RpgAiService, ProfileService],
+  imports: [
+    CacheModule.register(),
+    AppwriteModule,
+    AiModule,
+
+    /** Feature modules */
+    ProfileModule,
+    WebhookModule,
+    RpgModule,
+  ],
+  controllers: [],
+  providers: [],
 })
 export class AppModule {}
