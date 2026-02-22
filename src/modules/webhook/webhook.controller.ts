@@ -2,8 +2,9 @@ import {
   Body,
   Controller,
   Headers,
+  HttpException,
+  HttpStatus,
   Post,
-  UnprocessableEntityException,
   UseGuards,
 } from '@nestjs/common';
 import type { ZEntries } from 'infra/appwrite';
@@ -23,7 +24,7 @@ export class WebhookController {
     const eventArray = events.split(',');
 
     if (!eventArray.some((event) => event.endsWith('.create'))) {
-      throw new UnprocessableEntityException('Evento não suportado');
+      throw new HttpException('Evento não suportado.', HttpStatus.OK);
     }
 
     return this.service.syncEntry(entry);
