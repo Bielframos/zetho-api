@@ -17,7 +17,7 @@ export class WebhookController {
   constructor(private service: WebhookService) {}
 
   @Post('entry-sync')
-  @UseGuards(AppwriteWebhookGuard)
+  @UseGuards(new AppwriteWebhookGuard('entry-sync'))
   syncZEntry(
     @Headers('x-appwrite-webhook-events') events: string,
     @Body() entry: ZEntries,

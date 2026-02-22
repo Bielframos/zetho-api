@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
+    rawBody: true,
     logger: new ConsoleLogger({
       prefix: 'ZETHO API',
       json: true,
@@ -16,7 +17,10 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' ? process.env.APP_URL : true,
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? process.env.FRONTEND_APP_URL
+        : true,
     credentials: true,
   });
 

@@ -1,10 +1,10 @@
+import crypto from 'crypto';
 import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import crypto from 'crypto';
 import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
 import { Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
