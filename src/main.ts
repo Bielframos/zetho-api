@@ -1,12 +1,19 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import cookieParser from 'cookie-parser';
+import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new ConsoleLogger({
+      prefix: 'ZETHO API',
+      json: true,
+      colors: true,
+    }),
+  });
 
   app.enableCors({
     origin: process.env.NODE_ENV === 'production' ? process.env.APP_URL : true,

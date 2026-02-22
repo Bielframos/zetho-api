@@ -2,14 +2,17 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
-import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import crypto from 'crypto';
+import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
 import { Models } from 'node-appwrite';
+import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 @Injectable()
 export class WebhookService {
+  private readonly logger = new Logger(WebhookService.name);
+
   private tablesDB: Appwrite['databases']['api'];
   private zEntries: Appwrite['databases']['zEntries'];
   private userProfiles: Appwrite['databases']['userProfiles'];
@@ -189,7 +192,7 @@ export class WebhookService {
         commit: true,
       });
 
-      console.log(`✓ Webhook: Entrada ${entry.$id} processada com sucesso`);
+      this.logger.log(`✓ Webhook: Entrada ${entry.$id} processada com sucesso`);
       return {
         message: `O registro de id ${entry.$id} foi processado.`,
         success: true,
@@ -202,7 +205,7 @@ export class WebhookService {
         });
       }
 
-      console.error(
+      this.logger.error(
         `✗ Webhook: Falha ao processar entrada ${entry.$id}:`,
         err instanceof Error ? err.message : String(err),
       );
