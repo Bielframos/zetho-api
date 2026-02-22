@@ -5,6 +5,7 @@ import { AppwriteModule } from './common/appwrite/appwrite.module';
 import { RpgModule } from './modules/rpg/rpg.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { ProfileModule } from './modules/profile/profile.module';
+import { IGDBModule } from './modules/igdb/igdb.module';
 
 @Module({
   imports: [
@@ -13,9 +14,12 @@ import { ProfileModule } from './modules/profile/profile.module';
     AiModule,
 
     /** Feature modules */
+    IGDBModule,
     ProfileModule,
-    WebhookModule,
     RpgModule,
+    
+    /** Modulos do sístema */
+    WebhookModule,
   ],
   controllers: [],
   providers: [],

@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { ZEntries } from 'infra/appwrite';
-import { AppwriteWebhookGuard } from 'src/common/guards/webhook.gaurd';
+import { AppwriteWebhookGuard } from 'src/common/guards/webhook.guard';
 import { WebhookService } from './webhook.service';
 
 @Controller('webhook')
