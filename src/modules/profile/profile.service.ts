@@ -7,10 +7,10 @@ import { UserProfiles } from 'infra/appwrite';
 
 @Injectable()
 export class ProfileService {
-  private userProfiles: Appwrite['databases']['userProfilese'];
+  private userProfiles: Appwrite['databases']['userProfiles'];
 
   constructor(private appwrite: Appwrite) {
-    this.userProfiles = this.appwrite.databases.userProfilese;
+    this.userProfiles = this.appwrite.databases.userProfiles;
   }
 
   async create(user: Models.User, gamertag: string) {
