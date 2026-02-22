@@ -35,6 +35,8 @@ export class WebhookService {
 
   /** Método que faz a sincronização de novas entries */
   async syncEntry(entry: ZEntries) {
+    this.logger.debug({ message: 'Iniciando processamento de entrada', entry });
+
     if (entry.processedAt) {
       throw new ConflictException('Z Entry já processada');
     }
