@@ -48,6 +48,7 @@ export class WebhookService {
       this.zEntries.list({
         queries: (q) => [
           q.equal('ownerFingerprint', entry.ownerFingerprint),
+          q.notEqual('$id', entry.$id),
           q.equal('gameId', entry.gameId),
           q.orderDesc('$createdAt'),
           q.limit(1),
