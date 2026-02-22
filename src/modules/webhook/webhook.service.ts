@@ -53,7 +53,7 @@ export class WebhookService {
       }),
       this.userProfiles.list({
         queries: (q) => [
-          q.equal('userId', entry.ownerFingerprint),
+          q.equal('fingerprint', entry.ownerFingerprint),
           q.select(['$id', 'userId', 'fingerprint']),
         ],
       }),

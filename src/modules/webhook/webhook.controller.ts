@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Headers,
-  Logger,
   Post,
   UnprocessableEntityException,
   UseGuards,
@@ -13,7 +12,6 @@ import { WebhookService } from './webhook.service';
 
 @Controller('webhook')
 export class WebhookController {
-  private readonly logger = new Logger(WebhookController.name);
   constructor(private service: WebhookService) {}
 
   @Post('entry-sync')
@@ -22,7 +20,6 @@ export class WebhookController {
     @Headers('x-appwrite-webhook-events') events: string,
     @Body() entry: ZEntries,
   ) {
-    this.logger.debug('events: ' + events);
     const eventArray = events.split(',');
 
     if (!eventArray.some((event) => event.endsWith('.create'))) {
