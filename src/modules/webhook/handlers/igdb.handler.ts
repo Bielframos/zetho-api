@@ -1,14 +1,8 @@
-import {
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Companies } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../../igdb/igdb.service';
 import { IGDBGame } from '../../igdb/igdb.types';
-import { Companies } from 'infra/appwrite';
 
 @Injectable()
 export class IGDBHandler {
@@ -41,9 +35,9 @@ export class IGDBHandler {
 
     try {
       const igdbGame = igdbGames[0];
-      const devs = this.getDevs(igdbGame);
+      const devs = await this.getDevs(igdbGame);
 
-      const parsedGame = this.parseGame(igdbGame);
+      const parsedGame = this.parseGame(igdbGame, devs);
 
       const gameId = `igdb_${parsedGame.externalReference}`;
       const zstatsId = `zstats_${gameId}`;
@@ -153,9 +147,9 @@ export class IGDBHandler {
           })),
         });
       }
-
-      return developersIds;
     }
+
+    return developersIds;
   }
 
   private shouldIgnore(game: IGDBGame) {
@@ -165,4 +159,3 @@ export class IGDBHandler {
     );
   }
 }
-6;
