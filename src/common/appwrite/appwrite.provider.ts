@@ -31,11 +31,12 @@ export class Appwrite {
       api: this.tablesDB,
       userProfiles: this.db.use('User Profiles'),
       games: this.db.use('Games'),
+      companies: this.db.use('Companies'),
       zEntries: this.db.use('Z Entries'),
       zEntriesReadonly: this.db.use('Z Entries (Read-only)'),
       zStats: this.db.use('Z Entry Count'),
       rpgStories: this.db.use('RPG Stories'),
-      igdbTokens: this.db.use('IGDB Tokens')
+      igdbTokens: this.db.use('IGDB Tokens'),
     };
   }
 }

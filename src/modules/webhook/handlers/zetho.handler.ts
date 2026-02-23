@@ -1,17 +1,17 @@
-import crypto from 'crypto';
 import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import crypto from 'crypto';
 import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
 import { Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 @Injectable()
-export class WebhookService {
-  private readonly logger = new Logger(WebhookService.name);
+export class ZethoHandler {
+  private readonly logger = new Logger(ZethoHandler.name);
 
   private tablesDB: Appwrite['databases']['api'];
   private zEntries: Appwrite['databases']['zEntries'];
