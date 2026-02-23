@@ -15,8 +15,48 @@ export class IGDBService {
 
   private authPromise: Promise<string> | null = null;
 
+  // Rate limiting: máximo 4 requisições por segundo
+  private readonly MAX_REQUESTS_PER_SECOND = 4;
+  private readonly WINDOW_SIZE_MS = 1000;
+  private readonly SAFETY_BUFFER_MS = 10;
+
+  private requestTimestamps: number[] = [];
+
   constructor(private appwrite: Appwrite) {
     this.tokens = this.appwrite.databases.igdbTokens;
+  }
+
+  /**
+   * Aplica rate limiting: máximo 4 requisições por segundo
+   * Espera se necessário com base na requisição mais antiga
+   */
+  private async applyRateLimit(): Promise<void> {
+    const now = Date.now();
+
+    // Remove requisições fora da janela de tempo (mais antigas que 1 segundo)
+    this.requestTimestamps = this.requestTimestamps.filter(
+      (timestamp) => now - timestamp < this.WINDOW_SIZE_MS,
+    );
+
+    // Se ainda não atingimos o limite, pode fazer a requisição
+    if (this.requestTimestamps.length < this.MAX_REQUESTS_PER_SECOND) {
+      this.requestTimestamps.push(now);
+      return;
+    }
+
+    // Atingimos o limite, calcular tempo de espera
+    const oldestTimestamp = this.requestTimestamps[0];
+    const timePassed = now - oldestTimestamp;
+    const timeToWait = this.WINDOW_SIZE_MS - timePassed + this.SAFETY_BUFFER_MS;
+
+    this.logger.debug(
+      `Rate limit atingido. Aguardando ${timeToWait}ms antes da próxima requisição.`,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, timeToWait));
+
+    // Recursivamente aplica rate limit novamente para garantir consistência
+    await this.applyRateLimit();
   }
 
   /**
@@ -117,6 +157,9 @@ export class IGDBService {
    * Wrapper para o fetch
    */
   private async fetchIgdb(endpoint: string, body: string) {
+    // Aplica rate limiting antes de fazer a requisição
+    await this.applyRateLimit();
+
     const token = await this.getToken();
 
     const response = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
