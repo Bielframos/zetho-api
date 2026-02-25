@@ -1,14 +1,17 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { Companies } from 'infra/appwrite';
+import { Companies, GamesCreate } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../../igdb/igdb.service';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
+import { unknown } from 'valibot';
+import { AppwriteException } from 'node-appwrite';
 
 @Injectable()
 export class IGDBHandler {
   private readonly logger = new Logger(IGDBHandler.name);
 
   private tableDB: Appwrite['databases']['api'];
+  private games: Appwrite['databases']['games'];
   private companies: Appwrite['databases']['companies'];
   private zStats: Appwrite['databases']['zStats'];
 
@@ -18,7 +21,7 @@ export class IGDBHandler {
   ) {
     this.tableDB = this.appwrite.databases.api;
     this.companies = this.appwrite.databases.companies;
-
+    this.games = this.appwrite.databases.games;
     this.zStats = this.appwrite.databases.zStats;
   }
 
@@ -44,16 +47,15 @@ export class IGDBHandler {
       const gameId = `igdb_${parsedGame.externalReference}`;
       const zstatsId = `zstats_${gameId}`;
 
-      await this.tableDB.upsertRow({
-        databaseId: 'app',
-        tableId: 'games',
-        rowId: gameId,
-        data: parsedGame,
-      });
-
       try {
+        await this.games.create({ ...parsedGame });
         await this.zStats.create({ game: gameId }, { rowId: zstatsId });
-      } catch {}
+      } catch (e) {
+        const error = e as AppwriteException;
+        if (error.code === 409)
+          await this.games.update(gameId, { ...parsedGame });
+        else throw e;
+      }
 
       this.logger.log(`O jogo ${igdbGame.name} foi processado com sucesso`);
       return {
@@ -61,6 +63,10 @@ export class IGDBHandler {
         success: true,
       };
     } catch (e) {
+      this.logger.error({
+        message: `Erro ao processar o jogo ${game.name}`,
+        error: e,
+      });
       throw new HttpException('Erro ao processar o jogo', HttpStatus.OK);
     }
   }
@@ -142,7 +148,7 @@ export class IGDBHandler {
         : [],
       checksum: game.checksum || null,
       syncedAt,
-    };
+    } as GamesCreate;
   }
 
   private async getDevs(game: IGDBGame) {
