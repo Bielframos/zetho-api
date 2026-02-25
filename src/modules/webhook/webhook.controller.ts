@@ -48,4 +48,10 @@ export class WebhookController {
   IGDBUpsertGenre(@Body() genre: IGDBGenre) {
     return this.IGDBHandler.upsertGenre(genre);
   }
+
+  @Post('igdb/genres/delete')
+  @UseGuards(IGDBGuard)
+  IGDBDeleteGenre(@Body() genre: IGDBGenre) {
+    return this.IGDBHandler.deleteGenre(genre);
+  }
 }

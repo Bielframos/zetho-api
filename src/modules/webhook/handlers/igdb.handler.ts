@@ -68,7 +68,7 @@ export class IGDBHandler {
   /** Métodos para processar gêneros */
   async upsertGenre(genre: IGDBGenre) {
     try {
-      const upsertedGenre = await this.tableDB.upsertRow({
+      await this.tableDB.upsertRow({
         databaseId: 'app',
         tableId: 'genres',
         rowId: `igdb_${genre.id}`,
