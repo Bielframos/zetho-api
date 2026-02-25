@@ -1,10 +1,9 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Companies, GamesCreate } from 'infra/appwrite';
+import { AppwriteException } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../../igdb/igdb.service';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
-import { unknown } from 'valibot';
-import { AppwriteException } from 'node-appwrite';
 
 @Injectable()
 export class IGDBHandler {
