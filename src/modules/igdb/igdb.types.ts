@@ -23,3 +23,10 @@ export type IGDBGame = {
   game_type: number;
   version_parent: number;
 };
+
+export type IGDBGenre = {
+  id: number;
+  name: string;
+  slug: string;
+  checksum: string;
+};

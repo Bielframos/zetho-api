@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Companies } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../../igdb/igdb.service';
-import { IGDBGame } from '../../igdb/igdb.types';
+import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
 
 @Injectable()
 export class IGDBHandler {
@@ -18,9 +18,11 @@ export class IGDBHandler {
   ) {
     this.tableDB = this.appwrite.databases.api;
     this.companies = this.appwrite.databases.companies;
+
     this.zStats = this.appwrite.databases.zStats;
   }
 
+  /** Método principal para processar o jogo recebido do webhook */
   async upsertGame(game: IGDBGame) {
     if (this.shouldIgnore(game)) {
       this.logger.log(`O jogo de id: ${game.id} foi ignorado`);
@@ -60,6 +62,47 @@ export class IGDBHandler {
       };
     } catch (e) {
       throw new HttpException('Erro ao processar o jogo', HttpStatus.OK);
+    }
+  }
+
+  /** Métodos para processar gêneros */
+  async upsertGenre(genre: IGDBGenre) {
+    try {
+      const upsertedGenre = await this.tableDB.upsertRow({
+        databaseId: 'app',
+        tableId: 'genres',
+        rowId: `igdb_${genre.id}`,
+        data: {
+          name: genre.name,
+          slug: genre.slug,
+          checksum: genre.checksum,
+        },
+      });
+
+      return {
+        message: `Gênero ${genre.name} processado com sucesso`,
+        success: true,
+      };
+    } catch (e) {
+      throw new HttpException('Erro ao processar o gênero', HttpStatus.OK);
+    }
+  }
+
+  /* Método para processar exclusão de gêneros */
+  async deleteGenre(genre: IGDBGenre) {
+    try {
+      await this.tableDB.deleteRow({
+        databaseId: 'app',
+        tableId: 'genres',
+        rowId: `igdb_${genre.id}`,
+      });
+
+      return {
+        message: `Gênero ${genre.name} deletado com sucesso`,
+        success: true,
+      };
+    } catch (e) {
+      throw new HttpException('Erro ao deletar o gênero', HttpStatus.OK);
     }
   }
 

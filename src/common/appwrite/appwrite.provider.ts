@@ -31,6 +31,7 @@ export class Appwrite {
       api: this.tablesDB,
       userProfiles: this.db.use('User Profiles'),
       games: this.db.use('Games'),
+      genres: this.db.use('Genres'),
       companies: this.db.use('Companies'),
       zEntries: this.db.use('Z Entries'),
       zEntriesReadonly: this.db.use('Z Entries (Read-only)'),

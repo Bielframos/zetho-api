@@ -11,7 +11,7 @@ import {
 import type { ZEntries } from 'infra/appwrite';
 import { AppwriteWebhookGuard } from 'src/common/guards/webhook.guard';
 import { IGDBGuard } from 'src/common/guards/igdb.guard';
-import type { IGDBGame } from '../igdb/igdb.types';
+import type { IGDBGame, IGDBGenre } from '../igdb/igdb.types';
 import { ZethoHandler } from './handlers/zetho.handler';
 import { IGDBHandler } from './handlers/igdb.handler';
 
@@ -39,7 +39,13 @@ export class WebhookController {
 
   @Post('igdb/games/upsert')
   @UseGuards(IGDBGuard)
-  IGDBRegisterGame(@Body() game: IGDBGame) {
+  IGDBUpsertGame(@Body() game: IGDBGame) {
     return this.IGDBHandler.upsertGame(game);
+  }
+
+  @Post('igdb/genres/upsert')
+  @UseGuards(IGDBGuard)
+  IGDBUpsertGenre(@Body() genre: IGDBGenre) {
+    return this.IGDBHandler.upsertGenre(genre);
   }
 }
