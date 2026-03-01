@@ -47,13 +47,22 @@ export class IGDBHandler {
       const zstatsId = `zstats_${gameId}`;
 
       try {
-        await this.games.create({ ...parsedGame });
+        try {
+          await this.games.create({ ...parsedGame });
+        } catch (e) {
+          const error = e as AppwriteException;
+
+          if (error.code === 409) {
+            await this.games.update(gameId, { ...parsedGame });
+          } else {
+            throw e;
+          }
+        }
+
         await this.zStats.create({ game: gameId }, { rowId: zstatsId });
       } catch (e) {
-        const error = e as AppwriteException;
-        if (error.code === 409)
-          await this.games.update(gameId, { ...parsedGame });
-        else throw e;
+        console.error('Erro fatal na operação:', e);
+        throw e;
       }
 
       this.logger.log(`O jogo ${igdbGame.name} foi processado com sucesso`);
