@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { IGDBGenre } from './igdb.types';
 
 @Injectable()
 export class IGDBService {
@@ -218,6 +219,16 @@ export class IGDBService {
     return await this.fetchIgdb('games', query);
   }
 
+  async getGenresFromGames(ids: number[] = [], limit = 12) {
+    if (!ids.length) return [];
+    const query = `
+      fields genres;
+      where id = (${ids.join(',')});
+      limit ${limit};
+    `;
+    return await this.fetchIgdb('games', query);
+  }
+
   async getGameDevelopers(ids: number[] = []) {
     if (!ids.length) return [];
     const query = `
@@ -230,5 +241,16 @@ export class IGDBService {
   async getGameTypes(limit = 50, offset = 0) {
     const query = `fields id,type,checksum; limit ${limit}; offset ${offset};`;
     return await this.fetchIgdb('game_types', query);
+  }
+
+  async getGenres(limit = 500, offset = 0): Promise<IGDBGenre[]> {
+    const query = `
+      fields id,name,slug,checksum;
+      sort id asc;
+      limit ${limit};
+      offset ${offset};
+    `;
+
+    return await this.fetchIgdb('genres', query);
   }
 }

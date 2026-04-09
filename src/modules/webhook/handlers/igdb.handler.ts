@@ -26,54 +26,53 @@ export class IGDBHandler {
 
   /** Método principal para processar o jogo recebido do webhook */
   async upsertGame(game: IGDBGame) {
+    const startedAt = process.hrtime.bigint();
+    let stage = 'received';
+    let igdbGameName = game.name;
+    let appwriteGameId = `igdb_${game.id}`;
+
     if (this.shouldIgnore(game)) {
       this.logger.log(`O jogo de id: ${game.id} foi ignorado`);
       throw new HttpException('Jogo ignorado', HttpStatus.OK);
     }
 
+    stage = 'fetch_igdb_game';
     const igdbGames = await this.igdb.getGamesByIds([game.id]);
 
     if (!igdbGames || igdbGames.length === 0) {
+      this.logger.warn(`Jogo IGDB ${game.id} não localizado após o webhook`);
       throw new HttpException('Jogo não localizado', HttpStatus.OK);
     }
 
     try {
       const igdbGame = igdbGames[0];
+      igdbGameName = igdbGame.name;
+
+      stage = 'fetch_developers';
       const devs = await this.getDevs(igdbGame);
 
       const parsedGame = this.parseGame(igdbGame, devs);
+      stage = 'persist_game';
+      appwriteGameId = await this.upsertGameRow(parsedGame);
 
-      const gameId = `igdb_${parsedGame.externalReference}`;
-      const zstatsId = `zstats_${gameId}`;
-
-      try {
-        try {
-          await this.games.create({ ...parsedGame });
-        } catch (e) {
-          const error = e as AppwriteException;
-
-          if (error.code === 409) {
-            await this.games.update(gameId, { ...parsedGame });
-          } else {
-            throw e;
-          }
-        }
-
-        await this.zStats.create({ game: gameId }, { rowId: zstatsId });
-      } catch (e) {
-        console.error('Erro fatal na operação:', e);
-        throw e;
-      }
+      stage = 'persist_zstats';
+      await this.ensureGameZStats(appwriteGameId);
 
       this.logger.log(`O jogo ${igdbGame.name} foi processado com sucesso`);
+
       return {
         message: `O jogo ${igdbGame.name} foi processado com sucesso`,
         success: true,
       };
     } catch (e) {
       this.logger.error({
-        message: `Erro ao processar o jogo ${game.name}`,
-        error: e,
+        message: `Erro ao processar o jogo ${igdbGameName ?? game.id}`,
+        stage,
+        receivedGameId: game.id,
+        igdbGameName,
+        appwriteGameId,
+        durationMs: this.getDurationMs(startedAt),
+        error: this.serializeError(e),
       });
       throw new HttpException('Erro ao processar o jogo', HttpStatus.OK);
     }
@@ -157,6 +156,85 @@ export class IGDBHandler {
       checksum: game.checksum || null,
       syncedAt,
     } as GamesCreate;
+  }
+
+  private async upsertGameRow(game: GamesCreate) {
+    const preferredGameId = `igdb_${game.externalReference}`;
+
+    try {
+      await this.games.create(game, { rowId: preferredGameId });
+      return preferredGameId;
+    } catch (error) {
+      const appwriteError = error as AppwriteException;
+
+      if (appwriteError.code !== 409) {
+        throw error;
+      }
+    }
+
+    const existingGameId = await this.findExistingGameId(
+      game.externalReference,
+      preferredGameId,
+    );
+
+    await this.games.update(existingGameId, game);
+    return existingGameId;
+  }
+
+  private async ensureGameZStats(gameId: string) {
+    const zstatsId = `zstats_${gameId}`;
+
+    try {
+      await this.zStats.create({ game: gameId }, { rowId: zstatsId });
+      return;
+    } catch (error) {
+      const appwriteError = error as AppwriteException;
+
+      if (appwriteError.code !== 409) {
+        throw error;
+      }
+    }
+  }
+
+  private async findExistingGameId(
+    externalReference: number,
+    fallbackGameId: string,
+  ) {
+    const response = await this.games.list({
+      queries: (q) => [
+        q.equal('externalReference', externalReference),
+        q.select(['$id']),
+        q.limit(1),
+      ],
+    });
+
+    return response.rows[0]?.$id ?? fallbackGameId;
+  }
+
+  private getDurationMs(startedAt: bigint) {
+    return Number((process.hrtime.bigint() - startedAt) / BigInt(1e6));
+  }
+
+  private serializeError(error: unknown) {
+    if (error instanceof AppwriteException) {
+      return {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        type: error.type,
+        response: error.response,
+      };
+    }
+
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      };
+    }
+
+    return error;
   }
 
   private async getDevs(game: IGDBGame) {
