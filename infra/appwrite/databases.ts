@@ -62,10 +62,6 @@ tableIdMap['app']['List Items'] = 'list_items';
 tableIdMap['app']['Z Entries (Read-only)'] = 'z_entries_read';
 tableIdMap['app']['Game Platforms'] = 'game_platforms';
 tableIdMap['app']['Avaliações'] = 'ratings';
-tableIdMap['app']['RPG Stories'] = 'rpg_stories';
-tableIdMap['app']['RPG Chapters'] = 'rpg_chapters';
-tableIdMap['app']['RPG Options'] = 'rpg_options';
-tableIdMap['app']['RPG Votes'] = 'rpg_votes';
 
 const tablesWithRelationships = new Set<string>([
   'app:Games',
@@ -73,10 +69,6 @@ const tablesWithRelationships = new Set<string>([
   'app:Game Comments',
   'app:Game Comment Votes',
   'app:List Items',
-  'app:RPG Stories',
-  'app:RPG Chapters',
-  'app:RPG Options',
-  'app:RPG Votes',
 ]);
 
 const roleBuilder: RoleBuilder = {
