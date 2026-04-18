@@ -8,7 +8,11 @@ import { IGDBModule } from './modules/igdb/igdb.module';
 
 @Module({
   imports: [
-    CacheModule.register(),
+    CacheModule.register({
+      isGlobal: true,
+      ttl: Number(process.env.APP_CACHE_TTL ?? 60_000),
+      max: Number(process.env.APP_CACHE_MAX ?? 1_000),
+    }),
     AppwriteModule,
     AiModule,
 

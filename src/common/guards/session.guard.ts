@@ -1,15 +1,24 @@
 import {
+  ForbiddenException,
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
+import { Reflector } from '@nestjs/core';
 import { ENDPOINT, PROJECT_ID } from 'infra/appwrite/constants';
-import { Account, Client } from 'node-appwrite';
+import { Account, Client, Models } from 'node-appwrite';
+import { Roles } from './roles.decorator';
 
 @Injectable()
 export class AppwriteSessionGuard implements CanActivate {
-  constructor() {}
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -21,19 +30,53 @@ export class AppwriteSessionGuard implements CanActivate {
       throw new UnauthorizedException('Token de autorização não fornecido');
     }
 
-    try {
-      const client = new Client()
-        .setEndpoint(ENDPOINT)
-        .setProject(PROJECT_ID)
-        .setJWT(token);
+    const cacheKey = `session:${token}`;
 
-      const account = new Account(client);
-      const user = await account.get();
+    try {
+      let user =
+        await this.cache.get<Models.User<Models.Preferences>>(cacheKey);
+
+      if (!user) {
+        const client = new Client()
+          .setEndpoint(ENDPOINT)
+          .setProject(PROJECT_ID)
+          .setJWT(token);
+
+        const account = new Account(client);
+        user = await account.get();
+
+        await this.cache.set(cacheKey, user);
+      }
+
+      const requiredRoles = this.reflector.getAllAndOverride<string[]>(Roles, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+      if (requiredRoles?.length) {
+        const userLabels = Array.isArray(user?.labels) ? user.labels : [];
+        const hasRequiredRoles = requiredRoles.every((role) =>
+          userLabels.includes(role),
+        );
+
+        if (!hasRequiredRoles) {
+          throw new ForbiddenException(
+            'Usuário sem as roles necessárias para acessar este recurso',
+          );
+        }
+      }
 
       request.user = user;
 
       return true;
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+
       console.log(error);
       throw new UnauthorizedException(
         'Sessão do Appwrite inválida ou expirada',

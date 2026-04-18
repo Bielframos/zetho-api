@@ -1,15 +1,23 @@
 import {
+  ConflictException,
   Injectable,
+  NotFoundException,
   Logger,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGenre } from './igdb.types';
+import { AppwriteException } from 'node-appwrite';
+import { Companies, GamesCreate } from 'infra/appwrite';
 
 @Injectable()
 export class IGDBService {
   private readonly logger = new Logger(IGDBService.name);
   private tokens: Appwrite['databases']['igdbTokens'];
+  private tableDB: Appwrite['databases']['api'];
+  private games: Appwrite['databases']['games'];
+  private companies: Appwrite['databases']['companies'];
+  private zStats: Appwrite['databases']['zStats'];
 
   private token: string | null = null;
   private tokenExpiry: Date | null = null;
@@ -25,6 +33,10 @@ export class IGDBService {
 
   constructor(private appwrite: Appwrite) {
     this.tokens = this.appwrite.databases.igdbTokens;
+    this.tableDB = this.appwrite.databases.api;
+    this.companies = this.appwrite.databases.companies;
+    this.games = this.appwrite.databases.games;
+    this.zStats = this.appwrite.databases.zStats;
   }
 
   /**
@@ -252,5 +264,161 @@ export class IGDBService {
     `;
 
     return await this.fetchIgdb('genres', query);
+  }
+
+  async importGameById(id: number) {
+    const existingGame = await this.games.list({
+      queries: (q) => [
+        q.equal('externalReference', id),
+        q.select(['$id', 'name', 'externalReference']),
+        q.limit(1),
+      ],
+    });
+
+    if (existingGame.total > 0) {
+      throw new ConflictException('Jogo já existe na base de dados');
+    }
+
+    const [igdbGame] = await this.getGamesByIds([id], 1);
+
+    if (!igdbGame) {
+      throw new NotFoundException('Jogo não encontrado no IGDB');
+    }
+
+    if (this.shouldIgnore(igdbGame)) {
+      throw new ConflictException('Jogo não elegível para ingestão');
+    }
+
+    const developers = await this.getDevs(igdbGame);
+    const parsedGame = this.parseGame(igdbGame, developers);
+    const rowId = `igdb_${id}`;
+
+    try {
+      await this.games.create(parsedGame, { rowId });
+    } catch (error) {
+      const appwriteError = error as AppwriteException;
+
+      if (appwriteError.code === 409) {
+        throw new ConflictException('Jogo já existe na base de dados');
+      }
+
+      throw error;
+    }
+
+    await this.ensureGameZStats(rowId);
+
+    return {
+      message: `Jogo ${igdbGame.name} adicionado com sucesso`,
+      success: true,
+      gameId: rowId,
+    };
+  }
+
+  private parseGame(game: any, developers: string[] = []) {
+    const syncedAt = new Date().toISOString();
+
+    let summary = game.summary;
+    const summaryLength = summary ? summary.length : 0;
+
+    if (summaryLength > 750) {
+      summary = `${summary.substring(0, 747)}...`;
+    }
+
+    return {
+      name: game.name,
+      slug: game.slug,
+      coverUrl: game.cover
+        ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
+        : null,
+      summary: summary || '',
+      releaseYear: game.first_release_date
+        ? new Date(game.first_release_date * 1000).getFullYear().toString()
+        : null,
+      releaseDate: game.first_release_date
+        ? new Date(game.first_release_date * 1000).toISOString()
+        : null,
+      genres: game.genres
+        ? game.genres.map((genreId: number) => `igdb_${genreId}`)
+        : [],
+      involvedCompanies: developers,
+      externalReference: game.id,
+      gameType: `igdb_${game.game_type}`,
+      similarGames: game.similar_games
+        ? game.similar_games.map((relatedId: number) => `igdb_${relatedId}`)
+        : [],
+      checksum: game.checksum || null,
+      syncedAt,
+    } as GamesCreate;
+  }
+
+  private async ensureGameZStats(gameId: string) {
+    const zstatsId = `zstats_${gameId}`;
+
+    try {
+      await this.zStats.create({ game: gameId }, { rowId: zstatsId });
+    } catch (error) {
+      const appwriteError = error as AppwriteException;
+
+      if (appwriteError.code !== 409) {
+        throw error;
+      }
+    }
+  }
+
+  private async getDevs(game: any) {
+    const involvedCompanies = game.involved_companies ?? [];
+    const developers = involvedCompanies.filter((ic: any) => ic.developer);
+
+    const developerIds = developers
+      .filter((dev: any) => dev.company?.id)
+      .map((dev: any) => `igdb_${dev.company.id}`);
+
+    let registeredCompanies: Companies[] = [];
+
+    if (developerIds.length > 0) {
+      const response = await this.companies.list({
+        queries: (q) => [
+          q.equal('$id', developerIds as any),
+          q.select(['$id']),
+        ],
+      });
+
+      registeredCompanies = response.rows;
+    }
+
+    const existingIds = new Set(registeredCompanies.map((row) => row.$id));
+
+    const missingDeveloperCompanies = developers.filter((dev: any) => {
+      const formattedId = dev.company?.id ? `igdb_${dev.company.id}` : null;
+      return formattedId && !existingIds.has(formattedId);
+    });
+
+    if (missingDeveloperCompanies.length > 0) {
+      const validDevelopers = missingDeveloperCompanies.filter(
+        (dev: any) => dev.company?.id,
+      );
+
+      if (validDevelopers.length > 0) {
+        await this.tableDB.upsertRows({
+          databaseId: 'app',
+          tableId: 'companies',
+          rows: validDevelopers.map((dev: any) => ({
+            $id: `igdb_${dev.company.id}`,
+            name: dev.company.name,
+            slug: dev.company.slug,
+            checksum: dev.company.checksum,
+          })),
+        });
+      }
+    }
+
+    return developerIds;
+  }
+
+  private shouldIgnore(game: any) {
+    return (
+      [3, 5, 7, 12, 13, 14].includes(game.game_type) ||
+      (game.version_parent && game.version_parent !== null)
+    );
   }
 }

@@ -1,8 +1,10 @@
-import { Module } from "@nestjs/common";
-import { IGDBService } from "./igdb.service";
+import { Module } from '@nestjs/common';
+import { IGDBController } from './igdb.controller';
+import { IGDBService } from './igdb.service';
 
 @Module({
-    providers: [IGDBService],
-    exports: [IGDBService]
+  controllers: [IGDBController],
+  providers: [IGDBService],
+  exports: [IGDBService],
 })
 export class IGDBModule {}
