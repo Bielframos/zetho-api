@@ -196,7 +196,7 @@ export class IGDBService {
   // --- MÉTODOS PÚBLICOS ---
 
   private gameFields =
-    'name,slug,game_status,game_type,summary,cover.image_id,first_release_date,similar_games,checksum,genres,involved_companies.company,involved_companies.developer,involved_companies.company.name,involved_companies.company.slug,involved_companies.company.checksum';
+    'name,slug,status,game_status,game_type,summary,cover.image_id,first_release_date,hypes,follows,similar_games,checksum,genres,involved_companies.company,involved_companies.developer,involved_companies.company.name,involved_companies.company.slug,involved_companies.company.checksum';
 
   async getGames(limit = 50, offset = 0) {
     const query = `
@@ -206,6 +206,39 @@ export class IGDBService {
       offset ${offset};
     `;
     return await this.fetchIgdb('games', query);
+  }
+
+  async syncPopularGames() {
+    const query = `
+      fields id,name,status,game_status,first_release_date,hypes,follows,cover.image_id;
+      where first_release_date > 1777030000 & hypes != null;
+      sort hypes desc;
+      limit 50;
+    `;
+
+    const popularGames = await this.fetchIgdb('games', query);
+
+    const results = [] as Array<{ id: number; name: string; gameId: string }>;
+
+    for (const game of popularGames) {
+      if (this.shouldIgnore(game)) {
+        continue;
+      }
+
+      const developers = await this.getDevs(game);
+      const parsedGame = this.parseGame(game, developers);
+      const appwriteGameId = await this.upsertGameRow(parsedGame);
+      await this.ensureGameZStats(appwriteGameId);
+
+      results.push({ id: game.id, name: game.name, gameId: appwriteGameId });
+    }
+
+    return {
+      message: 'Jogos populares sincronizados com sucesso',
+      success: true,
+      count: results.length,
+      items: results,
+    };
   }
 
   async searchGames(queryText: string, limit = 20, offset = 0) {
@@ -314,6 +347,44 @@ export class IGDBService {
     };
   }
 
+  private async upsertGameRow(parsedGame: GamesCreate) {
+    const preferredGameId = `igdb_${parsedGame.externalReference}`;
+
+    try {
+      await this.games.create(parsedGame, { rowId: preferredGameId });
+      return preferredGameId;
+    } catch (error) {
+      const appwriteError = error as AppwriteException;
+
+      if (appwriteError.code !== 409) {
+        throw error;
+      }
+    }
+
+    const existingGameId = await this.findExistingGameId(
+      parsedGame.externalReference,
+      preferredGameId,
+    );
+
+    await this.games.update(existingGameId, parsedGame);
+    return existingGameId;
+  }
+
+  private async findExistingGameId(
+    externalReference: number,
+    fallbackGameId: string,
+  ) {
+    const response = await this.games.list({
+      queries: (q) => [
+        q.equal('externalReference', externalReference),
+        q.select(['$id']),
+        q.limit(1),
+      ],
+    });
+
+    return response.rows[0]?.$id ?? fallbackGameId;
+  }
+
   private parseGame(game: any, developers: string[] = []) {
     const syncedAt = new Date().toISOString();
 
@@ -326,7 +397,7 @@ export class IGDBService {
 
     return {
       name: game.name,
-      slug: game.slug,
+      slug: game.slug ?? '',
       coverUrl: game.cover
         ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
         : null,
@@ -342,12 +413,14 @@ export class IGDBService {
         : [],
       involvedCompanies: developers,
       externalReference: game.id,
-      gameType: `igdb_${game.game_type}`,
+      gameType: game.game_type ? `igdb_${game.game_type}` : null,
       similarGames: game.similar_games
         ? game.similar_games.map((relatedId: number) => `igdb_${relatedId}`)
         : [],
       checksum: game.checksum || null,
       syncedAt,
+      hypes: game.hypes ?? 0,
+      syncStatus: game.status ?? game.game_status ?? null,
     } as GamesCreate;
   }
 

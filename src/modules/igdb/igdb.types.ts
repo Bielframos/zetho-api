@@ -1,12 +1,15 @@
 export type IGDBGame = {
   id: number;
   name: string;
-  slug: string;
-  cover: {
+  slug?: string;
+  status?: string;
+  cover?: {
     image_id: string;
   };
-  first_release_date: number;
-  involved_companies: {
+  first_release_date?: number;
+  hypes?: number;
+  follows?: number;
+  involved_companies?: {
     id: number;
     company: {
       id: number;
@@ -16,12 +19,12 @@ export type IGDBGame = {
     };
     developer: boolean;
   }[];
-  genres: number[];
-  summary: string;
-  similar_games: number[];
-  checksum: string;
-  game_type: number;
-  version_parent: number;
+  genres?: number[];
+  summary?: string;
+  similar_games?: number[];
+  checksum?: string;
+  game_type?: number;
+  version_parent?: number;
 };
 
 export type IGDBGenre = {

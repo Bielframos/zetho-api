@@ -6,6 +6,7 @@ export enum ZEntriesStatus {
   DROPPED = 'dropped',
   PLAYING = 'playing',
   WISHLIST = 'wishlist',
+  HYPED = 'hyped',
 }
 
 export enum GameCommentVotesType {
@@ -19,6 +20,7 @@ export enum ZEntriesReadOnlyStatus {
   DROPPED = 'dropped',
   PLAYING = 'playing',
   WISHLIST = 'wishlist',
+  HYPED = 'hyped',
 }
 
 export enum GamePlatformsType {
@@ -90,6 +92,7 @@ export type Games = Models.Row & {
   syncedAt?: string | null;
   zStats?: ZEntryCount;
   syncStatus?: string | null;
+  hypes?: number;
   ratingAvg?: number;
   ratingCount?: number;
   ratingSum?: number;
@@ -115,6 +118,7 @@ export type UserProfilesCreate = {
   totalsDropped?: number;
   totalsPlaying?: number;
   totalsWishlist?: number;
+  totalsHyped?: number;
   fingerprint: string;
 };
 
@@ -128,6 +132,7 @@ export type UserProfiles = Models.Row & {
   totalsDropped?: number;
   totalsPlaying?: number;
   totalsWishlist?: number;
+  totalsHyped?: number;
   fingerprint: string;
 };
 
@@ -179,6 +184,7 @@ export type ZEntryCountCreate = {
   droppedCount?: number;
   playingCount?: number;
   wishlistCount?: number;
+  hypedCount?: number;
   game?: (GamesCreate & { $id?: string; $permissions?: string[] }) | string;
   likes?: number;
 };
@@ -189,6 +195,7 @@ export type ZEntryCount = Models.Row & {
   droppedCount?: number;
   playingCount?: number;
   wishlistCount?: number;
+  hypedCount?: number;
   game?: Games;
   likes?: number;
 };

@@ -11,6 +11,7 @@ type ProfileAuditTotals = {
   totalsDropped: number;
   totalsPlaying: number;
   totalsWishlist: number;
+  totalsHyped: number;
 };
 
 @Injectable()
@@ -172,6 +173,7 @@ export class ProfileService {
       totalsDropped: profile.totalsDropped ?? 0,
       totalsPlaying: profile.totalsPlaying ?? 0,
       totalsWishlist: profile.totalsWishlist ?? 0,
+      totalsHyped: profile.totalsHyped ?? 0,
     };
   }
 
@@ -184,6 +186,7 @@ export class ProfileService {
       totalsDropped: 0,
       totalsPlaying: 0,
       totalsWishlist: 0,
+      totalsHyped: 0,
     };
 
     const limit = 500;
@@ -215,6 +218,9 @@ export class ProfileService {
             break;
           case 'wishlist':
             totals.totalsWishlist += 1;
+            break;
+          case 'hyped':
+            totals.totalsHyped += 1;
             break;
           default:
             break;

@@ -123,8 +123,8 @@ export class IGDBHandler {
   private parseGame(game: IGDBGame, developers: string[] = []) {
     const syncedAt = new Date().toISOString();
 
-    let summary = game.summary;
-    const summaryLength = summary ? summary.length : 0;
+    let summary = game.summary ?? '';
+    const summaryLength = summary.length;
 
     if (summaryLength > 750) {
       const truncatedSummary = summary.substring(0, 747) + '...';
@@ -133,11 +133,11 @@ export class IGDBHandler {
 
     return {
       name: game.name,
-      slug: game.slug,
+      slug: game.slug ?? '',
       coverUrl: game.cover
         ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
         : null,
-      summary: summary || '',
+      summary,
       releaseYear: game.first_release_date
         ? new Date(game.first_release_date * 1000).getFullYear().toString()
         : null,
@@ -149,12 +149,14 @@ export class IGDBHandler {
         : [],
       involvedCompanies: developers,
       externalReference: game.id,
-      gameType: `igdb_${game.game_type}`,
+      gameType: game.game_type ? `igdb_${game.game_type}` : undefined,
       similarGames: game.similar_games
         ? game.similar_games.map((g) => `igdb_${g}`)
         : [],
       checksum: game.checksum || null,
       syncedAt,
+      hypes: game.hypes ?? 0,
+      syncStatus: game.status ?? null,
     } as GamesCreate;
   }
 
@@ -289,8 +291,8 @@ export class IGDBHandler {
 
   private shouldIgnore(game: IGDBGame) {
     return (
-      [3, 5, 7, 12, 13, 14].includes(game.game_type) ||
-      (game.version_parent && game.version_parent !== null)
+      [3, 5, 7, 12, 13, 14].includes(game.game_type ?? 0) ||
+      (game.version_parent !== undefined && game.version_parent !== null)
     );
   }
 }

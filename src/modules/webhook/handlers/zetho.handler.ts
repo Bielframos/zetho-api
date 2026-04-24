@@ -17,6 +17,7 @@ export class ZethoHandler {
   private zEntries: Appwrite['databases']['zEntries'];
   private userProfiles: Appwrite['databases']['userProfiles'];
   private zStats: Appwrite['databases']['zStats'];
+  private games: Appwrite['databases']['games'];
 
   private statuses: `${ZEntriesStatus}`[] = [
     'completed',
@@ -24,6 +25,7 @@ export class ZethoHandler {
     'dropped',
     'playing',
     'wishlist',
+    'hyped',
   ];
 
   constructor(private appwrite: Appwrite) {
@@ -31,6 +33,7 @@ export class ZethoHandler {
     this.zEntries = this.appwrite.databases.zEntries;
     this.userProfiles = this.appwrite.databases.userProfiles;
     this.zStats = this.appwrite.databases.zStats;
+    this.games = this.appwrite.databases.games;
   }
 
   /** Método que faz a sincronização de novas entries */
@@ -43,6 +46,24 @@ export class ZethoHandler {
 
     const currentStatus = entry.status;
     const currentLiked = entry.liked;
+
+    if (currentStatus === 'hyped') {
+      try {
+        const game = await this.games.get(entry.gameId);
+        if (game.releaseDate) {
+          const releaseTime = new Date(game.releaseDate).getTime();
+          if (releaseTime <= Date.now()) {
+            throw new ConflictException(
+              'Status hyped só pode ser registrado para jogos ainda não lançados.',
+            );
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof ConflictException)) {
+          // if the game is missing, allow the hyped entry to proceed without release validation
+        }
+      }
+    }
 
     const [previousEntries, profiles] = await Promise.all([
       this.zEntries.list({
