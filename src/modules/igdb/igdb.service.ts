@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { IGDBGenre } from './igdb.types';
+import { IGDBGame, IGDBGenre } from './igdb.types';
 import { AppwriteException } from 'node-appwrite';
 import { Companies, GamesCreate } from 'infra/appwrite';
 
@@ -385,11 +385,12 @@ export class IGDBService {
     return response.rows[0]?.$id ?? fallbackGameId;
   }
 
-  private parseGame(game: any, developers: string[] = []) {
+  private parseGame(game: IGDBGame, developers: string[] = []) {
     const syncedAt = new Date().toISOString();
+    const { releaseDate, releaseYear } = this.resolveReleaseData(game);
 
-    let summary = game.summary;
-    const summaryLength = summary ? summary.length : 0;
+    let summary = game.summary ?? '';
+    const summaryLength = summary.length;
 
     if (summaryLength > 750) {
       summary = `${summary.substring(0, 747)}...`;
@@ -401,13 +402,9 @@ export class IGDBService {
       coverUrl: game.cover
         ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
         : null,
-      summary: summary || '',
-      releaseYear: game.first_release_date
-        ? new Date(game.first_release_date * 1000).getFullYear().toString()
-        : null,
-      releaseDate: game.first_release_date
-        ? new Date(game.first_release_date * 1000).toISOString()
-        : null,
+      summary,
+      releaseYear,
+      releaseDate,
       genres: game.genres
         ? game.genres.map((genreId: number) => `igdb_${genreId}`)
         : [],
@@ -420,8 +417,61 @@ export class IGDBService {
       checksum: game.checksum || null,
       syncedAt,
       hypes: game.hypes ?? 0,
-      syncStatus: game.status ?? game.game_status ?? null,
+      syncStatus: this.resolveSyncStatus(game),
     } as GamesCreate;
+  }
+
+  private resolveReleaseData(game: IGDBGame): {
+    releaseDate: string | null;
+    releaseYear: string | null;
+  } {
+    const timestamp = game.first_release_date;
+
+    if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) {
+      return { releaseDate: null, releaseYear: null };
+    }
+
+    const release = new Date(timestamp * 1000);
+
+    if (Number.isNaN(release.getTime())) {
+      return { releaseDate: null, releaseYear: null };
+    }
+
+    return {
+      releaseDate: release.toISOString(),
+      releaseYear: release.getUTCFullYear().toString(),
+    };
+  }
+
+  private resolveSyncStatus(game: IGDBGame): string | null {
+    const status = game.game_status ?? game.status;
+
+    if (status === null || status === undefined) {
+      return null;
+    }
+
+    if (typeof status === 'string') {
+      return status;
+    }
+
+    if (typeof status === 'number') {
+      return String(status);
+    }
+
+    if (typeof status === 'object') {
+      if ('name' in status && typeof status.name === 'string') {
+        return status.name;
+      }
+
+      if (
+        'id' in status &&
+        (typeof status.id === 'number' || typeof status.id === 'string')
+      ) {
+        return String(status.id);
+      }
+    }
+
+    return null;
   }
 
   private async ensureGameZStats(gameId: string) {
@@ -438,13 +488,13 @@ export class IGDBService {
     }
   }
 
-  private async getDevs(game: any) {
+  private async getDevs(game: IGDBGame) {
     const involvedCompanies = game.involved_companies ?? [];
-    const developers = involvedCompanies.filter((ic: any) => ic.developer);
+    const developers = involvedCompanies.filter((ic) => ic.developer);
 
     const developerIds = developers
-      .filter((dev: any) => dev.company?.id)
-      .map((dev: any) => `igdb_${dev.company.id}`);
+      .filter((dev) => dev.company?.id)
+      .map((dev) => `igdb_${dev.company.id}`);
 
     let registeredCompanies: Companies[] = [];
 
@@ -461,21 +511,21 @@ export class IGDBService {
 
     const existingIds = new Set(registeredCompanies.map((row) => row.$id));
 
-    const missingDeveloperCompanies = developers.filter((dev: any) => {
+    const missingDeveloperCompanies = developers.filter((dev) => {
       const formattedId = dev.company?.id ? `igdb_${dev.company.id}` : null;
       return formattedId && !existingIds.has(formattedId);
     });
 
     if (missingDeveloperCompanies.length > 0) {
       const validDevelopers = missingDeveloperCompanies.filter(
-        (dev: any) => dev.company?.id,
+        (dev) => dev.company?.id,
       );
 
       if (validDevelopers.length > 0) {
         await this.tableDB.upsertRows({
           databaseId: 'app',
           tableId: 'companies',
-          rows: validDevelopers.map((dev: any) => ({
+          rows: validDevelopers.map((dev) => ({
             $id: `igdb_${dev.company.id}`,
             name: dev.company.name,
             slug: dev.company.slug,
@@ -488,10 +538,10 @@ export class IGDBService {
     return developerIds;
   }
 
-  private shouldIgnore(game: any) {
+  private shouldIgnore(game: IGDBGame) {
     return (
-      [3, 5, 7, 12, 13, 14].includes(game.game_type) ||
-      (game.version_parent && game.version_parent !== null)
+      [3, 5, 7, 12, 13, 14].includes(game.game_type ?? 0) ||
+      (game.version_parent !== undefined && game.version_parent !== null)
     );
   }
 }

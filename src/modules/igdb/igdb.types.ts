@@ -1,8 +1,17 @@
+type IGDBStatusValue =
+  | string
+  | number
+  | {
+      id?: number | string;
+      name?: string;
+    };
+
 export type IGDBGame = {
   id: number;
   name: string;
   slug?: string;
-  status?: string;
+  status?: IGDBStatusValue;
+  game_status?: IGDBStatusValue;
   cover?: {
     image_id: string;
   };
