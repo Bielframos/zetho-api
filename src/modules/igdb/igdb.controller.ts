@@ -14,16 +14,16 @@ import { IGDBService } from './igdb.service';
 export class IGDBController {
   constructor(private readonly igdbService: IGDBService) {}
 
+  @Post('games/popular-sync')
+  @UseGuards(SystemApiKeyGuard)
+  async syncPopularGames() {
+    return await this.igdbService.syncPopularGames();
+  }
+
   @Post('games/:id')
   @UseGuards(AppwriteSessionGuard)
   @Roles(['admin'])
   async addGameById(@Param('id', ParseIntPipe) id: number) {
     return await this.igdbService.importGameById(id);
-  }
-
-  @Post('games/popular-sync')
-  @UseGuards(SystemApiKeyGuard)
-  async syncPopularGames() {
-    return await this.igdbService.syncPopularGames();
   }
 }
