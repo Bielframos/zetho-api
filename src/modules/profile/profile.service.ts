@@ -203,7 +203,13 @@ export class ProfileService {
       });
 
       for (const entry of page.rows as ZEntriesReadOnly[]) {
-        switch (entry.status) {
+        const status = entry.status as string | null;
+
+        if (entry.hyped === true || status === 'hyped') {
+          totals.totalsHyped += 1;
+        }
+
+        switch (status) {
           case 'completed':
             totals.totalsCompleted += 1;
             break;
@@ -218,9 +224,6 @@ export class ProfileService {
             break;
           case 'wishlist':
             totals.totalsWishlist += 1;
-            break;
-          case 'hyped':
-            totals.totalsHyped += 1;
             break;
           default:
             break;

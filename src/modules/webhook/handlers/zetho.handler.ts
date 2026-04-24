@@ -25,7 +25,6 @@ export class ZethoHandler {
     'dropped',
     'playing',
     'wishlist',
-    'hyped',
   ];
 
   constructor(private appwrite: Appwrite) {
@@ -44,17 +43,18 @@ export class ZethoHandler {
       throw new ConflictException('Z Entry já processada');
     }
 
-    const currentStatus = entry.status;
+    let currentStatus = entry.status as string | null;
     const currentLiked = entry.liked;
+    const currentHyped = entry.hyped ?? false;
 
-    if (currentStatus === 'hyped') {
+    if (currentHyped) {
       try {
         const game = await this.games.get(entry.gameId);
         if (game.releaseDate) {
           const releaseTime = new Date(game.releaseDate).getTime();
           if (releaseTime <= Date.now()) {
             throw new ConflictException(
-              'Status hyped só pode ser registrado para jogos ainda não lançados.',
+              'Hyped só pode ser registrado para jogos ainda não lançados.',
             );
           }
         }
@@ -92,8 +92,9 @@ export class ZethoHandler {
       );
     }
 
-    const prevStatus = previousEntry?.status ?? null;
+    const prevStatus = (previousEntry?.status as string | null) ?? null;
     const prevLiked = previousEntry?.liked ?? null;
+    const prevHyped = previousEntry?.hyped ?? false;
 
     const readId = this.createId(entry.ownerFingerprint, entry.gameId);
 
@@ -157,6 +158,7 @@ export class ZethoHandler {
       .flat();
 
     let likeOp: any | null = null;
+    let hypedOps: Array<any> = [];
 
     if (prevLiked !== currentLiked) {
       const zStats = await this.zStats.get(`zstats_${entry.gameId}`);
@@ -180,6 +182,27 @@ export class ZethoHandler {
       }
     }
 
+    if (prevHyped !== currentHyped) {
+      const action = currentHyped ? 'increment' : 'decrement';
+
+      hypedOps = [
+        this.createIncDecOp(
+          action,
+          'app',
+          'z_entry_count',
+          `zstats_${entry.gameId}`,
+          'hypedCount',
+        ),
+        this.createIncDecOp(
+          action,
+          'app',
+          'user_profiles',
+          userProfile.$id,
+          'totalsHyped',
+        ),
+      ];
+    }
+
     // -------------------------------------------------
     // Transaction
     // -------------------------------------------------
@@ -188,7 +211,7 @@ export class ZethoHandler {
     try {
       tx = await this.tablesDB.createTransaction();
 
-      const operations = [...statusOps, likeOp].filter(Boolean);
+      const operations = [...statusOps, likeOp, ...hypedOps].filter(Boolean);
 
       if (operations.length > 0) {
         await this.tablesDB.createOperations({

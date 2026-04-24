@@ -6,7 +6,6 @@ export enum ZEntriesStatus {
   DROPPED = 'dropped',
   PLAYING = 'playing',
   WISHLIST = 'wishlist',
-  HYPED = 'hyped',
 }
 
 export enum GameCommentVotesType {
@@ -20,7 +19,6 @@ export enum ZEntriesReadOnlyStatus {
   DROPPED = 'dropped',
   PLAYING = 'playing',
   WISHLIST = 'wishlist',
-  HYPED = 'hyped',
 }
 
 export enum GamePlatformsType {
@@ -139,6 +137,7 @@ export type UserProfiles = Models.Row & {
 export type ZEntriesCreate = {
   status?: ZEntriesStatus | null;
   liked?: boolean | null;
+  hyped?: boolean | null;
   gameId: string;
   ownerFingerprint: string;
   processedAt?: string | null;
@@ -147,6 +146,7 @@ export type ZEntriesCreate = {
 export type ZEntries = Models.Row & {
   status?: ZEntriesStatus | null;
   liked?: boolean | null;
+  hyped?: boolean | null;
   gameId: string;
   ownerFingerprint: string;
   processedAt?: string | null;
@@ -278,6 +278,7 @@ export type ListItems = Models.Row & {
 export type ZEntriesReadOnlyCreate = {
   status?: ZEntriesReadOnlyStatus | null;
   liked?: boolean | null;
+  hyped?: boolean | null;
   gameId: string;
   ownerFingerprint: string;
 };
@@ -285,6 +286,7 @@ export type ZEntriesReadOnlyCreate = {
 export type ZEntriesReadOnly = Models.Row & {
   status?: ZEntriesReadOnlyStatus | null;
   liked?: boolean | null;
+  hyped?: boolean | null;
   gameId: string;
   ownerFingerprint: string;
 };
