@@ -18,9 +18,21 @@ export default async ({ req, res, log, error }) => {
   );
 
   if (!response.ok) {
+    const errorData = await response.json();
+
+    error(
+      `Failed to sync popular games: ${response.status} ${response.statusText}`,
+      {
+        responseStatus: response.status,
+        responseStatusText: response.statusText,
+        errorData,
+      }
+    );
+
     return res.json(
       {
         error: 'Failed to sync popular games',
+        details: errorData,
       },
       500
     );
