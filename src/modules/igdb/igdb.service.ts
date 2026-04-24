@@ -210,8 +210,8 @@ export class IGDBService {
 
   async syncPopularGames() {
     const query = `
-      fields id,name,status,game_status,first_release_date,hypes,follows,cover.image_id;
-      where first_release_date > 1777030000 & hypes != null;
+      fields ${this.gameFields};
+      where first_release_date > 1777030000 & hypes != null & version_parent = null & game_type != (3,5,7,12,13,14);
       sort hypes desc;
       limit 50;
     `;
