@@ -6,7 +6,7 @@ export default async ({ req, res, log, error }) => {
       'Missing environment variables. Please check your the envs.'
     );
 
-  const res = await fetch(
+  const response = await fetch(
     `${process.env.API_ENDPOINT}/igdb/games/popular-sync`,
     {
       method: 'POST',
@@ -17,7 +17,7 @@ export default async ({ req, res, log, error }) => {
     }
   );
 
-  if (!res.ok) {
+  if (!response.ok) {
     return res.json(
       {
         error: 'Failed to sync popular games',
