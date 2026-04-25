@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { IGDBGame, IGDBGenre } from './igdb.types';
+import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
 import { AppwriteException } from 'node-appwrite';
 import { Companies, GamesCreate } from 'infra/appwrite';
 
@@ -299,6 +299,15 @@ export class IGDBService {
     return await this.fetchIgdb('genres', query);
   }
 
+  async fetchGameMedias(igdbGameId: number): Promise<IGDBGameMedia | null> {
+    const query = `
+      fields artworks.image_id, artworks.artwork_type, screenshots.image_id, videos.name, videos.video_id;
+      where id = (${igdbGameId});
+    `;
+    const results = await this.fetchIgdb('games', query);
+    return (results[0] as IGDBGameMedia) ?? null;
+  }
+
   async importGameById(id: number) {
     const existingGame = await this.games.list({
       queries: (q) => [
@@ -427,7 +436,11 @@ export class IGDBService {
   } {
     const timestamp = game.first_release_date;
 
-    if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) {
+    if (
+      typeof timestamp !== 'number' ||
+      !Number.isFinite(timestamp) ||
+      timestamp <= 0
+    ) {
       return { releaseDate: null, releaseYear: null };
     }
 

@@ -5,6 +5,7 @@ import { AppwriteModule } from './common/appwrite/appwrite.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { IGDBModule } from './modules/igdb/igdb.module';
+import { GameModule } from './modules/game/game.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { IGDBModule } from './modules/igdb/igdb.module';
     /** Feature modules */
     IGDBModule,
     ProfileModule,
+    GameModule,
 
     /** Modulos do sístema */
     WebhookModule,

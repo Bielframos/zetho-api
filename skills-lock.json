@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "appwrite-typescript": {
+      "source": "appwrite/agent-skills",
+      "sourceType": "github",
+      "computedHash": "38ba75d56d9d6fba0cf6150d9ee9fef5f7ff352b148bf715557c12be6b1a4905"
+    }
+  }
+}

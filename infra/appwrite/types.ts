@@ -72,6 +72,7 @@ export type GamesCreate = {
   ratingAvg?: number;
   ratingCount?: number;
   ratingSum?: number;
+  zethoVersion?: number | null;
 };
 
 export type Games = Models.Row & {
@@ -94,6 +95,7 @@ export type Games = Models.Row & {
   ratingAvg?: number;
   ratingCount?: number;
   ratingSum?: number;
+  zethoVersion?: number;
 };
 
 export type GameTypesCreate = {
@@ -397,6 +399,26 @@ export type RpgVotes = Models.Row & {
   ownerFingerprint: string;
   option?: RpgOptions;
   weight?: number;
+};
+
+export enum GameMediasType {
+  KEY_ART = 'key_art',
+  SCREENSHOT = 'screenshot',
+  VIDEO = 'video',
+}
+
+export type GameMediasCreate = {
+  game?: (GamesCreate & { $id?: string; $permissions?: string[] }) | string;
+  type: GameMediasType;
+  mediaId: string;
+  name?: string | null;
+};
+
+export type GameMedias = Models.Row & {
+  game?: Games;
+  type: GameMediasType;
+  mediaId: string;
+  name?: string | null;
 };
 
 declare const __roleStringBrand: unique symbol;
@@ -4510,6 +4532,32 @@ export type DatabaseTableMap = {
           and: (...queries: string[]) => string;
         }) => string[];
       }) => Promise<{ total: number; rows: RpgVotes[] }>;
+    };
+    'Game Medias': {
+      create: (
+        data: GameMediasCreate,
+        options?: {
+          rowId?: string;
+          permissions?: PermissionCallback;
+          transactionId?: string;
+        },
+      ) => Promise<GameMedias>;
+      get: (id: string) => Promise<GameMedias>;
+      update: (
+        id: string,
+        data: Partial<GameMediasCreate>,
+        options?: {
+          permissions?: PermissionCallback;
+          transactionId?: string;
+        },
+      ) => Promise<GameMedias>;
+      delete: (
+        id: string,
+        options?: { transactionId?: string },
+      ) => Promise<void>;
+      list: (options?: {
+        queries?: (q: QueryBuilder<GameMedias>) => string[];
+      }) => Promise<{ total: number; rows: GameMedias[] }>;
     };
   };
 };

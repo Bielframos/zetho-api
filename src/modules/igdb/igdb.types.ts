@@ -42,3 +42,10 @@ export type IGDBGenre = {
   slug: string;
   checksum: string;
 };
+
+export type IGDBGameMedia = {
+  id: number;
+  artworks?: { image_id: string; artwork_type: number }[];
+  screenshots?: { image_id: string }[];
+  videos?: { name: string; video_id: string }[];
+};

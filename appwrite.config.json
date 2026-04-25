@@ -276,6 +276,15 @@
           "default": null,
           "min": 0,
           "max": 9223372036854775807
+        },
+        {
+          "key": "zethoVersion",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 9223372036854775807
         }
       ],
       "indexes": [
@@ -1236,6 +1245,56 @@
           "required": false,
           "array": false,
           "size": 98,
+          "default": null,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "game_medias",
+      "$permissions": ["read(\"any\")"],
+      "databaseId": "app",
+      "name": "Game Medias",
+      "enabled": true,
+      "rowSecurity": false,
+      "columns": [
+        {
+          "key": "game",
+          "type": "relationship",
+          "required": false,
+          "array": false,
+          "relatedTable": "games",
+          "relationType": "manyToOne",
+          "twoWay": false,
+          "twoWayKey": "game_medias",
+          "onDelete": "cascade",
+          "side": "parent"
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": ["key_art", "screenshot", "video"]
+        },
+        {
+          "key": "mediaId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 128,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 255,
           "default": null,
           "encrypt": false
         }

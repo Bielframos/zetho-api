@@ -37,6 +37,7 @@ export class Appwrite {
       zEntriesReadonly: this.db.use('Z Entries (Read-only)'),
       zStats: this.db.use('Z Entry Count'),
       igdbTokens: this.db.use('IGDB Tokens'),
+      gameMedias: this.db.use('Game Medias'),
     };
   }
 }
