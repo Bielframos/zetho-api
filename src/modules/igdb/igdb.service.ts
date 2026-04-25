@@ -309,18 +309,6 @@ export class IGDBService {
   }
 
   async importGameById(id: number) {
-    const existingGame = await this.games.list({
-      queries: (q) => [
-        q.equal('externalReference', id),
-        q.select(['$id', 'name', 'externalReference']),
-        q.limit(1),
-      ],
-    });
-
-    if (existingGame.total > 0) {
-      throw new ConflictException('Jogo já existe na base de dados');
-    }
-
     const [igdbGame] = await this.getGamesByIds([id], 1);
 
     if (!igdbGame) {
@@ -333,26 +321,14 @@ export class IGDBService {
 
     const developers = await this.getDevs(igdbGame);
     const parsedGame = this.parseGame(igdbGame, developers);
-    const rowId = `igdb_${id}`;
+    const gameId = await this.upsertGameRow(parsedGame);
 
-    try {
-      await this.games.create(parsedGame, { rowId });
-    } catch (error) {
-      const appwriteError = error as AppwriteException;
-
-      if (appwriteError.code === 409) {
-        throw new ConflictException('Jogo já existe na base de dados');
-      }
-
-      throw error;
-    }
-
-    await this.ensureGameZStats(rowId);
+    await this.ensureGameZStats(gameId);
 
     return {
-      message: `Jogo ${igdbGame.name} adicionado com sucesso`,
+      message: `Jogo ${igdbGame.name} adicionado ou atualizado com sucesso`,
       success: true,
-      gameId: rowId,
+      gameId,
     };
   }
 
