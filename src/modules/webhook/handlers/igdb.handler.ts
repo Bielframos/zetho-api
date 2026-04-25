@@ -131,6 +131,8 @@ export class IGDBHandler {
       summary = truncatedSummary;
     }
 
+    const uniqueDevelopers = Array.from(new Set(developers));
+
     return {
       name: game.name,
       slug: game.slug ?? '',
@@ -147,7 +149,7 @@ export class IGDBHandler {
       genres: game.genres
         ? game.genres.map((genreId) => `igdb_${genreId}`)
         : [],
-      involvedCompanies: developers,
+      involvedCompanies: uniqueDevelopers,
       externalReference: game.id,
       gameType: game.game_type ? `igdb_${game.game_type}` : undefined,
       similarGames: game.similar_games
@@ -243,9 +245,13 @@ export class IGDBHandler {
     const involvedCompanies = game.involved_companies ?? [];
     const developers = involvedCompanies.filter((ic) => ic.developer);
 
-    const developersIds = developers
-      .filter((dev) => dev.company?.id)
-      .map((dev) => `igdb_${dev.company.id}`);
+    const developersIds = Array.from(
+      new Set(
+        developers
+          .filter((dev) => dev.company?.id)
+          .map((dev) => `igdb_${dev.company.id}`),
+      ),
+    );
 
     let registeredCompanies: Companies[] = [];
 
