@@ -346,28 +346,96 @@ export class IGDBService {
       }
     }
 
-    const existingGameId = await this.findExistingGameId(
+    const existingGame = await this.findExistingGameForUpdate(
       parsedGame.externalReference,
       preferredGameId,
     );
 
-    await this.games.update(existingGameId, parsedGame);
-    return existingGameId;
+    if (existingGame.checksum === (parsedGame.checksum ?? null)) {
+      return existingGame.$id;
+    }
+
+    const updatePayload = this.buildSafeGameUpdatePayload(
+      parsedGame,
+      existingGame,
+    );
+
+    await this.games.update(existingGame.$id, updatePayload);
+    return existingGame.$id;
   }
 
-  private async findExistingGameId(
+  private async findExistingGameForUpdate(
     externalReference: number,
     fallbackGameId: string,
-  ) {
+  ): Promise<{
+    $id: string;
+    checksum: string | null;
+    involvedCompaniesIds: string[];
+  }> {
     const response = await this.games.list({
       queries: (q) => [
         q.equal('externalReference', externalReference),
-        q.select(['$id']),
+        q.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
         q.limit(1),
       ],
     });
 
-    return response.rows[0]?.$id ?? fallbackGameId;
+    const game = response.rows[0];
+
+    if (!game) {
+      return {
+        $id: fallbackGameId,
+        checksum: null,
+        involvedCompaniesIds: [],
+      };
+    }
+
+    const involvedCompaniesIds = (game.involvedCompanies ?? [])
+      .map((company) => company?.$id)
+      .filter((companyId): companyId is string => !!companyId);
+
+    return {
+      $id: game.$id,
+      checksum: game.checksum ?? null,
+      involvedCompaniesIds,
+    };
+  }
+
+  private buildSafeGameUpdatePayload(
+    parsedGame: GamesCreate,
+    existingGame: { involvedCompaniesIds: string[] },
+  ): GamesCreate {
+    const nextCompanies = (parsedGame.involvedCompanies ?? [])
+      .filter((company): company is string => typeof company === 'string')
+      .filter(Boolean);
+
+    if (
+      this.areSameCompanyRelations(
+        existingGame.involvedCompaniesIds,
+        nextCompanies,
+      )
+    ) {
+      const { involvedCompanies, ...payloadWithoutCompanies } = parsedGame;
+      return payloadWithoutCompanies;
+    }
+
+    return parsedGame;
+  }
+
+  private areSameCompanyRelations(current: string[], next: string[]) {
+    if (current.length !== next.length) {
+      return false;
+    }
+
+    const currentSet = new Set(current);
+
+    for (const companyId of next) {
+      if (!currentSet.has(companyId)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private parseGame(game: IGDBGame, developers: string[] = []) {

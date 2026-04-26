@@ -6,6 +6,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { IGDBModule } from './modules/igdb/igdb.module';
 import { GameModule } from './modules/game/game.module';
+import { SandboxModule } from './modules/sandbox/sandbox.module';
 
 @Module({
   imports: [
@@ -24,6 +25,9 @@ import { GameModule } from './modules/game/game.module';
 
     /** Modulos do sístema */
     WebhookModule,
+
+    /** Sandbox module */
+    SandboxModule.register(process.env.NODE_ENV ?? 'production'),
   ],
   controllers: [],
   providers: [],

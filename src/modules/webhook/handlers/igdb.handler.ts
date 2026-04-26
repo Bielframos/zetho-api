@@ -107,8 +107,19 @@ export class IGDBHandler {
         : null,
       externalReference: game.id,
       checksum: game.checksum || null,
+      involvedCompanies: this.extractInvolvedCompanies(game),
       syncStage: 'basic',
     };
+  }
+
+  private extractInvolvedCompanies(game: IGDBGame): string[] {
+    const companies = game.involved_companies ?? [];
+    const ids = companies
+      .map((item) => item.company?.id)
+      .filter((companyId): companyId is number => typeof companyId === 'number')
+      .map((companyId) => `igdb_${companyId}`);
+
+    return Array.from(new Set(ids));
   }
 
   private async upsertGameRow(game: GamesCreate) {
@@ -131,11 +142,12 @@ export class IGDBHandler {
       preferredGameId,
     );
 
-    if (existing.checksum && existing.checksum === game.checksum) {
+    if (existing.checksum === (game.checksum ?? null)) {
       return existing.$id;
     }
 
-    await this.games.update(existing.$id, game);
+    const updatePayload = this.buildSafeGameUpdatePayload(game, existing);
+    await this.games.update(existing.$id, updatePayload);
     return existing.$id;
   }
 
@@ -157,23 +169,70 @@ export class IGDBHandler {
   private async findExistingGame(
     externalReference: number,
     fallbackId: string,
-  ): Promise<{ $id: string; checksum?: string | null }> {
+  ): Promise<{
+    $id: string;
+    checksum: string | null;
+    involvedCompaniesIds: string[];
+  }> {
     const response = await this.games.list({
       queries: (q) => [
         q.equal('externalReference', externalReference),
-        q.select(['$id', 'checksum']),
+        q.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
         q.limit(1),
       ],
     });
 
-    if (response.rows[0]) {
-      return {
-        $id: response.rows[0].$id,
-        checksum: response.rows[0].checksum,
-      };
+    const existing = response.rows[0];
+
+    if (!existing) {
+      return { $id: fallbackId, checksum: null, involvedCompaniesIds: [] };
     }
 
-    return { $id: fallbackId, checksum: null };
+    const involvedCompaniesIds = (existing.involvedCompanies ?? [])
+      .map((company) => company?.$id)
+      .filter((companyId): companyId is string => !!companyId);
+
+    return {
+      $id: existing.$id,
+      checksum: existing.checksum ?? null,
+      involvedCompaniesIds,
+    };
+  }
+
+  private buildSafeGameUpdatePayload(
+    parsedGame: GamesCreate,
+    existingGame: { involvedCompaniesIds: string[] },
+  ): GamesCreate {
+    const nextCompanies = (parsedGame.involvedCompanies ?? [])
+      .filter((company): company is string => typeof company === 'string')
+      .filter(Boolean);
+
+    if (
+      this.areSameCompanyRelations(
+        existingGame.involvedCompaniesIds,
+        nextCompanies,
+      )
+    ) {
+      const { involvedCompanies, ...payloadWithoutCompanies } = parsedGame;
+      return payloadWithoutCompanies;
+    }
+
+    return parsedGame;
+  }
+
+  private areSameCompanyRelations(current: string[], next: string[]) {
+    if (current.length !== next.length) {
+      return false;
+    }
+
+    const currentSet = new Set(current);
+    for (const companyId of next) {
+      if (!currentSet.has(companyId)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private getDurationMs(startedAt: bigint) {
