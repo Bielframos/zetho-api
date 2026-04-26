@@ -64,11 +64,10 @@ export type GamesCreate = {
     | (CompaniesCreate & { $id?: string; $permissions?: string[] })
     | string
   )[];
-  syncedAt?: string | null;
+  syncStage?: 'basic' | 'full' | null;
   zStats?:
     | (ZEntryCountCreate & { $id?: string; $permissions?: string[] })
     | string;
-  syncStatus?: string | null;
   ratingAvg?: number;
   ratingCount?: number;
   ratingSum?: number;
@@ -88,9 +87,8 @@ export type Games = Models.Row & {
   releaseDate?: string | null;
   genres?: Genres[];
   involvedCompanies?: Companies[];
-  syncedAt?: string | null;
+  syncStage?: 'basic' | 'full' | null;
   zStats?: ZEntryCount;
-  syncStatus?: string | null;
   hypes?: number;
   ratingAvg?: number;
   ratingCount?: number;
@@ -801,11 +799,10 @@ export type DatabaseTableMap = {
             | (CompaniesCreate & { $id?: string; $permissions?: string[] })
             | string
           )[];
-          syncedAt?: string | null;
+          syncStage?: 'basic' | 'full' | null;
           zStats?:
             | (ZEntryCountCreate & { $id?: string; $permissions?: string[] })
             | string;
-          syncStatus?: string | null;
           ratingAvg?: number;
           ratingCount?: number;
           ratingSum?: number;
@@ -857,11 +854,10 @@ export type DatabaseTableMap = {
             | (CompaniesCreate & { $id?: string; $permissions?: string[] })
             | string
           )[];
-          syncedAt?: string | null;
+          syncStage?: 'basic' | 'full' | null;
           zStats?:
             | (ZEntryCountCreate & { $id?: string; $permissions?: string[] })
             | string;
-          syncStatus?: string | null;
           ratingAvg?: number;
           ratingCount?: number;
           ratingSum?: number;

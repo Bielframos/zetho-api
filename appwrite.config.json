@@ -204,14 +204,6 @@
           "side": "parent"
         },
         {
-          "key": "syncedAt",
-          "type": "datetime",
-          "required": false,
-          "array": false,
-          "default": null,
-          "format": ""
-        },
-        {
           "key": "zStats",
           "type": "relationship",
           "required": false,
@@ -224,13 +216,13 @@
           "side": "child"
         },
         {
-          "key": "syncStatus",
+          "key": "syncStage",
           "type": "string",
           "required": false,
           "array": false,
-          "size": 48,
           "default": null,
-          "encrypt": false
+          "format": "enum",
+          "elements": ["basic", "full"]
         },
         {
           "key": "ratingAvg",

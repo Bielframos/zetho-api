@@ -2,10 +2,16 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { ID, Models } from 'node-appwrite';
-import type { Games as Game } from 'infra/appwrite';
+import type { Games as Game, ZEntriesReadOnly } from 'infra/appwrite';
 import { GameMedias, GameMediasType } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
+import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
+import {
+  extractKeywords,
+  slugify,
+  calculateScore,
+} from './game-search.utils';
 
 @Injectable()
 export class GameService {
@@ -15,6 +21,7 @@ export class GameService {
   private games: Appwrite['databases']['games'];
   private gameMedias: Appwrite['databases']['gameMedias'];
   private tablesDB: Appwrite['databases']['api'];
+  private zEntriesReadonly: Appwrite['databases']['zEntriesReadonly'];
 
   /** In-process migration locks: prevents duplicate concurrent migrations */
   private readonly migrationPromises = new Map<string, Promise<void>>();
@@ -30,6 +37,7 @@ export class GameService {
     this.games = this.appwrite.databases.games;
     this.gameMedias = this.appwrite.databases.gameMedias;
     this.tablesDB = this.appwrite.databases.api;
+    this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
   }
 
   async findBySlug(slug: string, select?: string) {
@@ -37,25 +45,44 @@ export class GameService {
     const cached = await this.cache.get<Game>(cacheKey);
     if (cached) return cached;
 
-    const fields = select
+    const requestedFields = select
       ? (select
           .split(',')
           .map((f) => f.trim())
-          .filter(Boolean) as any[])
+          .filter(Boolean) as string[])
+      : null;
+
+    // Sempre inclui campos internos necessários para enriquecimento e migração
+    const internalFields = ['syncStage', 'externalReference', 'zethoVersion'];
+    const queryFields = requestedFields
+      ? ([...new Set([...requestedFields, ...internalFields])] as any[])
       : undefined;
 
     const result = await this.games.list({
       queries: (q) => [
         q.equal('slug', slug),
         q.limit(1),
-        ...(fields?.length ? [q.select(fields)] : []),
+        ...(queryFields?.length ? [q.select(queryFields)] : []),
       ],
     });
 
-    const game = result.rows[0];
+    let game = result.rows[0];
 
     if (!game) {
       throw new NotFoundException(`Jogo com slug "${slug}" não encontrado`);
+    }
+
+    // Se o jogo não está totalmente sincronizado, enriquece agora
+    if (game.syncStage !== 'full') {
+      await this.igdbService.importGameById(game.externalReference);
+      const enrichedResult = await this.games.list({
+        queries: (q) => [
+          q.equal('slug', slug),
+          q.limit(1),
+          ...(queryFields?.length ? [q.select(queryFields)] : []),
+        ],
+      });
+      game = enrichedResult.rows[0] ?? game;
     }
 
     const version = game.zethoVersion ?? 0;
@@ -65,6 +92,145 @@ export class GameService {
 
     await this.cache.set(cacheKey, game);
     return game;
+  }
+
+  async search(dto: SearchGamesDto) {
+    const page = dto.page ?? 1;
+    const pageSize = dto.pageSize ?? 12;
+    const q = dto.q?.trim();
+    const keywords = q ? extractKeywords(q) : [];
+    const hasFilters = !!(dto.genre || dto.year);
+    const shouldSearch = (q && q.length >= 3) || hasFilters;
+
+    const gameFields = ['$id', 'name', 'slug', 'coverUrl', 'releaseYear'] as const;
+
+    let exactMatch: Game | null = null;
+
+    // Busca exata por slug (somente na primeira página e se q existir)
+    if (q && page === 1) {
+      const slugQuery = slugify(q);
+      const exactResult = await this.games.list({
+        queries: (qb) => [
+          qb.equal('slug', slugQuery),
+          qb.select([...gameFields, 'syncStage', 'externalReference'] as any),
+          qb.limit(1),
+        ],
+      });
+      exactMatch = exactResult.rows[0] ?? null;
+    }
+
+    let criteriaResults: Game[] = [];
+    let total = exactMatch ? 1 : 0;
+
+    if (shouldSearch) {
+      const criteriaResult = await this.games.list({
+        queries: (qb) => {
+          const conditions: string[] = [];
+
+          for (const kw of keywords) {
+            conditions.push(qb.contains('name', kw as any));
+          }
+
+          if (dto.genre) {
+            conditions.push(qb.contains('genres' as any, dto.genre as any));
+          }
+
+          if (dto.year) {
+            conditions.push(qb.equal('releaseYear', dto.year));
+          }
+
+          if (exactMatch) {
+            conditions.push(qb.notEqual('slug', exactMatch.slug));
+          }
+
+          const baseQueries: string[] = [
+            qb.select([...gameFields, 'syncStage', 'externalReference'] as any),
+            qb.limit(pageSize),
+            qb.offset((page - 1) * pageSize),
+          ];
+
+          if (conditions.length > 0) {
+            baseQueries.unshift(qb.and(...conditions));
+          }
+
+          return baseQueries;
+        },
+      });
+
+      criteriaResults = criteriaResult.rows;
+      total = criteriaResult.total + (exactMatch ? 1 : 0);
+    }
+
+    // Mesclar e ordenar por score
+    const allGames = exactMatch
+      ? [exactMatch, ...criteriaResults]
+      : criteriaResults;
+
+    const scored = allGames.map((game) => ({
+      game,
+      score: q
+        ? calculateScore({
+            gameSlug: game.slug,
+            gameName: game.name,
+            query: q,
+            keywords,
+          })
+        : 0,
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+
+    const enrichedGames = await this.enrichBasicCoverUrls(
+      scored.map((s) => s.game),
+    );
+
+    const results = await this.attachZEntries(enrichedGames, dto.fingerprint);
+
+    return {
+      total,
+      page,
+      pageSize,
+      pageCount: Math.ceil(total / pageSize),
+      results,
+    };
+  }
+
+  async findHypedUpcoming(dto: HypedUpcomingDto) {
+    const page = dto.page ?? 1;
+    const pageSize = dto.pageSize ?? 12;
+
+    const result = await this.games.list({
+      queries: (q) => [
+        q.greaterThan('releaseDate', new Date().toISOString() as any),
+        q.greaterThanEqual('hypes', 35 as any),
+        q.select([
+          '$id',
+          'name',
+          'slug',
+          'coverUrl',
+          'releaseYear',
+          'releaseDate',
+          'hypes',
+          'syncStage',
+          'externalReference',
+        ] as any),
+        q.orderDesc('hypes'),
+        q.orderAsc('releaseDate'),
+        q.limit(pageSize),
+        q.offset((page - 1) * pageSize),
+      ],
+    });
+
+    const enrichedGames = await this.enrichBasicCoverUrls(result.rows);
+    const results = await this.attachZEntries(enrichedGames, dto.fingerprint);
+
+    return {
+      total: result.total,
+      page,
+      pageSize,
+      pageCount: Math.ceil(result.total / pageSize),
+      results,
+    };
   }
 
   async findMediasBySlug(slug: string) {
@@ -152,6 +318,56 @@ export class GameService {
       }
       // VIDEO
       return { ...m, url: `https://www.youtube.com/watch?v=${m.mediaId}` };
+    });
+  }
+
+  private async enrichBasicCoverUrls(games: Game[]) {
+    const basicGames = games.filter(
+      (game) => game.syncStage === 'basic' && !game.coverUrl,
+    );
+
+    if (!basicGames.length) {
+      return games;
+    }
+
+    const externalIds = basicGames.map((game) => game.externalReference);
+    const igdbGames = await this.igdbService.getGamesByIds(
+      externalIds,
+      externalIds.length,
+    );
+
+    const coverMap = new Map<number, string>();
+    for (const igdbGame of igdbGames) {
+      if (igdbGame.cover?.image_id) {
+        coverMap.set(
+          igdbGame.id,
+          `https://images.igdb.com/igdb/image/upload/t_cover_big/${igdbGame.cover.image_id}.jpg`,
+        );
+      }
+    }
+
+    const updates = basicGames
+      .map((game) => {
+        const coverUrl = coverMap.get(game.externalReference);
+        if (!coverUrl) {
+          return null;
+        }
+
+        return this.games.update(game.$id, { coverUrl });
+      })
+      .filter(
+        (operation): operation is Promise<Game> => operation !== null,
+      );
+
+    await Promise.all(updates);
+
+    return games.map((game) => {
+      if (game.coverUrl) {
+        return game;
+      }
+
+      const coverUrl = coverMap.get(game.externalReference);
+      return coverUrl ? { ...game, coverUrl } : game;
     });
   }
 
@@ -279,5 +495,38 @@ export class GameService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Anexa o zEntry do usuário (via fingerprint) a cada jogo da lista.
+   * Retorna null se o fingerprint não for informado ou o entry não existir.
+   */
+  private async attachZEntries(
+    games: Pick<Game, '$id' | 'name' | 'slug' | 'coverUrl' | 'releaseYear'>[],
+    fingerprint?: string,
+  ) {
+    if (!fingerprint || games.length === 0) {
+      return games.map((g) => ({ ...g, zEntry: null }));
+    }
+
+    const gameIds = games.map((g) => g.$id);
+
+    const entriesResult = await this.zEntriesReadonly.list({
+      queries: (q) => [
+        q.equal('ownerFingerprint', fingerprint),
+        q.equal('gameId', gameIds as any),
+        q.select(['gameId', 'status', 'liked', 'hyped']),
+        q.limit(gameIds.length),
+      ],
+    });
+
+    const entryMap = new Map<string, ZEntriesReadOnly>(
+      entriesResult.rows.map((e) => [e.gameId, e]),
+    );
+
+    return games.map((g) => ({
+      ...g,
+      zEntry: entryMap.get(g.$id) ?? null,
+    }));
   }
 }

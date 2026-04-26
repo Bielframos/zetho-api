@@ -371,7 +371,6 @@ export class IGDBService {
   }
 
   private parseGame(game: IGDBGame, developers: string[] = []) {
-    const syncedAt = new Date().toISOString();
     const { releaseDate, releaseYear } = this.resolveReleaseData(game);
 
     let summary = game.summary ?? '';
@@ -402,9 +401,8 @@ export class IGDBService {
         ? game.similar_games.map((relatedId: number) => `igdb_${relatedId}`)
         : [],
       checksum: game.checksum || null,
-      syncedAt,
       hypes: game.hypes ?? 0,
-      syncStatus: this.resolveSyncStatus(game),
+      syncStage: 'full',
     } as GamesCreate;
   }
 
@@ -432,37 +430,6 @@ export class IGDBService {
       releaseDate: release.toISOString(),
       releaseYear: release.getUTCFullYear().toString(),
     };
-  }
-
-  private resolveSyncStatus(game: IGDBGame): string | null {
-    const status = game.game_status ?? game.status;
-
-    if (status === null || status === undefined) {
-      return null;
-    }
-
-    if (typeof status === 'string') {
-      return status;
-    }
-
-    if (typeof status === 'number') {
-      return String(status);
-    }
-
-    if (typeof status === 'object') {
-      if ('name' in status && typeof status.name === 'string') {
-        return status.name;
-      }
-
-      if (
-        'id' in status &&
-        (typeof status.id === 'number' || typeof status.id === 'string')
-      ) {
-        return String(status.id);
-      }
-    }
-
-    return null;
   }
 
   private async ensureGameZStats(gameId: string) {
