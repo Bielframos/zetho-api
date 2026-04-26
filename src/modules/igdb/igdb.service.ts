@@ -216,29 +216,119 @@ export class IGDBService {
       limit 50;
     `;
 
-    const popularGames = await this.fetchIgdb('games', query);
+    const popularGames = (await this.fetchIgdb('games', query)) as IGDBGame[];
+    const eligibleGames = popularGames.filter(
+      (game) => !this.shouldIgnore(game),
+    );
 
-    const results = [] as Array<{ id: number; name: string; gameId: string }>;
+    const existingByExternalReference =
+      await this.getExistingGamesByExternalReference(
+        eligibleGames.map((game) => game.id),
+      );
 
-    for (const game of popularGames) {
-      if (this.shouldIgnore(game)) {
-        continue;
-      }
+    const processedGames = await this.mapWithConcurrency(
+      eligibleGames,
+      6,
+      async (game) => {
+        const existing = existingByExternalReference.get(game.id);
 
-      const developers = await this.getDevs(game);
-      const parsedGame = this.parseGame(game, developers);
-      const appwriteGameId = await this.upsertGameRow(parsedGame);
-      await this.ensureGameZStats(appwriteGameId);
+        if (existing && existing.checksum === (game.checksum ?? null)) {
+          return {
+            id: game.id,
+            name: game.name,
+            gameId: existing.$id,
+            skippedByChecksum: true,
+          };
+        }
 
-      results.push({ id: game.id, name: game.name, gameId: appwriteGameId });
-    }
+        const developers = await this.getDevs(game);
+        const parsedGame = this.parseGame(game, developers);
+        const gameId = await this.upsertGameRow(parsedGame);
+        await this.ensureGameZStats(gameId);
+
+        return {
+          id: game.id,
+          name: game.name,
+          gameId,
+          skippedByChecksum: false,
+        };
+      },
+    );
+
+    const skippedByChecksum = processedGames.filter(
+      (item) => item.skippedByChecksum,
+    ).length;
+
+    const results = processedGames.map(({ id, name, gameId }) => ({
+      id,
+      name,
+      gameId,
+    }));
 
     return {
       message: 'Jogos populares sincronizados com sucesso',
       success: true,
       count: results.length,
+      skippedByChecksum,
       items: results,
     };
+  }
+
+  private async getExistingGamesByExternalReference(
+    externalReferences: number[],
+  ) {
+    const uniqueReferences = Array.from(new Set(externalReferences));
+
+    if (uniqueReferences.length === 0) {
+      return new Map<number, { $id: string; checksum: string | null }>();
+    }
+
+    const existingGames = await this.games.list({
+      queries: (q) => [
+        q.equal('externalReference', uniqueReferences as any),
+        q.select(['$id', 'externalReference', 'checksum']),
+        q.limit(uniqueReferences.length),
+      ],
+    });
+
+    const result = new Map<number, { $id: string; checksum: string | null }>();
+
+    for (const game of existingGames.rows) {
+      result.set(game.externalReference, {
+        $id: game.$id,
+        checksum: game.checksum ?? null,
+      });
+    }
+
+    return result;
+  }
+
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    concurrency: number,
+    handler: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    const results = new Array<R>(items.length);
+    let currentIndex = 0;
+
+    const workers = Array.from(
+      { length: Math.min(concurrency, items.length) },
+      async () => {
+        while (true) {
+          const index = currentIndex;
+          currentIndex += 1;
+
+          if (index >= items.length) {
+            break;
+          }
+
+          results[index] = await handler(items[index]);
+        }
+      },
+    );
+
+    await Promise.all(workers);
+    return results;
   }
 
   async searchGames(queryText: string, limit = 20, offset = 0) {
@@ -319,6 +409,25 @@ export class IGDBService {
       throw new ConflictException('Jogo não elegível para ingestão');
     }
 
+    const preferredGameId = `igdb_${igdbGame.id}`;
+    const existingGame = await this.findExistingGameForUpdate(
+      igdbGame.id,
+      preferredGameId,
+    );
+
+    if (
+      existingGame.exists &&
+      existingGame.checksum === (igdbGame.checksum ?? null)
+    ) {
+      await this.ensureGameZStats(existingGame.$id);
+
+      return {
+        message: `Jogo ${igdbGame.name} já está atualizado`,
+        success: true,
+        gameId: existingGame.$id,
+      };
+    }
+
     const developers = await this.getDevs(igdbGame);
     const parsedGame = this.parseGame(igdbGame, developers);
     const gameId = await this.upsertGameRow(parsedGame);
@@ -368,6 +477,7 @@ export class IGDBService {
     externalReference: number,
     fallbackGameId: string,
   ): Promise<{
+    exists: boolean;
     $id: string;
     checksum: string | null;
     involvedCompaniesIds: string[];
@@ -384,6 +494,7 @@ export class IGDBService {
 
     if (!game) {
       return {
+        exists: false,
         $id: fallbackGameId,
         checksum: null,
         involvedCompaniesIds: [],
@@ -395,6 +506,7 @@ export class IGDBService {
       .filter((companyId): companyId is string => !!companyId);
 
     return {
+      exists: true,
       $id: game.$id,
       checksum: game.checksum ?? null,
       involvedCompaniesIds,
