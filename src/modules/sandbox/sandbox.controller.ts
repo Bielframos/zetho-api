@@ -5,8 +5,8 @@ import { SandboxService } from './sandbox.service';
 export class SandboxController {
   constructor(private readonly sandboxService: SandboxService) {}
 
-  @Post('generate-text')
-  async generateText(@Body('prompt') prompt: string): Promise<string> {
-    return this.sandboxService.generateText(prompt);
+  @Post('editor-z')
+  async runEditor() {
+    return this.sandboxService.runEditor();
   }
 }

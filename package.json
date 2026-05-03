@@ -21,11 +21,13 @@
     "deploy": "dotenv -e .env -- sh -c 'curl -f -s -X GET \"$DEPLOYMENT_TRIGGER_ENDPOINT\"'"
   },
   "dependencies": {
-    "@genkit-ai/google-genai": "^1.28.0",
+    "@genkit-ai/compat-oai": "^1.33.0",
+    "@genkit-ai/google-genai": "^1.33.0",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@xmldom/xmldom": "^0.9.10",
     "cache-manager": "^7.2.8",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
