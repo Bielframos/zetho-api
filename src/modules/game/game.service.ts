@@ -7,11 +7,7 @@ import { GameMedias, GameMediasType } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
-import {
-  extractKeywords,
-  slugify,
-  calculateScore,
-} from './game-search.utils';
+import { extractKeywords, slugify, calculateScore } from './game-search.utils';
 
 @Injectable()
 export class GameService {
@@ -54,6 +50,7 @@ export class GameService {
 
     // Sempre inclui campos internos necessários para enriquecimento e migração
     const internalFields = ['syncStage', 'externalReference', 'zethoVersion'];
+
     const queryFields = requestedFields
       ? ([...new Set([...requestedFields, ...internalFields])] as any[])
       : undefined;
@@ -102,7 +99,13 @@ export class GameService {
     const hasFilters = !!(dto.genre || dto.year);
     const shouldSearch = (q && q.length >= 3) || hasFilters;
 
-    const gameFields = ['$id', 'name', 'slug', 'coverUrl', 'releaseYear'] as const;
+    const gameFields = [
+      '$id',
+      'name',
+      'slug',
+      'coverUrl',
+      'releaseYear',
+    ] as const;
 
     let exactMatch: Game | null = null;
 
@@ -128,7 +131,7 @@ export class GameService {
           const conditions: string[] = [];
 
           for (const kw of keywords) {
-            conditions.push(qb.contains('name', kw as any));
+            conditions.push(qb.contains('slug', kw as any));
           }
 
           if (dto.genre) {
@@ -149,9 +152,8 @@ export class GameService {
             qb.offset((page - 1) * pageSize),
           ];
 
-          if (conditions.length > 0) {
-            baseQueries.unshift(qb.and(...conditions));
-          }
+          if (conditions.length > 1) baseQueries.unshift(qb.and(...conditions));
+          else baseQueries.unshift(conditions[0]);
 
           return baseQueries;
         },
@@ -355,9 +357,7 @@ export class GameService {
 
         return this.games.update(game.$id, { coverUrl });
       })
-      .filter(
-        (operation): operation is Promise<Game> => operation !== null,
-      );
+      .filter((operation): operation is Promise<Game> => operation !== null);
 
     await Promise.all(updates);
 
