@@ -300,6 +300,13 @@
           "status": "available",
           "columns": ["hypes"],
           "orders": ["DESC"]
+        },
+        {
+          "key": "slug_search",
+          "type": "key",
+          "status": "available",
+          "columns": ["slug"],
+          "orders": ["ASC"]
         }
       ]
     },

@@ -50,6 +50,7 @@ export class GameService {
 
     // Sempre inclui campos internos necessários para enriquecimento e migração
     const internalFields = ['syncStage', 'externalReference', 'zethoVersion'];
+
     const queryFields = requestedFields
       ? ([...new Set([...requestedFields, ...internalFields])] as any[])
       : undefined;
@@ -130,7 +131,7 @@ export class GameService {
           const conditions: string[] = [];
 
           for (const kw of keywords) {
-            conditions.push(qb.contains('name', kw as any));
+            conditions.push(qb.contains('slug', kw as any));
           }
 
           if (dto.genre) {
@@ -151,9 +152,8 @@ export class GameService {
             qb.offset((page - 1) * pageSize),
           ];
 
-          if (conditions.length > 0) {
-            baseQueries.unshift(qb.and(...conditions));
-          }
+          if (conditions.length > 1) baseQueries.unshift(qb.and(...conditions));
+          else baseQueries.unshift(conditions[0]);
 
           return baseQueries;
         },
