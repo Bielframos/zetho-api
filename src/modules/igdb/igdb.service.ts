@@ -8,7 +8,7 @@ import {
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
 import { AppwriteException } from 'node-appwrite';
-import { Companies, GamesCreate } from 'infra/appwrite';
+import { GamesCreate } from 'infra/appwrite';
 
 @Injectable()
 export class IGDBService {
@@ -39,42 +39,29 @@ export class IGDBService {
     this.zStats = this.appwrite.databases.zStats;
   }
 
-  /**
-   * Aplica rate limiting: máximo 4 requisições por segundo
-   * Espera se necessário com base na requisição mais antiga
-   */
   private async applyRateLimit(): Promise<void> {
-    const now = Date.now();
+    while (true) {
+      const now = Date.now();
 
-    // Remove requisições fora da janela de tempo (mais antigas que 1 segundo)
-    this.requestTimestamps = this.requestTimestamps.filter(
-      (timestamp) => now - timestamp < this.WINDOW_SIZE_MS,
-    );
+      this.requestTimestamps = this.requestTimestamps.filter(
+        (ts) => now - ts < this.WINDOW_SIZE_MS,
+      );
 
-    // Se ainda não atingimos o limite, pode fazer a requisição
-    if (this.requestTimestamps.length < this.MAX_REQUESTS_PER_SECOND) {
-      this.requestTimestamps.push(now);
-      return;
+      if (this.requestTimestamps.length < this.MAX_REQUESTS_PER_SECOND) {
+        this.requestTimestamps.push(now);
+        return;
+      }
+
+      const timeToWait =
+        this.WINDOW_SIZE_MS -
+        (now - this.requestTimestamps[0]) +
+        this.SAFETY_BUFFER_MS;
+
+      this.logger.debug(`Rate limit atingido. Aguardando ${timeToWait}ms.`);
+      await new Promise((resolve) => setTimeout(resolve, timeToWait));
     }
-
-    // Atingimos o limite, calcular tempo de espera
-    const oldestTimestamp = this.requestTimestamps[0];
-    const timePassed = now - oldestTimestamp;
-    const timeToWait = this.WINDOW_SIZE_MS - timePassed + this.SAFETY_BUFFER_MS;
-
-    this.logger.debug(
-      `Rate limit atingido. Aguardando ${timeToWait}ms antes da próxima requisição.`,
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, timeToWait));
-
-    // Recursivamente aplica rate limit novamente para garantir consistência
-    await this.applyRateLimit();
   }
 
-  /**
-   * Garante um token válido (Cache -> Appwrite -> Twitch)
-   */
   private async getToken(): Promise<string> {
     if (this.authPromise) {
       return this.authPromise;
@@ -96,9 +83,6 @@ export class IGDBService {
     }
   }
 
-  /**
-   * Lógica central de recuperação do token
-   */
   private async resolveToken(): Promise<string> {
     try {
       const existing = await this.tokens.list({
@@ -126,9 +110,6 @@ export class IGDBService {
     return await this.authenticate();
   }
 
-  /**
-   * Autentica na Twitch e salva no Appwrite
-   */
   private async authenticate(): Promise<string> {
     this.logger.log('Gerando novo token IGDB via Twitch...');
 
@@ -166,11 +147,7 @@ export class IGDBService {
     return this.token as string;
   }
 
-  /**
-   * Wrapper para o fetch
-   */
   private async fetchIgdb(endpoint: string, body: string) {
-    // Aplica rate limiting antes de fazer a requisição
     await this.applyRateLimit();
 
     const token = await this.getToken();
@@ -192,8 +169,6 @@ export class IGDBService {
 
     return await response.json();
   }
-
-  // --- MÉTODOS PÚBLICOS ---
 
   private gameFields =
     'name,slug,status,game_status,game_type,summary,cover.image_id,first_release_date,hypes,follows,similar_games,checksum,genres,involved_companies.company,involved_companies.developer,involved_companies.company.name,involved_companies.company.slug,involved_companies.company.checksum';
@@ -464,12 +439,22 @@ export class IGDBService {
       return existingGame.$id;
     }
 
-    const updatePayload = this.buildSafeGameUpdatePayload(
-      parsedGame,
-      existingGame,
-    );
+    const { updatePayload, companiesChanged, nextCompanies } =
+      this.buildSafeGameUpdatePayload(parsedGame, existingGame);
 
     await this.games.update(existingGame.$id, updatePayload);
+
+    if (companiesChanged) {
+      // Appwrite faz append em campos de relacionamento via updateRow.
+      // Para garantir replace, primeiro limpamos e depois setamos as companies.
+      await this.games.update(existingGame.$id, {
+        involvedCompanies: [],
+      } as unknown as GamesCreate);
+      await this.games.update(existingGame.$id, {
+        involvedCompanies: nextCompanies,
+      } as GamesCreate);
+    }
+
     return existingGame.$id;
   }
 
@@ -503,7 +488,7 @@ export class IGDBService {
 
     const involvedCompaniesIds = (game.involvedCompanies ?? [])
       .map((company) => company?.$id)
-      .filter((companyId): companyId is string => !!companyId);
+      .filter((id): id is string => !!id);
 
     return {
       exists: true,
@@ -516,38 +501,23 @@ export class IGDBService {
   private buildSafeGameUpdatePayload(
     parsedGame: GamesCreate,
     existingGame: { involvedCompaniesIds: string[] },
-  ): GamesCreate {
-    const nextCompanies = (parsedGame.involvedCompanies ?? [])
-      .filter((company): company is string => typeof company === 'string')
-      .filter(Boolean);
+  ): {
+    updatePayload: GamesCreate;
+    companiesChanged: boolean;
+    nextCompanies: string[];
+  } {
+    const nextCompanies = (parsedGame.involvedCompanies ?? []).filter(
+      (company): company is string => typeof company === 'string',
+    );
 
-    if (
-      this.areSameCompanyRelations(
-        existingGame.involvedCompaniesIds,
-        nextCompanies,
-      )
-    ) {
-      const { involvedCompanies, ...payloadWithoutCompanies } = parsedGame;
-      return payloadWithoutCompanies;
-    }
+    const currentSet = new Set(existingGame.involvedCompaniesIds);
+    const companiesChanged =
+      currentSet.size !== nextCompanies.length ||
+      !nextCompanies.every((id) => currentSet.has(id));
 
-    return parsedGame;
-  }
+    const { involvedCompanies: _, ...updatePayload } = parsedGame;
 
-  private areSameCompanyRelations(current: string[], next: string[]) {
-    if (current.length !== next.length) {
-      return false;
-    }
-
-    const currentSet = new Set(current);
-
-    for (const companyId of next) {
-      if (!currentSet.has(companyId)) {
-        return false;
-      }
-    }
-
-    return true;
+    return { updatePayload, companiesChanged, nextCompanies };
   }
 
   private parseGame(game: IGDBGame, developers: string[] = []) {
@@ -627,54 +597,37 @@ export class IGDBService {
   }
 
   private async getDevs(game: IGDBGame) {
-    const involvedCompanies = game.involved_companies ?? [];
-    const developers = involvedCompanies.filter((ic) => ic.developer);
-
-    const developerIds = Array.from(
-      new Set(
-        developers
-          .filter((dev) => dev.company?.id)
-          .map((dev) => `igdb_${dev.company.id}`),
-      ),
+    const developers = (game.involved_companies ?? []).filter(
+      (ic) => ic.developer && ic.company?.id,
     );
 
-    let registeredCompanies: Companies[] = [];
+    const developerIds = Array.from(
+      new Set(developers.map((dev) => `igdb_${dev.company.id}`)),
+    );
 
-    if (developerIds.length > 0) {
-      const response = await this.companies.list({
-        queries: (q) => [
-          q.equal('$id', developerIds as any),
-          q.select(['$id']),
-        ],
-      });
+    if (developerIds.length === 0) return developerIds;
 
-      registeredCompanies = response.rows;
-    }
-
-    const existingIds = new Set(registeredCompanies.map((row) => row.$id));
-
-    const missingDeveloperCompanies = developers.filter((dev) => {
-      const formattedId = dev.company?.id ? `igdb_${dev.company.id}` : null;
-      return formattedId && !existingIds.has(formattedId);
+    const { rows: existing } = await this.companies.list({
+      queries: (q) => [q.equal('$id', developerIds as any), q.select(['$id'])],
     });
 
-    if (missingDeveloperCompanies.length > 0) {
-      const validDevelopers = missingDeveloperCompanies.filter(
-        (dev) => dev.company?.id,
-      );
+    const existingIds = new Set(existing.map((row) => row.$id));
 
-      if (validDevelopers.length > 0) {
-        await this.tableDB.upsertRows({
-          databaseId: 'app',
-          tableId: 'companies',
-          rows: validDevelopers.map((dev) => ({
-            $id: `igdb_${dev.company.id}`,
-            name: dev.company.name,
-            slug: dev.company.slug,
-            checksum: dev.company.checksum,
-          })),
-        });
-      }
+    const missing = developers.filter(
+      (dev) => !existingIds.has(`igdb_${dev.company.id}`),
+    );
+
+    if (missing.length > 0) {
+      await this.tableDB.upsertRows({
+        databaseId: 'app',
+        tableId: 'companies',
+        rows: missing.map((dev) => ({
+          $id: `igdb_${dev.company.id}`,
+          name: dev.company.name,
+          slug: dev.company.slug,
+          checksum: dev.company.checksum,
+        })),
+      });
     }
 
     return developerIds;

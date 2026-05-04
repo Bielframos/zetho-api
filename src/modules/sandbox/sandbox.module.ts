@@ -1,6 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { SandboxController } from './sandbox.controller';
 import { SandboxService } from './sandbox.service';
+import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 
 @Module({})
 export class SandboxModule {
@@ -14,7 +15,7 @@ export class SandboxModule {
     return {
       module: SandboxModule,
       controllers: [SandboxController],
-      providers: [SandboxService],
+      providers: [SandboxService, SystemApiKeyGuard],
     };
   }
 }
