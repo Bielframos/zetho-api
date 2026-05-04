@@ -7,11 +7,7 @@ import { GameMedias, GameMediasType } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
-import {
-  extractKeywords,
-  slugify,
-  calculateScore,
-} from './game-search.utils';
+import { extractKeywords, slugify, calculateScore } from './game-search.utils';
 
 @Injectable()
 export class GameService {
@@ -40,7 +36,7 @@ export class GameService {
     this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
   }
 
-  async findBySlug(slug: string, select?: string) {
+  async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
     const cacheKey = `game:slug:${slug}:${select ?? ''}`;
     const cached = await this.cache.get<Game>(cacheKey);
     if (cached) return cached;
@@ -73,7 +69,7 @@ export class GameService {
     }
 
     // Se o jogo não está totalmente sincronizado, enriquece agora
-    if (game.syncStage !== 'full') {
+    if (enrich && game.syncStage !== 'full') {
       await this.igdbService.importGameById(game.externalReference);
       const enrichedResult = await this.games.list({
         queries: (q) => [
@@ -102,7 +98,13 @@ export class GameService {
     const hasFilters = !!(dto.genre || dto.year);
     const shouldSearch = (q && q.length >= 3) || hasFilters;
 
-    const gameFields = ['$id', 'name', 'slug', 'coverUrl', 'releaseYear'] as const;
+    const gameFields = [
+      '$id',
+      'name',
+      'slug',
+      'coverUrl',
+      'releaseYear',
+    ] as const;
 
     let exactMatch: Game | null = null;
 
@@ -355,9 +357,7 @@ export class GameService {
 
         return this.games.update(game.$id, { coverUrl });
       })
-      .filter(
-        (operation): operation is Promise<Game> => operation !== null,
-      );
+      .filter((operation): operation is Promise<Game> => operation !== null);
 
     await Promise.all(updates);
 
