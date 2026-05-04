@@ -1299,6 +1299,181 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "$id": "authors",
+      "$permissions": ["read(\"any\")"],
+      "databaseId": "app",
+      "name": "Authors",
+      "enabled": true,
+      "rowSecurity": false,
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "bio",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 512,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "avatarUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "websiteUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_author_slug",
+          "type": "unique",
+          "status": "available",
+          "columns": ["slug"],
+          "orders": ["ASC"]
+        }
+      ]
+    },
+    {
+      "$id": "posts",
+      "$permissions": ["read(\"any\")"],
+      "databaseId": "app",
+      "name": "Posts",
+      "enabled": true,
+      "rowSecurity": false,
+      "columns": [
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "subtitle",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 255,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "body",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 8000,
+          "encrypt": false
+        },
+        {
+          "key": "mainImage",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 1024,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "format": "enum",
+          "elements": ["draft", "published"]
+        },
+        {
+          "key": "tags",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "size": 48,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "relatedGameIds",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "size": 96,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "seo",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 1024,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "originalSourceUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "author",
+          "type": "relationship",
+          "required": false,
+          "array": false,
+          "relatedTable": "authors",
+          "relationType": "manyToOne",
+          "twoWay": false,
+          "twoWayKey": "",
+          "onDelete": "setNull",
+          "side": "parent"
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_post_slug",
+          "type": "unique",
+          "status": "available",
+          "columns": ["slug"],
+          "orders": ["ASC"]
+        }
+      ]
     }
   ],
   "buckets": [

@@ -51,9 +51,9 @@ export class EditorService {
     const post = posts.find((p) => p.id === postId);
 
     if (post) {
-      const content = contents.find((c) => c.id === postId)?.content || 'N/A';
+      let content = contents.find((c) => c.id === postId)?.content || 'N/A';
 
-      if (!content || content === 'N/A') {
+      if ((!content || content === 'N/A') && !post.description) {
         throw new Error(`Content not found for post ID: ${postId}`);
       }
 
@@ -62,7 +62,9 @@ export class EditorService {
 
     const relatedGames = await this.getRelatedGames(analysis.relatedGames);
 
-    return { analysis, relatedGames };
+    const article = await this.writeArticle(post, relatedGames);
+
+    return { analysis, relatedGames, article };
   }
 
   /**
@@ -83,6 +85,17 @@ export class EditorService {
 
     const prompt = this.ai.prompt('editor/trend_analysis');
     const { output } = await prompt({ posts });
+    return output;
+  }
+
+  /**
+   * Realiza a redação de uma matéria com base na análise de tendências e no conteúdo do post.
+   * @param post - Post para redação.
+   * @param games - Jogos relacionados à matéria.
+   */
+  private async writeArticle(post: Feed['posts'][number], games: Games[]) {
+    const prompt = this.ai.prompt('editor/write_article');
+    const { output } = await prompt({ post, games });
     return output;
   }
 
@@ -170,9 +183,7 @@ export class EditorService {
       .filter((slug) => slug.length > 0);
 
     const results = await Promise.allSettled(
-      slugs.map((slug) =>
-        this.gameService.findBySlug(slug, 'name, slug', { enrich: false }),
-      ),
+      slugs.map((slug) => this.gameService.findBySlug(slug, 'name, slug')),
     );
 
     return results
