@@ -7,5 +7,6 @@ import { IGDBModule } from '../igdb/igdb.module';
   imports: [IGDBModule],
   controllers: [GameController],
   providers: [GameService],
+  exports: [GameService],
 })
 export class GameModule {}

@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { GENKIT } from './ai.constants';
 import type { Genkit } from 'genkit';
 import { DOMParser } from '@xmldom/xmldom';
+import { GameService } from 'src/modules/game/game.service';
+import { type Games } from 'infra/appwrite';
 
 type Feed = {
   posts: {
@@ -10,6 +12,7 @@ type Feed = {
     description: string;
     link: string;
     pubDate: string;
+    content?: string;
   }[];
   contents: {
     id: string;
@@ -20,7 +23,7 @@ type Feed = {
 type TrendAnalysis = {
   id: string;
   title: string;
-  relatedGame: string;
+  relatedGames: string;
   publisher: string;
   why: string;
 };
@@ -35,21 +38,44 @@ const feedUrls = [
 
 @Injectable()
 export class EditorService {
-  constructor(@Inject(GENKIT) private readonly ai: Genkit) {}
+  constructor(
+    @Inject(GENKIT) private readonly ai: Genkit,
+    private readonly gameService: GameService,
+  ) {}
 
   async run() {
-    const news = await this.getNews();
-    const analysis = await this.trendAnalysis(news.posts);
+    const { posts, contents } = await this.getNews();
+    const analysis = await this.trendAnalysis(posts);
 
-    return { analysis };
+    const postId = analysis.id as string;
+    const post = posts.find((p) => p.id === postId);
+
+    if (post) {
+      const content = contents.find((c) => c.id === postId)?.content || 'N/A';
+
+      if (!content || content === 'N/A') {
+        throw new Error(`Content not found for post ID: ${postId}`);
+      }
+
+      post.content = content;
+    } else throw new Error('Post not found');
+
+    const relatedGames = await this.getRelatedGames(analysis.relatedGames);
+
+    return { analysis, relatedGames };
   }
 
+  /**
+   * Realiza a análise de tendências com base nos posts fornecidos.
+   * @param posts - Lista de posts para análise.
+   * @returns Análise de tendências.
+   */
   private async trendAnalysis(posts: Feed['posts']) {
     if (posts.length === 0) {
       return {
         id: 'N/A',
         title: 'N/A',
-        relatedGame: 'N/A',
+        relatedGames: 'N/A',
         publisher: 'N/A',
         why: 'No posts were provided for analysis.',
       } satisfies TrendAnalysis;
@@ -60,6 +86,9 @@ export class EditorService {
     return output;
   }
 
+  /**
+   * Busca e processa o feed RSS, retornando apenas os posts publicados hoje.
+   */
   private async fetchRSS(url: string): Promise<Feed> {
     const response = await fetch(url);
     const text = await response.text();
@@ -83,13 +112,11 @@ export class EditorService {
 
       const dateObj = new Date(pubDate);
       const now = new Date();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const ageMs = now.getTime() - dateObj.getTime();
 
-      const isToday =
-        dateObj.getUTCDate() === now.getUTCDate() &&
-        dateObj.getUTCMonth() === now.getUTCMonth() &&
-        dateObj.getUTCFullYear() === now.getUTCFullYear();
-
-      if (!isToday) continue;
+      if (Number.isNaN(dateObj.getTime()) || ageMs < 0 || ageMs > oneDayMs)
+        continue;
 
       const id = crypto.randomUUID();
       const title = el.getElementsByTagName('title')[0]?.textContent || '';
@@ -117,6 +144,9 @@ export class EditorService {
     return { posts, contents };
   }
 
+  /**
+   * BUsca as notícias dos feeds RSS e retorna apenas os posts publicados hoje, juntamente com seus conteúdos.
+   */
   private async getNews() {
     const feeds = await Promise.all(feedUrls.map((url) => this.fetchRSS(url)));
 
@@ -128,5 +158,25 @@ export class EditorService {
       },
       { posts: [], contents: [] } as Feed,
     );
+  }
+
+  /**
+   * Obtém os jogos relacionados a matéria.
+   */
+  private async getRelatedGames(relatedGames: string) {
+    const slugs = relatedGames
+      .split(',')
+      .map((slug) => slug.trim())
+      .filter((slug) => slug.length > 0);
+
+    const results = await Promise.allSettled(
+      slugs.map((slug) =>
+        this.gameService.findBySlug(slug, 'name, slug', { enrich: false }),
+      ),
+    );
+
+    return results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => (result as PromiseFulfilledResult<Games>).value);
   }
 }

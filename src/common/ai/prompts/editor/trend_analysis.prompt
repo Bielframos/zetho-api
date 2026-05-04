@@ -12,7 +12,7 @@ output:
   schema:
     id: string
     title: string
-    relatedGame: string
+    relatedGames: string
     publisher: string
     why: string
 ---
@@ -21,11 +21,12 @@ You are an expert Gaming Trend Analyst and Data Extractor. Task: Analyze the
 provided posts and choose the single most trending topic based on urgency,
 relevance, novelty, or expected community interest. Instructions: 1. Evaluate
 all posts listed below. 2. Select exactly one post as the top trend. 3. Return
-only the fields required by the output schema. 4. relatedGame must be the
-explicit game title when identifiable; otherwise use "N/A". 5. publisher must be
-the source domain inferred from the link (for example: "IGN", "GameSpot",
-"PlayStation Blog", "Xbox Wire", "VGC"). 6. why must be one objective sentence.
-Posts:
+only the fields required by the output schema. 4. relatedGames must be explicit
+game titles formatted strictly as URL slugs (e.g., "starfield",
+"grand-theft-auto-vi"), separated by commas. If no game is identifiable, use
+"N/A". 5. publisher must be the source domain inferred from the link (for
+example: "IGN", "GameSpot", "PlayStation Blog", "Xbox Wire", "VGC"). 6. why must
+be one objective sentence. Posts:
 {{#each posts}}
   - id:
   {{id}}

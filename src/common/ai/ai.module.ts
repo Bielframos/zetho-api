@@ -1,9 +1,9 @@
-import { googleAI } from '@genkit-ai/google-genai';
+import openAI from '@genkit-ai/compat-oai/openai';
 import { Module } from '@nestjs/common';
 import { genkit, Genkit } from 'genkit';
-import { EditorService } from './editor.service';
 import { GENKIT } from './ai.constants';
-import openAI from '@genkit-ai/compat-oai/openai';
+import { EditorService } from './editor.service';
+import { GameModule } from 'src/modules/game/game.module';
 
 @Module({
   providers: [
@@ -20,5 +20,6 @@ import openAI from '@genkit-ai/compat-oai/openai';
     EditorService,
   ],
   exports: [GENKIT, EditorService],
+  imports: [GameModule],
 })
 export class AiModule {}
