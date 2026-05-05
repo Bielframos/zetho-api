@@ -111,7 +111,7 @@ export class GazethoService {
       queries: (q) => [
         q.equal('slug', sanitizedSlug),
         q.limit(1),
-        q.select(['*, author.*'] as any),
+        q.select(['*', 'author.*'] as any),
       ],
     });
 
