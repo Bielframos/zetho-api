@@ -55,8 +55,10 @@ https://www.zetho.app/jogo/slug 14. Wrap ONLY the first occurrence:
 <a href='URL'>Game Name</a>
 
 15. Do not overlink. LANGUAGE 16. Output MUST be in Brazilian Portuguese. TAGS
-17. Generate 3 to 6 tags: - lowercase - hyphen-separated - relevant to topic SEO
-18. Generate meta description (max 160 chars). STATUS 19. Always return:
+17. Generate 3 to 6 tags: - lowercase - hyphen-separated - highly relevant,
+strategic and topic-focused; avoid broad, generic or irrelevant tags. Use only
+precise keywords that reflect the core angle of the article. 18. Generate meta
+description (max 160 chars). STATUS 19. Always return:
 "published" SOURCE 20. originalSourceUrl = post.link IMAGE STRATEGY 21.
 Determine if the post needs an image: - Usually TRUE 22. Define type: - "game" →
 if a clear main related game exists - "generic" → if no strong game association

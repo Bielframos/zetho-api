@@ -108,7 +108,11 @@ export class GazethoService {
     const sanitizedSlug = slug.trim();
 
     const response = await this.posts.list({
-      queries: (q) => [q.equal('slug', sanitizedSlug), q.limit(1)],
+      queries: (q) => [
+        q.equal('slug', sanitizedSlug),
+        q.limit(1),
+        q.select(['*, author.*'] as any),
+      ],
     });
 
     const post = response.rows[0];
