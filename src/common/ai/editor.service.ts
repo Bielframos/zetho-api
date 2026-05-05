@@ -28,6 +28,8 @@ type TrendAnalysis = {
   why: string;
 };
 
+const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
+
 const feedUrls = [
   'https://feeds.feedburner.com/ign/games-all',
   'https://www.gamespot.com/feeds/game-news',

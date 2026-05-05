@@ -2,6 +2,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { AppwriteModule } from './common/appwrite/appwrite.module';
 import { GameModule } from './modules/game/game.module';
+import { GazethoModule } from './modules/gazetho/gazetho.module';
 import { IGDBModule } from './modules/igdb/igdb.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
@@ -20,6 +21,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     IGDBModule,
     ProfileModule,
     GameModule,
+    GazethoModule,
 
     /** Modulos do sístema */
     WebhookModule,
