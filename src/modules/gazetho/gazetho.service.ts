@@ -1,16 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PostsStatus } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { CreatePostDto, SearchPostsDto } from './gazetho.dto';
+import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
+
+type RelatedGameSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  coverUrl: string | null;
+};
 
 @Injectable()
 export class GazethoService {
   posts: Appwrite['databases']['posts'];
   authors: Appwrite['databases']['authors'];
+  games: Appwrite['databases']['games'];
 
   constructor(private readonly appwrite: Appwrite) {
     this.posts = this.appwrite.databases.posts;
     this.authors = this.appwrite.databases.authors;
+    this.games = this.appwrite.databases.games;
   }
 
   async createPost(dto: CreatePostDto) {
@@ -93,6 +102,120 @@ export class GazethoService {
       total: response.total,
       totalPages: Math.max(1, Math.ceil(response.total / safePageSize)),
     };
+  }
+
+  async findPostBySlug(slug: string) {
+    const sanitizedSlug = slug.trim();
+
+    const response = await this.posts.list({
+      queries: (q) => [q.equal('slug', sanitizedSlug), q.limit(1)],
+    });
+
+    const post = response.rows[0];
+
+    if (!post) {
+      throw new NotFoundException(
+        `Post com slug "${sanitizedSlug}" não encontrado`,
+      );
+    }
+
+    const relatedGames = await this.expandRelatedGames(post.relatedGameIds);
+
+    return {
+      ...post,
+      relatedGames,
+    };
+  }
+
+  async getPopularTags(dto: PopularTagsDto) {
+    const safeLimit = this.toSafeLimit(dto.limit, 10, 50);
+    const tagCounter = new Map<string, number>();
+
+    const pageSize = 100;
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const offset = (page - 1) * pageSize;
+
+      const response = await this.posts.list({
+        queries: (q) => [
+          q.equal('status', PostsStatus.PUBLISHED),
+          q.select(['tags']),
+          q.limit(pageSize),
+          q.offset(offset),
+        ],
+      });
+
+      totalPages = Math.max(1, Math.ceil(response.total / pageSize));
+
+      for (const row of response.rows) {
+        const tags = row.tags ?? [];
+
+        for (const rawTag of tags) {
+          const tag = rawTag.trim();
+          if (!tag) continue;
+
+          tagCounter.set(tag, (tagCounter.get(tag) ?? 0) + 1);
+        }
+      }
+
+      page += 1;
+    }
+
+    const items = [...tagCounter.entries()]
+      .sort((a, b) => {
+        if (b[1] !== a[1]) {
+          return b[1] - a[1];
+        }
+
+        return a[0].localeCompare(b[0], 'pt-BR');
+      })
+      .slice(0, safeLimit)
+      .map(([tag, count]) => ({
+        tag,
+        count,
+      }));
+
+    return {
+      items,
+      totalUniqueTags: tagCounter.size,
+      limit: safeLimit,
+    };
+  }
+
+  private async expandRelatedGames(
+    relatedGameIds?: string[] | null,
+  ): Promise<RelatedGameSummary[]> {
+    const uniqueIds = [...new Set((relatedGameIds ?? []).map((id) => id.trim()))]
+      .filter(Boolean);
+
+    if (!uniqueIds.length) {
+      return [];
+    }
+
+    const gamesResponse = await this.games.list({
+      queries: (q) => [
+        q.equal('$id' as any, uniqueIds as any),
+        q.select(['$id', 'name', 'slug', 'coverUrl'] as any),
+      ],
+    });
+
+    const byId = new Map(
+      gamesResponse.rows.map((game) => [
+        game.$id,
+        {
+          id: game.$id,
+          name: game.name,
+          slug: game.slug,
+          coverUrl: game.coverUrl ?? null,
+        },
+      ]),
+    );
+
+    return uniqueIds
+      .map((id) => byId.get(id))
+      .filter((game): game is RelatedGameSummary => Boolean(game));
   }
 
   private slugify(value: string) {

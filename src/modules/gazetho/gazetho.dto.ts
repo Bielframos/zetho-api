@@ -98,3 +98,12 @@ export class SearchPostsDto {
   @Max(100)
   pageSize?: number;
 }
+
+export class PopularTagsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
