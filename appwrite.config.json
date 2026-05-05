@@ -1460,7 +1460,6 @@
           "relatedTable": "authors",
           "relationType": "manyToOne",
           "twoWay": false,
-          "twoWayKey": "",
           "onDelete": "setNull",
           "side": "parent"
         }
@@ -1471,6 +1470,48 @@
           "type": "unique",
           "status": "available",
           "columns": ["slug"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_search_title",
+          "type": "fulltext",
+          "status": "available",
+          "columns": ["title"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_search_subtitle",
+          "type": "fulltext",
+          "status": "available",
+          "columns": ["subtitle"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_search_body",
+          "type": "fulltext",
+          "status": "available",
+          "columns": ["body"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_status_idx",
+          "type": "key",
+          "status": "available",
+          "columns": ["status"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_tags_idx",
+          "type": "key",
+          "status": "available",
+          "columns": ["tags"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "post_related_games_idx",
+          "type": "key",
+          "status": "available",
+          "columns": ["relatedGameIds"],
           "orders": ["ASC"]
         }
       ]
