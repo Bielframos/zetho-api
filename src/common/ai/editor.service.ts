@@ -3,7 +3,8 @@ import { GENKIT } from './ai.constants';
 import type { Genkit } from 'genkit';
 import { DOMParser } from '@xmldom/xmldom';
 import { GameService } from 'src/modules/game/game.service';
-import { type Games } from 'infra/appwrite';
+import { PostsStatus, type Games } from 'infra/appwrite';
+import { Appwrite } from '../appwrite/appwrite.provider';
 
 type Feed = {
   posts: {
@@ -65,6 +66,11 @@ type PickedImage = {
   caption: string;
 };
 
+type RecentPostForAi = {
+  title: string;
+  pubDate: string;
+};
+
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
 
 const feedUrls = [
@@ -77,13 +83,19 @@ const feedUrls = [
 
 @Injectable()
 export class EditorService {
+  private posts: Appwrite['databases']['posts'];
+
   constructor(
     @Inject(GENKIT) private readonly ai: Genkit,
     private readonly gameService: GameService,
-  ) {}
+    private readonly appwrite: Appwrite,
+  ) {
+    this.posts = this.appwrite.databases.posts;
+  }
 
   async run() {
     const { posts, contents } = await this.getNews();
+    const recentPosts = await this.getRecentPostsForAi();
     const analysis = await this.trendAnalysis(posts);
 
     const postId = analysis.id as string;
@@ -101,7 +113,7 @@ export class EditorService {
 
     const relatedGames = await this.getRelatedGames(analysis.relatedGames);
 
-    const article = await this.writeArticle(post, relatedGames);
+    const article = await this.writeArticle(post, relatedGames, recentPosts);
 
     let mainImage: PickedImage | null = null;
 
@@ -114,7 +126,13 @@ export class EditorService {
       }
     }
 
-    return { analysis, relatedGames, article, mainImage };
+    const savedPost = await this.saveGeneratedPost({
+      article,
+      fallbackMainImage: post.link,
+      pickedMainImage: mainImage,
+    });
+
+    return { savedPost };
   }
 
   /**
@@ -146,10 +164,104 @@ export class EditorService {
   private async writeArticle(
     post: Feed['posts'][number],
     games: Games[],
+    recentPosts: RecentPostForAi[],
   ): Promise<AiArticle> {
     const prompt = this.ai.prompt('editor/write_article');
-    const { output } = await prompt({ post, games });
+    const { output } = await prompt({ post, games, recentPosts });
     return output;
+  }
+
+  private async getRecentPostsForAi(limit = 20): Promise<RecentPostForAi[]> {
+    const safeLimit = Math.max(1, Math.min(limit, 50));
+
+    const response = await this.posts.list({
+      queries: (q) => [
+        q.equal('status', PostsStatus.PUBLISHED),
+        q.select(['title', '$createdAt']),
+        q.orderDesc('$createdAt'),
+        q.limit(safeLimit),
+      ],
+    });
+
+    return response.rows
+      .filter((row) => !!row.title)
+      .map((row) => ({
+        title: row.title,
+        pubDate: row.$createdAt,
+      }));
+  }
+
+  private async saveGeneratedPost({
+    article,
+    pickedMainImage,
+    fallbackMainImage,
+  }: {
+    article: AiArticle;
+    pickedMainImage: PickedImage | null;
+    fallbackMainImage: string;
+  }) {
+    const slug = this.slugify(article.post.slug || article.post.title);
+    const title = article.post.title.trim();
+
+    const mainImage =
+      this.toTrimmedString(pickedMainImage?.url) ||
+      this.toTrimmedString(fallbackMainImage) ||
+      this.toTrimmedString(article.post.originalSourceUrl);
+
+    if (!mainImage) {
+      throw new Error('Não foi possível definir mainImage para o post gerado.');
+    }
+
+    return this.posts.create({
+      title,
+      subtitle: this.toNullableString(article.post.subtitle),
+      slug,
+      body: article.post.body,
+      mainImage: String(mainImage),
+      status: PostsStatus.PUBLISHED,
+      tags: article.post.tags
+        .map((tag) => this.slugify(tag))
+        .filter(Boolean)
+        .slice(0, 10),
+      relatedGameIds: article.post.relatedGameIds
+        .map((id) => this.toTrimmedString(id))
+        .filter((id): id is string => Boolean(id)),
+      seo: this.buildSeoString(article.post.seo),
+      originalSourceUrl:
+        this.toNullableString(article.post.originalSourceUrl) ||
+        this.toNullableString(fallbackMainImage),
+      author: ZETHO_INSIDER_ID,
+    });
+  }
+
+  private buildSeoString(value: AiArticle['post']['seo']) {
+    return JSON.stringify({
+      title: this.toTrimmedString(value?.title) || '',
+      description: this.toTrimmedString(value?.description) || '',
+    });
+  }
+
+  private toNullableString(value?: string | null) {
+    const normalized = this.toTrimmedString(value);
+    return normalized || null;
+  }
+
+  private toTrimmedString(value?: string | null) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+
+    return value.trim();
+  }
+
+  private slugify(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 96);
   }
 
   /**

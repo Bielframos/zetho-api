@@ -187,8 +187,9 @@ export class GazethoService {
   private async expandRelatedGames(
     relatedGameIds?: string[] | null,
   ): Promise<RelatedGameSummary[]> {
-    const uniqueIds = [...new Set((relatedGameIds ?? []).map((id) => id.trim()))]
-      .filter(Boolean);
+    const uniqueIds = [
+      ...new Set((relatedGameIds ?? []).map((id) => id.trim())),
+    ].filter(Boolean);
 
     if (!uniqueIds.length) {
       return [];

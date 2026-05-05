@@ -13,6 +13,9 @@ input:
       name: string
       slug: string
       $id: string
+    recentPosts(array):
+      title: string
+      pubDate: string
 
 output:
   schema:
@@ -60,8 +63,11 @@ if a clear main related game exists - "generic" → if no strong game associatio
 23. Define query: - If type = "game": use the main game name - If type =
 "generic": generate a descriptive search query in English (for Unsplash), e.g.:
 "gaming setup neon", "fantasy rpg landscape", "sci-fi space battle" OUTPUT RULES
-24. Return ONLY the schema structure. 25. Do NOT include explanations. 26. Do
-NOT invent games outside provided list. Post: id: Post: id:
+24. Use `recentPosts` to avoid republishing already-covered stories. Consider a
+story duplicated when the core topic and angle are essentially the same as an
+item from `recentPosts`; in this case, choose a clearly different editorial
+angle and title. 25. Return ONLY the schema structure. 26. Do NOT include
+explanations. 27. Do NOT invent games outside provided list. Post: id: Post: id:
 {{post.id}}
 title:
 {{post.title}}
@@ -82,4 +88,14 @@ Games:
   {{slug}}
   id:
   {{$id}}
+{{/each}}
+
+Recent posts already published in Zetho (titles + publication date only):
+{{#each recentPosts}}
+  - title:
+  {{title}}
+  pubDate:
+  {{pubDate}}
+{{else}}
+  - title: N/A pubDate: N/A
 {{/each}}

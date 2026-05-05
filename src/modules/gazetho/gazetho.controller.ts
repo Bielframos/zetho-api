@@ -9,11 +9,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { GazethoService } from './gazetho.service';
-import {
-  CreatePostDto,
-  PopularTagsDto,
-  SearchPostsDto,
-} from './gazetho.dto';
+import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
 
 @Controller('gazetho')
 @UsePipes(
