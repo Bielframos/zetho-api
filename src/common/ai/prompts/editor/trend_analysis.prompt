@@ -8,6 +8,9 @@ input:
       description: string
       link: string
       pubDate: string
+    recentPosts(array):
+      title: string
+      pubDate: string
 output:
   schema:
     id: string
@@ -20,12 +23,15 @@ output:
 You are an expert Gaming Trend Analyst and Data Extractor. Task: Analyze the
 provided posts and choose the single most trending topic based on urgency,
 relevance, novelty, or expected community interest. Instructions: 1. Evaluate
-all posts listed below. 2. Select exactly one post as the top trend. 3. Return
-only the fields required by the output schema. 4. relatedGames must be explicit
-game titles formatted strictly as URL slugs (e.g., "starfield",
+all posts listed below. 2. Compare candidate topics against `recentPosts` and
+avoid selecting a story that has already been covered recently by Zetho with the
+same core angle. 3. If a candidate overlaps with `recentPosts`, choose another
+post with a distinct angle/topic. 4. Select exactly one post as the top trend.
+5. Return only the fields required by the output schema. 6. relatedGames must be
+explicit game titles formatted strictly as URL slugs (e.g., "starfield",
 "grand-theft-auto-vi"), separated by commas. If no game is identifiable, use
-"N/A". 5. publisher must be the source domain inferred from the link (for
-example: "IGN", "GameSpot", "PlayStation Blog", "Xbox Wire", "VGC"). 6. why must
+"N/A". 7. publisher must be the source domain inferred from the link (for
+example: "IGN", "GameSpot", "PlayStation Blog", "Xbox Wire", "VGC"). 8. why must
 be one objective sentence. Posts:
 {{#each posts}}
   - id:
@@ -40,4 +46,14 @@ be one objective sentence. Posts:
   {{pubDate}}
 {{else}}
   - id: N/A title: N/A description: N/A link: N/A pubDate: N/A
+{{/each}}
+
+Recent posts already published in Zetho (titles + publication date only):
+{{#each recentPosts}}
+  - title:
+  {{title}}
+  pubDate:
+  {{pubDate}}
+{{else}}
+  - title: N/A pubDate: N/A
 {{/each}}

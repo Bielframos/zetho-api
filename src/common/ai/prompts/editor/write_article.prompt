@@ -13,9 +13,6 @@ input:
       name: string
       slug: string
       $id: string
-    recentPosts(array):
-      title: string
-      pubDate: string
 
 output:
   schema:
@@ -55,21 +52,19 @@ https://www.zetho.app/jogo/slug 14. Wrap ONLY the first occurrence:
 <a href='URL'>Game Name</a>
 
 15. Do not overlink. LANGUAGE 16. Output MUST be in Brazilian Portuguese. TAGS
-17. Generate 3 to 6 tags: - lowercase - hyphen-separated - highly relevant,
-strategic and topic-focused; avoid broad, generic or irrelevant tags. Use only
-precise keywords that reflect the core angle of the article. 18. Generate meta
-description (max 160 chars). STATUS 19. Always return: "published" SOURCE 20.
-originalSourceUrl = post.link IMAGE STRATEGY 21. Determine if the post needs an
-image: - Usually TRUE 22. Define type: - "game" → if a clear main related game
-exists - "generic" → if no strong game association 23. Define query: - If type =
+17. Generate 2 to 4 tags only: - lowercase - hyphen-separated - strategic,
+specific, and tightly connected to the article's main angle. 18. Avoid filler,
+generic, repetitive, or marginally related tags. Prioritize high-signal terms
+that improve categorization and SEO precision. 19. Generate meta description
+(max 160 chars). STATUS 20. Always return: "published" SOURCE 21.
+originalSourceUrl = post.link IMAGE STRATEGY 22. Determine if the post needs an
+image: - Usually TRUE 23. Define type: - "game" → if a clear main related game
+exists - "generic" → if no strong game association 24. Define query: - If type =
 "game": use the main game name - If type = "generic": generate a descriptive
 search query in English (for Unsplash), e.g.: "gaming setup neon", "fantasy rpg
-landscape", "sci-fi space battle" OUTPUT RULES 24. Use `recentPosts` to avoid
-republishing already-covered stories. Consider a story duplicated when the core
-topic and angle are essentially the same as an item from `recentPosts`; in this
-case, choose a clearly different editorial angle and title. 25. Return ONLY the
-schema structure. 26. Do NOT include explanations. 27. Do NOT invent games
-outside provided list. Post: id: Post: id:
+landscape", "sci-fi space battle" OUTPUT RULES 25. Return ONLY the schema
+structure. 26. Do NOT include explanations. 27. Do NOT invent games outside
+provided list. Post: id: Post: id:
 {{post.id}}
 title:
 {{post.title}}
@@ -90,14 +85,4 @@ Games:
   {{slug}}
   id:
   {{$id}}
-{{/each}}
-
-Recent posts already published in Zetho (titles + publication date only):
-{{#each recentPosts}}
-  - title:
-  {{title}}
-  pubDate:
-  {{pubDate}}
-{{else}}
-  - title: N/A pubDate: N/A
 {{/each}}

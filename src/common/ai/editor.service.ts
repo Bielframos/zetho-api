@@ -96,7 +96,7 @@ export class EditorService {
   async execute() {
     const { posts, contents } = await this.getNews();
     const recentPosts = await this.getRecentPostsForAi();
-    const analysis = await this.trendAnalysis(posts);
+    const analysis = await this.trendAnalysis(posts, recentPosts);
 
     const postId = analysis.id as string;
     const post = posts.find((p) => p.id === postId);
@@ -113,7 +113,7 @@ export class EditorService {
 
     const relatedGames = await this.getRelatedGames(analysis.relatedGames);
 
-    const article = await this.writeArticle(post, relatedGames, recentPosts);
+    const article = await this.writeArticle(post, relatedGames);
 
     let mainImage: PickedImage | null = null;
 
@@ -140,7 +140,10 @@ export class EditorService {
    * @param posts - Lista de posts para análise.
    * @returns Análise de tendências.
    */
-  private async trendAnalysis(posts: Feed['posts']) {
+  private async trendAnalysis(
+    posts: Feed['posts'],
+    recentPosts: RecentPostForAi[],
+  ) {
     if (posts.length === 0) {
       return {
         id: 'N/A',
@@ -152,7 +155,7 @@ export class EditorService {
     }
 
     const prompt = this.ai.prompt('editor/trend_analysis');
-    const { output } = await prompt({ posts });
+    const { output } = await prompt({ posts, recentPosts });
     return output;
   }
 
@@ -164,10 +167,9 @@ export class EditorService {
   private async writeArticle(
     post: Feed['posts'][number],
     games: Games[],
-    recentPosts: RecentPostForAi[],
   ): Promise<AiArticle> {
     const prompt = this.ai.prompt('editor/write_article');
-    const { output } = await prompt({ post, games, recentPosts });
+    const { output } = await prompt({ post, games });
     return output;
   }
 
