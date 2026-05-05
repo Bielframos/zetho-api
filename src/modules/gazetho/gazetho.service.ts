@@ -75,6 +75,7 @@ export class GazethoService {
               q.search('subtitle', term),
               q.search('body', term),
               q.contains('slug', this.slugify(term)),
+              q.select(['author.name', 'author.coverUrl'] as any),
             ),
           );
         }
