@@ -66,4 +66,41 @@ export class SandboxService {
       fixed,
     };
   }
+
+  async getImageFromUnsplash(query: string) {
+    const url = new URL('https://api.unsplash.com/search/photos');
+
+    url.searchParams.set('query', query);
+    url.searchParams.set('per_page', '10');
+    url.searchParams.set('orientation', 'landscape');
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as {
+      results: {
+        id: string;
+        urls: { regular: string };
+        alt_description: string | null;
+        description: string | null;
+        user: { name: string; username: string };
+      }[];
+    };
+
+    return data.results.map((img) => ({
+      id: img.id,
+      url: img.urls.regular,
+      alt: img.alt_description ?? '',
+      description: img.description ?? img.alt_description ?? '',
+      authorName: img.user.name,
+      authorUsername: img.user.username,
+    }));
+  }
 }

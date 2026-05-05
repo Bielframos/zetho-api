@@ -1,4 +1,4 @@
-import { Controller, Post } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { SandboxService } from './sandbox.service';
 
 @Controller('sandbox')
@@ -13,5 +13,10 @@ export class SandboxController {
   @Post('games/backfill-companies')
   backfillDuplicatedCompanies() {
     return this.sandboxService.backfillDuplicatedCompanies();
+  }
+
+  @Get('images/unsplash')
+  async getImageFromUnsplash(@Query('query') query: string) {
+    return this.sandboxService.getImageFromUnsplash(query);
   }
 }

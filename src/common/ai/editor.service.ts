@@ -210,14 +210,7 @@ export class EditorService {
     const slug = this.slugify(article.post.slug || article.post.title);
     const title = article.post.title.trim();
 
-    const mainImage =
-      this.toTrimmedString(pickedMainImage?.url) ||
-      this.toTrimmedString(fallbackMainImage) ||
-      this.toTrimmedString(article.post.originalSourceUrl);
-
-    if (!mainImage) {
-      throw new Error('Não foi possível definir mainImage para o post gerado.');
-    }
+    const mainImage = pickedMainImage ? JSON.stringify(pickedMainImage) : null;
 
     return this.posts.create({
       title,
@@ -405,6 +398,9 @@ export class EditorService {
     });
 
     if (!response.ok) {
+      console.error(
+        `Failed to fetch images from Unsplash: ${response.status} ${response.statusText}`,
+      );
       return [];
     }
 
@@ -417,6 +413,8 @@ export class EditorService {
         user: { name: string; username: string };
       }[];
     };
+
+    console.log(data);
 
     return data.results.map((img) => ({
       id: img.id,

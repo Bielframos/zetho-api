@@ -116,7 +116,7 @@ export class GazethoService {
       ],
     });
 
-    const post = response.rows[0];
+    const { mainImage, ...post } = response.rows[0];
 
     if (!post) {
       throw new NotFoundException(
@@ -128,6 +128,7 @@ export class GazethoService {
 
     return {
       ...post,
+      mainImage: mainImage ? JSON.parse(mainImage) : null,
       relatedGames,
     };
   }
