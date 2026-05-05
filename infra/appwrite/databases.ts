@@ -1,4 +1,5 @@
 import {
+  Client,
   TablesDB,
   ID,
   Query,
@@ -12,28 +13,38 @@ import type {
   DatabaseTableMap,
   DatabaseTables,
   QueryBuilder,
+  QueryValue,
   PermissionBuilder,
   RoleBuilder,
   RoleString,
 } from './types';
+import { PROJECT_ID, ENDPOINT, API_KEY } from './constants';
 
 const createQueryBuilder = <T>(): QueryBuilder<T> => ({
-  equal: (field, value) => Query.equal(String(field), value as any),
-  notEqual: (field, value) => Query.notEqual(String(field), value as any),
-  lessThan: (field, value) => Query.lessThan(String(field), value as any),
+  equal: (field, value) => Query.equal(String(field), value as QueryValue),
+  notEqual: (field, value) =>
+    Query.notEqual(String(field), value as QueryValue),
+  lessThan: (field, value) =>
+    Query.lessThan(String(field), value as QueryValue),
   lessThanEqual: (field, value) =>
-    Query.lessThanEqual(String(field), value as any),
-  greaterThan: (field, value) => Query.greaterThan(String(field), value as any),
+    Query.lessThanEqual(String(field), value as QueryValue),
+  greaterThan: (field, value) =>
+    Query.greaterThan(String(field), value as QueryValue),
   greaterThanEqual: (field, value) =>
-    Query.greaterThanEqual(String(field), value as any),
-  contains: (field, value) => Query.contains(String(field), value as any),
+    Query.greaterThanEqual(String(field), value as QueryValue),
+  contains: (field, value) =>
+    Query.contains(String(field), value as string | QueryValue[]),
   search: (field, value) => Query.search(String(field), value),
   isNull: (field) => Query.isNull(String(field)),
   isNotNull: (field) => Query.isNotNull(String(field)),
   startsWith: (field, value) => Query.startsWith(String(field), value),
   endsWith: (field, value) => Query.endsWith(String(field), value),
   between: (field, start, end) =>
-    Query.between(String(field), start as any, end as any),
+    Query.between(
+      String(field),
+      start as string | number,
+      end as string | number,
+    ),
   select: (fields) => Query.select(fields.map(String)),
   orderAsc: (field) => Query.orderAsc(String(field)),
   orderDesc: (field) => Query.orderDesc(String(field)),
@@ -52,7 +63,6 @@ tableIdMap['app']['Games'] = 'games';
 tableIdMap['app']['Game Types'] = 'game_types';
 tableIdMap['app']['User Profiles'] = 'user_profiles';
 tableIdMap['app']['Z Entries'] = 'z_entries';
-tableIdMap['app']['Genres'] = 'genres';
 tableIdMap['app']['Companies'] = 'companies';
 tableIdMap['app']['Z Entry Count'] = 'z_entry_count';
 tableIdMap['app']['Game Comments'] = 'game_comments';
@@ -62,7 +72,11 @@ tableIdMap['app']['List Items'] = 'list_items';
 tableIdMap['app']['Z Entries (Read-only)'] = 'z_entries_read';
 tableIdMap['app']['Game Platforms'] = 'game_platforms';
 tableIdMap['app']['Avaliações'] = 'ratings';
+tableIdMap['app']['Conexões'] = 'connections';
+tableIdMap['app']['Genres'] = 'genres';
 tableIdMap['app']['Game Medias'] = 'game_medias';
+tableIdMap['app']['Authors'] = 'authors';
+tableIdMap['app']['Posts'] = 'posts';
 
 const tablesWithRelationships = new Set<string>([
   'app:Games',
@@ -71,6 +85,7 @@ const tablesWithRelationships = new Set<string>([
   'app:Game Comment Votes',
   'app:List Items',
   'app:Game Medias',
+  'app:Posts',
 ]);
 
 const roleBuilder: RoleBuilder = {
@@ -119,7 +134,7 @@ function createTableApi<T extends Models.Row>(
 ) {
   return {
     create: (
-      data: any,
+      data: Omit<T, keyof Models.Row>,
       options?: {
         rowId?: string;
         permissions?: (
@@ -147,7 +162,9 @@ function createTableApi<T extends Models.Row>(
         databaseId,
         tableId,
         rowId: options?.rowId ?? ID.unique(),
-        data,
+        data: data as T extends Models.DefaultRow
+          ? Partial<Models.Row> & Record<string, unknown>
+          : Partial<Models.Row> & Omit<T, keyof Models.Row>,
         permissions: resolvePermissions(options?.permissions),
         transactionId: options?.transactionId,
       }),
@@ -159,7 +176,7 @@ function createTableApi<T extends Models.Row>(
       }),
     update: (
       id: string,
-      data: any,
+      data: Partial<Omit<T, keyof Models.Row>>,
       options?: {
         permissions?: (
           permission: {
@@ -186,7 +203,9 @@ function createTableApi<T extends Models.Row>(
         databaseId,
         tableId,
         rowId: id,
-        data,
+        data: data as T extends Models.DefaultRow
+          ? Partial<Models.Row> & Record<string, unknown>
+          : Partial<Models.Row> & Partial<Omit<T, keyof Models.Row>>,
         ...(options?.permissions
           ? { permissions: resolvePermissions(options.permissions) }
           : {}),
@@ -200,13 +219,13 @@ function createTableApi<T extends Models.Row>(
         transactionId: options?.transactionId,
       });
     },
-    list: (options?: { queries?: (q: any) => string[] }) =>
+    list: (options?: { queries?: (q: QueryBuilder<T>) => string[] }) =>
       tablesDB.listRows<T>({
         databaseId,
         tableId,
         queries: options?.queries?.(createQueryBuilder<T>()),
       }),
-    createMany: (rows: any[], options?: { transactionId?: string }) =>
+    createMany: (rows: object[], options?: { transactionId?: string }) =>
       tablesDB.createRows({
         databaseId,
         tableId,
@@ -214,24 +233,27 @@ function createTableApi<T extends Models.Row>(
         transactionId: options?.transactionId,
       }),
     updateMany: (
-      data: any,
-      options?: { queries?: (q: any) => string[]; transactionId?: string },
+      data: object,
+      options?: {
+        queries?: (q: QueryBuilder<T>) => string[];
+        transactionId?: string;
+      },
     ) =>
       tablesDB.updateRows({
         databaseId,
         tableId,
         data,
-        queries: options?.queries?.(createQueryBuilder()),
+        queries: options?.queries?.(createQueryBuilder<T>()),
         transactionId: options?.transactionId,
       }),
     deleteMany: (options?: {
-      queries?: (q: any) => string[];
+      queries?: (q: QueryBuilder<T>) => string[];
       transactionId?: string;
     }) =>
       tablesDB.deleteRows({
         databaseId,
         tableId,
-        queries: options?.queries?.(createQueryBuilder()),
+        queries: options?.queries?.(createQueryBuilder<T>()),
         transactionId: options?.transactionId,
       }),
   };
@@ -266,9 +288,9 @@ function createDatabaseHandle<D extends DatabaseId>(
 
         // Remove bulk methods for tables with relationships
         if (!hasBulkMethods(databaseId, tableId)) {
-          delete (api as any).createMany;
-          delete (api as any).updateMany;
-          delete (api as any).deleteMany;
+          delete (api as Record<string, unknown>).createMany;
+          delete (api as Record<string, unknown>).updateMany;
+          delete (api as Record<string, unknown>).deleteMany;
         }
         tableApiCache.set(tableId, api);
       }
@@ -298,8 +320,8 @@ function createDatabaseHandle<D extends DatabaseId>(
         ) => string[];
         rowSecurity?: boolean;
         enabled?: boolean;
-        columns?: any[];
-        indexes?: any[];
+        columns?: object[];
+        indexes?: object[];
       },
     ) =>
       tablesDB.createTable({
@@ -347,7 +369,7 @@ function createDatabaseHandle<D extends DatabaseId>(
       return tablesDB.updateTable({
         databaseId,
         tableId: resolvedTableId,
-        name: options?.name ?? tableId, // TODO: remove this fallback once fixed in other SDKs
+        name: options?.name,
         permissions: resolvePermissions(options?.permissions),
         rowSecurity: options?.rowSecurity,
         enabled: options?.enabled,

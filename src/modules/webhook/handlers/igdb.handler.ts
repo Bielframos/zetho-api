@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { GamesCreate } from 'infra/appwrite';
+import { GamesCreate, GamesSyncStage } from 'infra/appwrite';
 import { AppwriteException } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
@@ -108,7 +108,7 @@ export class IGDBHandler {
       externalReference: game.id,
       checksum: game.checksum || null,
       involvedCompanies: this.extractInvolvedCompanies(game),
-      syncStage: 'basic',
+      syncStage: GamesSyncStage.BASIC,
     };
   }
 

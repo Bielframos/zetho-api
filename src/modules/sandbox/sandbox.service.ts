@@ -1,12 +1,20 @@
 import { Injectable } from '@nestjs/common';
+import { EditorService } from 'src/common/ai/editor.service';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 @Injectable()
 export class SandboxService {
   private games: Appwrite['databases']['games'];
 
-  constructor(private readonly appwrite: Appwrite) {
+  constructor(
+    private readonly appwrite: Appwrite,
+    private readonly editorService: EditorService,
+  ) {
     this.games = this.appwrite.databases.games;
+  }
+
+  async runEditor() {
+    return this.editorService.run();
   }
 
   async backfillDuplicatedCompanies() {

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { ID, Models } from 'node-appwrite';
+import { ID, Models, Query } from 'node-appwrite';
 import type { Games as Game, ZEntriesReadOnly } from 'infra/appwrite';
 import { GameMedias, GameMediasType } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
@@ -36,7 +36,7 @@ export class GameService {
     this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
   }
 
-  async findBySlug(slug: string, select?: string) {
+  async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
     const cacheKey = `game:slug:${slug}:${select ?? ''}`;
     const cached = await this.cache.get<Game>(cacheKey);
     if (cached) return cached;
@@ -70,7 +70,7 @@ export class GameService {
     }
 
     // Se o jogo não está totalmente sincronizado, enriquece agora
-    if (game.syncStage !== 'full') {
+    if (enrich && game.syncStage !== 'full') {
       await this.igdbService.importGameById(game.externalReference);
       const enrichedResult = await this.games.list({
         queries: (q) => [
@@ -257,6 +257,29 @@ export class GameService {
     const response = this.buildMediaDtos(mediasResult.rows);
     await this.cache.set(cacheKey, response);
     return response;
+  }
+
+  async getRandomScreenshot(gameId: string) {
+    const mediasResult = await this.tablesDB.listRows({
+      databaseId: 'app',
+      tableId: 'game_medias',
+      queries: [
+        Query.equal('game' as any, gameId as any),
+        Query.equal('type', GameMediasType.SCREENSHOT),
+        Query.limit(1),
+        Query.orderRandom(),
+      ],
+    });
+
+    const screenshot = mediasResult.rows[0];
+
+    if (!screenshot) {
+      throw new NotFoundException(
+        `Nenhum screenshot encontrado para jogo ${gameId}`,
+      );
+    }
+
+    return this.buildImageUrl('screenshot_big', screenshot.mediaId);
   }
 
   async findHeroImageBySlug(slug: string) {

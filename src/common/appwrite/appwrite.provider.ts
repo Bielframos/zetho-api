@@ -38,6 +38,8 @@ export class Appwrite {
       zStats: this.db.use('Z Entry Count'),
       igdbTokens: this.db.use('IGDB Tokens'),
       gameMedias: this.db.use('Game Medias'),
+      posts: this.db.use('Posts'),
+      authors: this.db.use('Authors'),
     };
   }
 }
