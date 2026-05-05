@@ -31,7 +31,7 @@ output:
     imageStrategy:
       needsImage: boolean
       type: string
-      query: string
+      query?: string
 ---
 
 You are a Gaming Content Editor and SEO Specialist. Task: Transform the provided
