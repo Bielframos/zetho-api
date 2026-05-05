@@ -14,7 +14,7 @@ export class SandboxService {
   }
 
   async runEditor() {
-    return this.editorService.run();
+    return this.editorService.execute();
   }
 
   async backfillDuplicatedCompanies() {

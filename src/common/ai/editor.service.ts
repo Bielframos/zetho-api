@@ -93,7 +93,7 @@ export class EditorService {
     this.posts = this.appwrite.databases.posts;
   }
 
-  async run() {
+  async execute() {
     const { posts, contents } = await this.getNews();
     const recentPosts = await this.getRecentPostsForAi();
     const analysis = await this.trendAnalysis(posts);
@@ -191,6 +191,11 @@ export class EditorService {
       }));
   }
 
+  /**
+   * Salva o post gerado pela IA no banco de dados.
+   * @param param0 - Objeto contendo o artigo gerado, a imagem principal escolhida e a imagem principal de fallback.
+   * @returns O post salvo.
+   */
   private async saveGeneratedPost({
     article,
     pickedMainImage,
@@ -234,6 +239,9 @@ export class EditorService {
     });
   }
 
+  /**
+   * Constrói a string de SEO a partir dos dados fornecidos, garantindo que os campos sejam adequadamente formatados e limitados.
+   */
   private buildSeoString(value: AiArticle['post']['seo']) {
     return JSON.stringify({
       title: this.toTrimmedString(value?.title) || '',
@@ -241,11 +249,17 @@ export class EditorService {
     });
   }
 
+  /**
+   * Converte uma string para null se ela for vazia ou composta apenas por espaços, caso contrário, retorna a string original sem espaços nas extremidades.
+   */
   private toNullableString(value?: string | null) {
     const normalized = this.toTrimmedString(value);
     return normalized || null;
   }
 
+  /**
+   * Remove espaços extras de uma string e retorna a versão limpa. Se a entrada não for uma string, retorna uma string vazia.
+   */
   private toTrimmedString(value?: string | null) {
     if (typeof value !== 'string') {
       return '';
@@ -254,6 +268,11 @@ export class EditorService {
     return value.trim();
   }
 
+  /**
+   * Converte uma string em um slug, removendo acentos, caracteres especiais e espaços, e limitando o comprimento.
+   * @param value - A string a ser convertida em slug.
+   * @returns O slug gerado.
+   */
   private slugify(value: string) {
     return value
       .normalize('NFD')
@@ -266,6 +285,8 @@ export class EditorService {
 
   /**
    * Usa a IA para selecionar a imagem mais adequada ao post dentre as imagens do Unsplash.
+   * @param images - Array de imagens do Unsplash.
+   * @returns A imagem selecionada pela IA.
    */
   private async pickImage(images: UnsplashImage[]): Promise<PickedImage> {
     const prompt = this.ai.prompt('editor/pick_image');

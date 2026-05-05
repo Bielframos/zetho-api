@@ -5,13 +5,17 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { GazethoService } from './gazetho.service';
+import { EditorService } from 'src/common/ai/editor.service';
+import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
+import { GazethoService } from './gazetho.service';
 
 @Controller('gazetho')
+@UseGuards(SystemApiKeyGuard)
 @UsePipes(
   new ValidationPipe({
     transform: true,
@@ -20,7 +24,15 @@ import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
   }),
 )
 export class GazethoController {
-  constructor(private readonly gazethoService: GazethoService) {}
+  constructor(
+    private readonly editorService: EditorService,
+    private readonly gazethoService: GazethoService,
+  ) {}
+
+  @Post('editor/generate-article')
+  generateArticle() {
+    return this.editorService.execute();
+  }
 
   @Post('posts')
   createPost(@Body() dto: CreatePostDto) {
