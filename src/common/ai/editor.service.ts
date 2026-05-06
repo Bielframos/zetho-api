@@ -132,6 +132,8 @@ export class EditorService {
       pickedMainImage: mainImage,
     });
 
+    this.invalidateFrontendCache();
+
     return { savedPost };
   }
 
@@ -437,5 +439,19 @@ export class EditorService {
       alt: `Captura de tela do jogo: ${game.name}`,
       caption: `Captura de tela do jogo: ${game.name}`,
     };
+  }
+
+  /**
+   * Invalida o cache do Frontend do Gazetho
+   */
+  private async invalidateFrontendCache() {
+    fetch('https://ga.zetho.app/api/revalidate', {
+      method: 'POST',
+      headers: {
+        Authorization: `${process.env.FRONTEND_REVALIDATE_SECRET}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tag: 'posts' }),
+    });
   }
 }
