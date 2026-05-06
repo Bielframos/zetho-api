@@ -75,7 +75,6 @@ export class GazethoService {
               q.search('subtitle', term),
               q.search('body', term),
               q.contains('slug', this.slugify(term)),
-              q.select(['author.name', 'author.coverUrl'] as any),
             ),
           );
         }
@@ -84,6 +83,17 @@ export class GazethoService {
           q.orderDesc('$createdAt'),
           q.limit(safePageSize),
           q.offset(offset),
+          q.select([
+            '$id',
+            'title',
+            'subtitle',
+            'slug',
+            'status',
+            'tags',
+            'mainImage',
+            'author.name',
+            'author.avatarUrl',
+          ] as any),
         ];
 
         if (filters.length > 1) {
