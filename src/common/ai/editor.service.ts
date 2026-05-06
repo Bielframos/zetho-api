@@ -417,8 +417,6 @@ export class EditorService {
       }[];
     };
 
-    console.log(data);
-
     return data.results.map((img) => ({
       id: img.id,
       url: img.urls.regular,
