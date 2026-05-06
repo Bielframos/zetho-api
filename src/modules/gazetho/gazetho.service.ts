@@ -96,8 +96,16 @@ export class GazethoService {
       },
     });
 
+    const parsedPosts = response.rows.map((row) => {
+      const { mainImage, ...post } = row;
+      return {
+        ...post,
+        mainImage: mainImage ? JSON.parse(mainImage) : null,
+      };
+    });
+
     return {
-      items: response.rows,
+      items: parsedPosts,
       page: safePage,
       pageSize: safePageSize,
       total: response.total,
