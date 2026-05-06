@@ -5,6 +5,7 @@ import { DOMParser } from '@xmldom/xmldom';
 import { GameService } from 'src/modules/game/game.service';
 import { PostsStatus, type Games } from 'infra/appwrite';
 import { Appwrite } from '../appwrite/appwrite.provider';
+import { ID } from 'node-appwrite';
 
 type Feed = {
   posts: {
@@ -323,7 +324,7 @@ export class EditorService {
       if (Number.isNaN(dateObj.getTime()) || ageMs < 0 || ageMs > oneDayMs)
         continue;
 
-      const id = crypto.randomUUID();
+      const id = ID.unique();
       const title = el.getElementsByTagName('title')[0]?.textContent || '';
       const link =
         el.getElementsByTagName('link')[0]?.textContent ||
