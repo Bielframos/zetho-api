@@ -449,7 +449,7 @@ export class EditorService {
     fetch('https://ga.zetho.app/api/revalidate', {
       method: 'POST',
       headers: {
-        Authorization: `${process.env.FRONTEND_REVALIDATE_SECRET}`,
+        Authorization: `Bearer ${process.env.FRONTEND_REVALIDATE_SECRET}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ tag: 'posts' }),
