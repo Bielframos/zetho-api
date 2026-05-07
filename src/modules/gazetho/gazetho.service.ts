@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PostsStatus } from 'infra/appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
+import {
+  CreatePostDto,
+  PopularTagsDto,
+  SearchPostsDto,
+  SitemapPostsDto,
+} from './gazetho.dto';
 
 type RelatedGameSummary = {
   id: string;
@@ -205,6 +210,40 @@ export class GazethoService {
       items,
       totalUniqueTags: tagCounter.size,
       limit: safeLimit,
+    };
+  }
+
+  async getPostsForSitemap(dto: SitemapPostsDto) {
+    const safePage = this.toPositiveInt(dto.page, 1);
+    const safePageSize = this.toSafeLimit(dto.pageSize, 5000, 5000);
+    const offset = (safePage - 1) * safePageSize;
+    const maxRows = 5000;
+
+    const response = await this.posts.list({
+      queries: (q) => [
+        q.select(['$id', 'title', 'slug', '$createdAt', '$updatedAt'] as any),
+        q.orderDesc('$createdAt'),
+        q.limit(safePageSize),
+        q.offset(offset),
+      ],
+    });
+
+    const items = response.rows.map((row) => ({
+      id: row.$id,
+      title: row.title,
+      slug: row.slug,
+      $createdAt: row.$createdAt,
+      $updatedAt: row.$updatedAt,
+    }));
+
+    return {
+      items,
+      page: safePage,
+      pageSize: safePageSize,
+      total: response.total,
+      totalPages: Math.max(1, Math.ceil(response.total / safePageSize)),
+      maxLimit: maxRows,
+      hasMore: response.total >= maxRows,
     };
   }
 

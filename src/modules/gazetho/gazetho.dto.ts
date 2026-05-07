@@ -107,3 +107,18 @@ export class PopularTagsDto {
   @Max(50)
   limit?: number;
 }
+
+export class SitemapPostsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  pageSize?: number;
+}

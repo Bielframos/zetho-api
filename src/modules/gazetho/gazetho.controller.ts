@@ -11,7 +11,12 @@ import {
 } from '@nestjs/common';
 import { EditorService } from 'src/common/ai/editor.service';
 import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
-import { CreatePostDto, PopularTagsDto, SearchPostsDto } from './gazetho.dto';
+import {
+  CreatePostDto,
+  PopularTagsDto,
+  SearchPostsDto,
+  SitemapPostsDto,
+} from './gazetho.dto';
 import { GazethoService } from './gazetho.service';
 
 @Controller('gazetho')
@@ -42,6 +47,11 @@ export class GazethoController {
   @Get('posts')
   searchPosts(@Query() dto: SearchPostsDto) {
     return this.gazethoService.searchPosts(dto);
+  }
+
+  @Get('posts/sitemap')
+  getPostsForSitemap(@Query() dto: SitemapPostsDto) {
+    return this.gazethoService.getPostsForSitemap(dto);
   }
 
   @Get('posts/:slug')
