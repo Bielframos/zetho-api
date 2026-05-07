@@ -13,6 +13,7 @@ import { EditorService } from 'src/common/ai/editor.service';
 import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 import {
   CreatePostDto,
+  GeneratePostDto,
   PopularTagsDto,
   SearchPostsDto,
   SitemapPostsDto,
@@ -35,8 +36,13 @@ export class GazethoController {
   ) {}
 
   @Post('editor/generate-article')
-  generateArticle() {
-    return this.editorService.execute();
+  generateArticle(@Body() dto: GeneratePostDto) {
+    return this.editorService.execute(dto.suggestion);
+  }
+
+  @Get('editor/news')
+  getNews() {
+    return this.editorService.getNews();
   }
 
   @Post('posts')

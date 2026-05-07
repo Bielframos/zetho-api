@@ -1,11 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { GENKIT } from './ai.constants';
-import type { Genkit } from 'genkit';
+import { type Genkit, z } from 'genkit';
 import { DOMParser } from '@xmldom/xmldom';
 import { GameService } from 'src/modules/game/game.service';
 import { PostsStatus, type Games } from 'infra/appwrite';
 import { Appwrite } from '../appwrite/appwrite.provider';
 import { ID } from 'node-appwrite';
+import { YoutubeService } from 'src/modules/google/youtube.service';
+import { channel } from 'node:diagnostics_channel';
+import { description } from 'valibot';
 
 type Feed = {
   posts: {
@@ -90,14 +93,16 @@ export class EditorService {
     @Inject(GENKIT) private readonly ai: Genkit,
     private readonly gameService: GameService,
     private readonly appwrite: Appwrite,
+    private readonly youtubeService: YoutubeService,
   ) {
     this.posts = this.appwrite.databases.posts;
   }
 
-  async execute() {
+  async execute(suggestion?: string) {
     const { posts, contents } = await this.getNews();
+
     const recentPosts = await this.getRecentPostsForAi();
-    const analysis = await this.trendAnalysis(posts, recentPosts);
+    const analysis = await this.trendAnalysis(posts, recentPosts, suggestion);
 
     const postId = analysis.id as string;
     const post = posts.find((p) => p.id === postId);
@@ -116,16 +121,10 @@ export class EditorService {
 
     const article = await this.writeArticle(post, relatedGames);
 
-    let mainImage: PickedImage | null = null;
+    const processedBody = this.postProcessContent(article.post.body);
+    article.post.body = processedBody;
 
-    if (article.imageStrategy.needsImage) {
-      if (article.imageStrategy.type === 'game' && relatedGames.length > 0) {
-        mainImage = await this.pickGameScreenshot(relatedGames[0]);
-      } else if (article.imageStrategy.query) {
-        const images = await this.searchUnsplash(article.imageStrategy.query);
-        mainImage = images.length > 0 ? await this.pickImage(images) : null;
-      }
-    }
+    const mainImage = await this.resolveMainImage(article, relatedGames);
 
     const savedPost = await this.saveGeneratedPost({
       article,
@@ -146,6 +145,7 @@ export class EditorService {
   private async trendAnalysis(
     posts: Feed['posts'],
     recentPosts: RecentPostForAi[],
+    humanSuggestion?: string,
   ) {
     if (posts.length === 0) {
       return {
@@ -158,7 +158,7 @@ export class EditorService {
     }
 
     const prompt = this.ai.prompt('editor/trend_analysis');
-    const { output } = await prompt({ posts, recentPosts });
+    const { output } = await prompt({ humanSuggestion, posts, recentPosts });
     return output;
   }
 
@@ -172,10 +172,55 @@ export class EditorService {
     games: Games[],
   ): Promise<AiArticle> {
     const prompt = this.ai.prompt('editor/write_article');
-    const { output } = await prompt({ post, games });
+    const { output } = await prompt(
+      { post, games },
+      { tools: [this.youtubeTool] },
+    );
     return output;
   }
 
+  /**
+   * Usa a IA para selecionar a imagem mais adequada ao post dentre as imagens do Unsplash.
+   * @param images - Array de imagens do Unsplash.
+   * @returns A imagem selecionada pela IA.
+   */
+  private async pickImage(images: UnsplashImage[]): Promise<PickedImage> {
+    const prompt = this.ai.prompt('editor/pick_image');
+    const { output } = await prompt({ images });
+    return output;
+  }
+
+  /**
+   * Define a ferramenta de pesquisa de vídeos do YouTube para ser usada pela IA durante a redação do artigo.
+   */
+  private get youtubeTool() {
+    return this.ai.defineTool(
+      {
+        name: 'youtubeTool',
+        description: 'Pesquisa por vídeos no youtube.',
+        inputSchema: z.object({ query: z.string() }),
+        outputSchema: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            channel: z.string(),
+            description: z.string(),
+          }),
+        ),
+      },
+      async (input) => {
+        const { query } = input;
+        const results = await this.youtubeService.searchVideos(query);
+        return results || [];
+      },
+    );
+  }
+
+  /**
+   * Obtém os posts recentes para análise pela IA.
+   * @param limit
+   * @returns
+   */
   private async getRecentPostsForAi(limit = 20): Promise<RecentPostForAi[]> {
     const safeLimit = Math.max(1, Math.min(limit, 50));
 
@@ -194,6 +239,75 @@ export class EditorService {
         title: row.title,
         pubDate: row.$createdAt,
       }));
+  }
+
+  /**
+   * Realiza o pós-processamento do conteúdo gerado pela IA, como limpeza de HTML, formatação ou adição de elementos necessários para a publicação.
+   */
+  private postProcessContent(body: string) {
+    let processed = body;
+
+    const processes = [this.renderYoutube, this.normalizeHtml];
+
+    for (const process of processes) {
+      processed = process.call(this, processed);
+    }
+
+    return processed;
+  }
+
+  /**
+   * Substitui os placeholders de vídeos do YouTube no conteúdo pelo HTML correspondente.
+   * @param body - Conteúdo contendo os placeholders de vídeos do YouTube.
+   * @returns Conteúdo com os vídeos do YouTube incorporados.
+   */
+  private renderYoutube(body: string) {
+    return body.replace(
+      /\[youtube:([a-zA-Z0-9_-]{11})\]/g,
+      (_, id) => `
+        <div data-youtube-video=""><iframe width="840" height="473" src="https://www.youtube.com/embed/${id}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" loading="lazy" allowfullscreen></iframe></div>
+    `,
+    );
+  }
+
+  /**
+   * Normaliza o HTML removendo quebras de linha, tabs e espaços extras.
+   * @param body - Conteúdo HTML a ser normalizado.
+   * @returns Conteúdo HTML normalizado.
+   */
+  private normalizeHtml(body: string) {
+    return body
+      .replace(/\n/g, '')
+      .replace(/\t/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Resolve a imagem principal do artigo com base na estratégia definida e nos jogos relacionados.
+   * @param article - Artigo gerado pela IA.
+   * @param relatedGames - Jogos relacionados ao artigo.
+   * @returns A imagem principal selecionada ou null se não houver necessidade.
+   */
+  private async resolveMainImage(
+    article: AiArticle,
+    relatedGames: Games[],
+  ): Promise<PickedImage | null> {
+    if (!article.imageStrategy.needsImage) {
+      return null;
+    }
+
+    if (article.imageStrategy.type === 'game' && relatedGames.length > 0) {
+      return this.pickGameScreenshot(relatedGames[0]);
+    }
+
+    if (article.imageStrategy.query) {
+      const images = await this.searchUnsplash(article.imageStrategy.query);
+
+      return images.length > 0 ? this.pickImage(images) : null;
+    }
+
+    return null;
   }
 
   /**
@@ -282,17 +396,6 @@ export class EditorService {
   }
 
   /**
-   * Usa a IA para selecionar a imagem mais adequada ao post dentre as imagens do Unsplash.
-   * @param images - Array de imagens do Unsplash.
-   * @returns A imagem selecionada pela IA.
-   */
-  private async pickImage(images: UnsplashImage[]): Promise<PickedImage> {
-    const prompt = this.ai.prompt('editor/pick_image');
-    const { output } = await prompt({ images });
-    return output;
-  }
-
-  /**
    * Busca e processa o feed RSS, retornando apenas os posts publicados hoje.
    */
   private async fetchRSS(url: string): Promise<Feed> {
@@ -353,7 +456,7 @@ export class EditorService {
   /**
    * BUsca as notícias dos feeds RSS e retorna apenas os posts publicados hoje, juntamente com seus conteúdos.
    */
-  private async getNews() {
+  async getNews() {
     const feeds = await Promise.all(feedUrls.map((url) => this.fetchRSS(url)));
 
     return feeds.reduce(

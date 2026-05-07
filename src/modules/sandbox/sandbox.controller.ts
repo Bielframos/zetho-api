@@ -19,4 +19,9 @@ export class SandboxController {
   async getImageFromUnsplash(@Query('query') query: string) {
     return this.sandboxService.getImageFromUnsplash(query);
   }
+
+  @Get('videos/youtube')
+  async searchVideosFromYoutube(@Query('query') query: string) {
+    return this.sandboxService.searchVideosFromYoutube(query);
+  }
 }

@@ -4,6 +4,7 @@ import { genkit, Genkit } from 'genkit';
 import { GENKIT } from './ai.constants';
 import { EditorService } from './editor.service';
 import { GameModule } from 'src/modules/game/game.module';
+import { GoogleModule } from 'src/modules/google/google.module';
 
 @Module({
   providers: [
@@ -20,6 +21,6 @@ import { GameModule } from 'src/modules/game/game.module';
     EditorService,
   ],
   exports: [GENKIT, EditorService],
-  imports: [GameModule],
+  imports: [GameModule, GoogleModule],
 })
 export class AiModule {}

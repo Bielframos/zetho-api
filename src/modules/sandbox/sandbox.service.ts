@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EditorService } from 'src/common/ai/editor.service';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { YoutubeService } from '../google/youtube.service';
 
 @Injectable()
 export class SandboxService {
@@ -9,6 +10,7 @@ export class SandboxService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly editorService: EditorService,
+    private readonly youtubeService: YoutubeService,
   ) {
     this.games = this.appwrite.databases.games;
   }
@@ -102,5 +104,9 @@ export class SandboxService {
       authorName: img.user.name,
       authorUsername: img.user.username,
     }));
+  }
+
+  async searchVideosFromYoutube(query: string) {
+    return this.youtubeService.searchVideos(query);
   }
 }

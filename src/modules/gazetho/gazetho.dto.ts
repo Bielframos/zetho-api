@@ -12,6 +12,13 @@ import {
   Min,
 } from 'class-validator';
 
+export class GeneratePostDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  suggestion?: string;
+}
+
 export class CreatePostDto {
   @IsString()
   @MaxLength(255)
