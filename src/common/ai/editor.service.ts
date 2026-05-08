@@ -73,6 +73,7 @@ type PickedImage = {
 type RecentPostForAi = {
   title: string;
   pubDate: string;
+  originalSourceUrl: string;
 };
 
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
@@ -222,12 +223,12 @@ export class EditorService {
    * @returns
    */
   private async getRecentPostsForAi(limit = 20): Promise<RecentPostForAi[]> {
-    const safeLimit = Math.max(1, Math.min(limit, 50));
+    const safeLimit = Math.max(1, Math.min(limit, 15));
 
     const response = await this.posts.list({
       queries: (q) => [
         q.equal('status', PostsStatus.PUBLISHED),
-        q.select(['title', '$createdAt']),
+        q.select(['title', '$createdAt', 'originalSourceUrl']),
         q.orderDesc('$createdAt'),
         q.limit(safeLimit),
       ],
@@ -238,6 +239,7 @@ export class EditorService {
       .map((row) => ({
         title: row.title,
         pubDate: row.$createdAt,
+        originalSourceUrl: row.originalSourceUrl ?? '',
       }));
   }
 
