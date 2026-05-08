@@ -1,21 +1,50 @@
-import { Client, TablesDB, ID, Query, type Models, Permission, Role } from 'node-appwrite';
-import type { DatabaseHandle, DatabaseId, DatabaseTableMap, DatabaseTables, QueryBuilder, QueryValue, PermissionBuilder, RoleBuilder, RoleString } from './types';
+import {
+  Client,
+  TablesDB,
+  ID,
+  Query,
+  type Models,
+  Permission,
+  Role,
+} from 'node-appwrite';
+import type {
+  DatabaseHandle,
+  DatabaseId,
+  DatabaseTableMap,
+  DatabaseTables,
+  QueryBuilder,
+  QueryValue,
+  PermissionBuilder,
+  RoleBuilder,
+  RoleString,
+} from './types';
 import { PROJECT_ID, ENDPOINT, API_KEY } from './constants';
 
 const createQueryBuilder = <T>(): QueryBuilder<T> => ({
   equal: (field, value) => Query.equal(String(field), value as QueryValue),
-  notEqual: (field, value) => Query.notEqual(String(field), value as QueryValue),
-  lessThan: (field, value) => Query.lessThan(String(field), value as QueryValue),
-  lessThanEqual: (field, value) => Query.lessThanEqual(String(field), value as QueryValue),
-  greaterThan: (field, value) => Query.greaterThan(String(field), value as QueryValue),
-  greaterThanEqual: (field, value) => Query.greaterThanEqual(String(field), value as QueryValue),
-  contains: (field, value) => Query.contains(String(field), value as string | QueryValue[]),
+  notEqual: (field, value) =>
+    Query.notEqual(String(field), value as QueryValue),
+  lessThan: (field, value) =>
+    Query.lessThan(String(field), value as QueryValue),
+  lessThanEqual: (field, value) =>
+    Query.lessThanEqual(String(field), value as QueryValue),
+  greaterThan: (field, value) =>
+    Query.greaterThan(String(field), value as QueryValue),
+  greaterThanEqual: (field, value) =>
+    Query.greaterThanEqual(String(field), value as QueryValue),
+  contains: (field, value) =>
+    Query.contains(String(field), value as string | QueryValue[]),
   search: (field, value) => Query.search(String(field), value),
   isNull: (field) => Query.isNull(String(field)),
   isNotNull: (field) => Query.isNotNull(String(field)),
   startsWith: (field, value) => Query.startsWith(String(field), value),
   endsWith: (field, value) => Query.endsWith(String(field), value),
-  between: (field, start, end) => Query.between(String(field), start as string | number, end as string | number),
+  between: (field, start, end) =>
+    Query.between(
+      String(field),
+      start as string | number,
+      end as string | number,
+    ),
   select: (fields) => Query.select(fields.map(String)),
   orderAsc: (field) => Query.orderAsc(String(field)),
   orderDesc: (field) => Query.orderDesc(String(field)),
@@ -28,28 +57,36 @@ const createQueryBuilder = <T>(): QueryBuilder<T> => ({
 });
 
 const tableIdMap: Record<string, Record<string, string>> = Object.create(null);
-tableIdMap["app"] = Object.create(null);
-tableIdMap["app"]["IGDB Tokens"] = "igdb_tokens";
-tableIdMap["app"]["Games"] = "games";
-tableIdMap["app"]["Game Types"] = "game_types";
-tableIdMap["app"]["User Profiles"] = "user_profiles";
-tableIdMap["app"]["Z Entries"] = "z_entries";
-tableIdMap["app"]["Companies"] = "companies";
-tableIdMap["app"]["Z Entry Count"] = "z_entry_count";
-tableIdMap["app"]["Game Comments"] = "game_comments";
-tableIdMap["app"]["Game Comment Votes"] = "game_comment_votes";
-tableIdMap["app"]["Lists"] = "lists";
-tableIdMap["app"]["List Items"] = "list_items";
-tableIdMap["app"]["Z Entries (Read-only)"] = "z_entries_read";
-tableIdMap["app"]["Game Platforms"] = "game_platforms";
-tableIdMap["app"]["Avaliações"] = "ratings";
-tableIdMap["app"]["Conexões"] = "connections";
-tableIdMap["app"]["Genres"] = "genres";
-tableIdMap["app"]["Game Medias"] = "game_medias";
-tableIdMap["app"]["Autores"] = "authors";
-tableIdMap["app"]["Posts"] = "posts";
+tableIdMap['app'] = Object.create(null);
+tableIdMap['app']['IGDB Tokens'] = 'igdb_tokens';
+tableIdMap['app']['Games'] = 'games';
+tableIdMap['app']['Game Types'] = 'game_types';
+tableIdMap['app']['User Profiles'] = 'user_profiles';
+tableIdMap['app']['Z Entries'] = 'z_entries';
+tableIdMap['app']['Companies'] = 'companies';
+tableIdMap['app']['Z Entry Count'] = 'z_entry_count';
+tableIdMap['app']['Game Comments'] = 'game_comments';
+tableIdMap['app']['Game Comment Votes'] = 'game_comment_votes';
+tableIdMap['app']['Lists'] = 'lists';
+tableIdMap['app']['List Items'] = 'list_items';
+tableIdMap['app']['Z Entries (Read-only)'] = 'z_entries_read';
+tableIdMap['app']['Game Platforms'] = 'game_platforms';
+tableIdMap['app']['Avaliações'] = 'ratings';
+tableIdMap['app']['Conexões'] = 'connections';
+tableIdMap['app']['Genres'] = 'genres';
+tableIdMap['app']['Game Medias'] = 'game_medias';
+tableIdMap['app']['Autores'] = 'authors';
+tableIdMap['app']['Posts'] = 'posts';
 
-const tablesWithRelationships = new Set<string>(["app:Games", "app:Z Entry Count", "app:Game Comments", "app:Game Comment Votes", "app:List Items", "app:Game Medias", "app:Posts"]);
+const tablesWithRelationships = new Set<string>([
+  'app:Games',
+  'app:Z Entry Count',
+  'app:Game Comments',
+  'app:Game Comment Votes',
+  'app:List Items',
+  'app:Game Medias',
+  'app:Posts',
+]);
 
 const roleBuilder: RoleBuilder = {
   any: () => Role.any() as RoleString,
@@ -69,8 +106,26 @@ const permissionBuilder: PermissionBuilder = {
   delete: (role) => Permission.delete(role),
 };
 
-const resolvePermissions = (callback?: (permission: { read: (role: RoleString) => string; write: (role: RoleString) => string; create: (role: RoleString) => string; update: (role: RoleString) => string; delete: (role: RoleString) => string }, role: { any: () => RoleString; user: (userId: string, status?: string) => RoleString; users: (status?: string) => RoleString; guests: () => RoleString; team: (teamId: string, role?: string) => RoleString; member: (memberId: string) => RoleString; label: (label: string) => RoleString }) => string[]): string[] | undefined =>
-  callback?.(permissionBuilder, roleBuilder);
+const resolvePermissions = (
+  callback?: (
+    permission: {
+      read: (role: RoleString) => string;
+      write: (role: RoleString) => string;
+      create: (role: RoleString) => string;
+      update: (role: RoleString) => string;
+      delete: (role: RoleString) => string;
+    },
+    role: {
+      any: () => RoleString;
+      user: (userId: string, status?: string) => RoleString;
+      users: (status?: string) => RoleString;
+      guests: () => RoleString;
+      team: (teamId: string, role?: string) => RoleString;
+      member: (memberId: string) => RoleString;
+      label: (label: string) => RoleString;
+    },
+  ) => string[],
+): string[] | undefined => callback?.(permissionBuilder, roleBuilder);
 
 function createTableApi<T extends Models.Row>(
   tablesDB: TablesDB,
@@ -78,12 +133,38 @@ function createTableApi<T extends Models.Row>(
   tableId: string,
 ) {
   return {
-    create: (data: Omit<T, keyof Models.Row>, options?: { rowId?: string; permissions?: (permission: { read: (role: RoleString) => string; write: (role: RoleString) => string; create: (role: RoleString) => string; update: (role: RoleString) => string; delete: (role: RoleString) => string }, role: { any: () => RoleString; user: (userId: string, status?: string) => RoleString; users: (status?: string) => RoleString; guests: () => RoleString; team: (teamId: string, role?: string) => RoleString; member: (memberId: string) => RoleString; label: (label: string) => RoleString }) => string[]; transactionId?: string }) =>
+    create: (
+      data: Omit<T, keyof Models.Row>,
+      options?: {
+        rowId?: string;
+        permissions?: (
+          permission: {
+            read: (role: RoleString) => string;
+            write: (role: RoleString) => string;
+            create: (role: RoleString) => string;
+            update: (role: RoleString) => string;
+            delete: (role: RoleString) => string;
+          },
+          role: {
+            any: () => RoleString;
+            user: (userId: string, status?: string) => RoleString;
+            users: (status?: string) => RoleString;
+            guests: () => RoleString;
+            team: (teamId: string, role?: string) => RoleString;
+            member: (memberId: string) => RoleString;
+            label: (label: string) => RoleString;
+          },
+        ) => string[];
+        transactionId?: string;
+      },
+    ) =>
       tablesDB.createRow<T>({
         databaseId,
         tableId,
         rowId: options?.rowId ?? ID.unique(),
-        data: data as T extends Models.DefaultRow ? Partial<Models.Row> & Record<string, unknown> : Partial<Models.Row> & Omit<T, keyof Models.Row>,
+        data: data as T extends Models.DefaultRow
+          ? Partial<Models.Row> & Record<string, unknown>
+          : Partial<Models.Row> & Omit<T, keyof Models.Row>,
         permissions: resolvePermissions(options?.permissions),
         transactionId: options?.transactionId,
       }),
@@ -93,13 +174,41 @@ function createTableApi<T extends Models.Row>(
         tableId,
         rowId: id,
       }),
-    update: (id: string, data: Partial<Omit<T, keyof Models.Row>>, options?: { permissions?: (permission: { read: (role: RoleString) => string; write: (role: RoleString) => string; create: (role: RoleString) => string; update: (role: RoleString) => string; delete: (role: RoleString) => string }, role: { any: () => RoleString; user: (userId: string, status?: string) => RoleString; users: (status?: string) => RoleString; guests: () => RoleString; team: (teamId: string, role?: string) => RoleString; member: (memberId: string) => RoleString; label: (label: string) => RoleString }) => string[]; transactionId?: string }) =>
+    update: (
+      id: string,
+      data: Partial<Omit<T, keyof Models.Row>>,
+      options?: {
+        permissions?: (
+          permission: {
+            read: (role: RoleString) => string;
+            write: (role: RoleString) => string;
+            create: (role: RoleString) => string;
+            update: (role: RoleString) => string;
+            delete: (role: RoleString) => string;
+          },
+          role: {
+            any: () => RoleString;
+            user: (userId: string, status?: string) => RoleString;
+            users: (status?: string) => RoleString;
+            guests: () => RoleString;
+            team: (teamId: string, role?: string) => RoleString;
+            member: (memberId: string) => RoleString;
+            label: (label: string) => RoleString;
+          },
+        ) => string[];
+        transactionId?: string;
+      },
+    ) =>
       tablesDB.updateRow<T>({
         databaseId,
         tableId,
         rowId: id,
-        data: data as T extends Models.DefaultRow ? Partial<Models.Row> & Record<string, unknown> : Partial<Models.Row> & Partial<Omit<T, keyof Models.Row>>,
-        ...(options?.permissions ? { permissions: resolvePermissions(options.permissions) } : {}),
+        data: data as T extends Models.DefaultRow
+          ? Partial<Models.Row> & Record<string, unknown>
+          : Partial<Models.Row> & Partial<Omit<T, keyof Models.Row>>,
+        ...(options?.permissions
+          ? { permissions: resolvePermissions(options.permissions) }
+          : {}),
         transactionId: options?.transactionId,
       }),
     delete: async (id: string, options?: { transactionId?: string }) => {
@@ -123,7 +232,13 @@ function createTableApi<T extends Models.Row>(
         rows,
         transactionId: options?.transactionId,
       }),
-    updateMany: (data: object, options?: { queries?: (q: QueryBuilder<T>) => string[]; transactionId?: string }) =>
+    updateMany: (
+      data: object,
+      options?: {
+        queries?: (q: QueryBuilder<T>) => string[];
+        transactionId?: string;
+      },
+    ) =>
       tablesDB.updateRows({
         databaseId,
         tableId,
@@ -131,7 +246,10 @@ function createTableApi<T extends Models.Row>(
         queries: options?.queries?.(createQueryBuilder<T>()),
         transactionId: options?.transactionId,
       }),
-    deleteMany: (options?: { queries?: (q: QueryBuilder<T>) => string[]; transactionId?: string }) =>
+    deleteMany: (options?: {
+      queries?: (q: QueryBuilder<T>) => string[];
+      transactionId?: string;
+    }) =>
       tablesDB.deleteRows({
         databaseId,
         tableId,
@@ -141,7 +259,8 @@ function createTableApi<T extends Models.Row>(
   };
 }
 
-const hasBulkMethods = (dbId: string, tableId: string) => !tablesWithRelationships.has(`${dbId}:${tableId}`);
+const hasBulkMethods = (dbId: string, tableId: string) =>
+  !tablesWithRelationships.has(`${dbId}:${tableId}`);
 
 const hasOwn = (obj: unknown, key: string): boolean =>
   obj != null && Object.prototype.hasOwnProperty.call(obj, key);
@@ -154,15 +273,19 @@ function createDatabaseHandle<D extends DatabaseId>(
   const dbMap = tableIdMap[databaseId];
 
   return {
-    use: <T extends keyof DatabaseTableMap[D] & string>(tableId: T): DatabaseTableMap[D][T] => {
+    use: <T extends keyof DatabaseTableMap[D] & string>(
+      tableId: T,
+    ): DatabaseTableMap[D][T] => {
       if (!hasOwn(dbMap, tableId)) {
-        throw new Error(`Unknown table "${tableId}" in database "${databaseId}"`);
+        throw new Error(
+          `Unknown table "${tableId}" in database "${databaseId}"`,
+        );
       }
 
       if (!tableApiCache.has(tableId)) {
         const resolvedTableId = dbMap[tableId];
         const api = createTableApi(tablesDB, databaseId, resolvedTableId);
-        
+
         // Remove bulk methods for tables with relationships
         if (!hasBulkMethods(databaseId, tableId)) {
           delete (api as Record<string, unknown>).createMany;
@@ -173,7 +296,34 @@ function createDatabaseHandle<D extends DatabaseId>(
       }
       return tableApiCache.get(tableId) as DatabaseTableMap[D][T];
     },
-    create: (tableId: string, name: string, options?: { permissions?: (permission: { read: (role: RoleString) => string; write: (role: RoleString) => string; create: (role: RoleString) => string; update: (role: RoleString) => string; delete: (role: RoleString) => string }, role: { any: () => RoleString; user: (userId: string, status?: string) => RoleString; users: (status?: string) => RoleString; guests: () => RoleString; team: (teamId: string, role?: string) => RoleString; member: (memberId: string) => RoleString; label: (label: string) => RoleString }) => string[]; rowSecurity?: boolean; enabled?: boolean; columns?: object[]; indexes?: object[] }) =>
+    create: (
+      tableId: string,
+      name: string,
+      options?: {
+        permissions?: (
+          permission: {
+            read: (role: RoleString) => string;
+            write: (role: RoleString) => string;
+            create: (role: RoleString) => string;
+            update: (role: RoleString) => string;
+            delete: (role: RoleString) => string;
+          },
+          role: {
+            any: () => RoleString;
+            user: (userId: string, status?: string) => RoleString;
+            users: (status?: string) => RoleString;
+            guests: () => RoleString;
+            team: (teamId: string, role?: string) => RoleString;
+            member: (memberId: string) => RoleString;
+            label: (label: string) => RoleString;
+          },
+        ) => string[];
+        rowSecurity?: boolean;
+        enabled?: boolean;
+        columns?: object[];
+        indexes?: object[];
+      },
+    ) =>
       tablesDB.createTable({
         databaseId,
         tableId,
@@ -184,9 +334,36 @@ function createDatabaseHandle<D extends DatabaseId>(
         columns: options?.columns,
         indexes: options?.indexes,
       }),
-    update: (tableId: string, options?: { name?: string; permissions?: (permission: { read: (role: RoleString) => string; write: (role: RoleString) => string; create: (role: RoleString) => string; update: (role: RoleString) => string; delete: (role: RoleString) => string }, role: { any: () => RoleString; user: (userId: string, status?: string) => RoleString; users: (status?: string) => RoleString; guests: () => RoleString; team: (teamId: string, role?: string) => RoleString; member: (memberId: string) => RoleString; label: (label: string) => RoleString }) => string[]; rowSecurity?: boolean; enabled?: boolean }) => {
+    update: (
+      tableId: string,
+      options?: {
+        name?: string;
+        permissions?: (
+          permission: {
+            read: (role: RoleString) => string;
+            write: (role: RoleString) => string;
+            create: (role: RoleString) => string;
+            update: (role: RoleString) => string;
+            delete: (role: RoleString) => string;
+          },
+          role: {
+            any: () => RoleString;
+            user: (userId: string, status?: string) => RoleString;
+            users: (status?: string) => RoleString;
+            guests: () => RoleString;
+            team: (teamId: string, role?: string) => RoleString;
+            member: (memberId: string) => RoleString;
+            label: (label: string) => RoleString;
+          },
+        ) => string[];
+        rowSecurity?: boolean;
+        enabled?: boolean;
+      },
+    ) => {
       if (!hasOwn(dbMap, tableId)) {
-        throw new Error(`Unknown table "${tableId}" in database "${databaseId}"`);
+        throw new Error(
+          `Unknown table "${tableId}" in database "${databaseId}"`,
+        );
       }
       const resolvedTableId = dbMap[tableId];
       return tablesDB.updateTable({
@@ -200,7 +377,9 @@ function createDatabaseHandle<D extends DatabaseId>(
     },
     delete: async (tableId: string) => {
       if (!hasOwn(dbMap, tableId)) {
-        throw new Error(`Unknown table "${tableId}" in database "${databaseId}"`);
+        throw new Error(
+          `Unknown table "${tableId}" in database "${databaseId}"`,
+        );
       }
       const resolvedTableId = dbMap[tableId];
       await tablesDB.deleteTable({
@@ -211,8 +390,11 @@ function createDatabaseHandle<D extends DatabaseId>(
   };
 }
 
-function createDatabasesApi(tablesDB: TablesDB): DatabaseTables {
-  const dbCache = new Map<DatabaseId, ReturnType<typeof createDatabaseHandle>>();
+export function createDatabasesApi(tablesDB: TablesDB): DatabaseTables {
+  const dbCache = new Map<
+    DatabaseId,
+    ReturnType<typeof createDatabaseHandle>
+  >();
 
   return {
     use: (databaseId: DatabaseId) => {
@@ -225,13 +407,20 @@ function createDatabasesApi(tablesDB: TablesDB): DatabaseTables {
       }
       return dbCache.get(databaseId);
     },
-    create: (databaseId: string, name: string, options?: { enabled?: boolean }) =>
+    create: (
+      databaseId: string,
+      name: string,
+      options?: { enabled?: boolean },
+    ) =>
       tablesDB.create({
         databaseId,
         name,
         enabled: options?.enabled,
       }),
-    update: (databaseId: DatabaseId, options?: { name?: string; enabled?: boolean }) => {
+    update: (
+      databaseId: DatabaseId,
+      options?: { name?: string; enabled?: boolean },
+    ) => {
       return tablesDB.update({
         databaseId,
         name: options?.name ?? databaseId,
@@ -245,13 +434,3 @@ function createDatabasesApi(tablesDB: TablesDB): DatabaseTables {
     },
   } as DatabaseTables;
 }
-
-// Initialize client
-const client = new Client()
-  .setEndpoint(ENDPOINT)
-  .setProject(PROJECT_ID)
-  .setKey(API_KEY);
-
-const tablesDB = new TablesDB(client);
-
-export const databases: DatabaseTables = createDatabasesApi(tablesDB);
