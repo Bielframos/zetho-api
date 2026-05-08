@@ -134,8 +134,8 @@ export class SandboxService {
         ],
       });
 
-      const ids = (result.rows as Array<{ $id: string }>).
-        map((row) => row.$id)
+      const ids = (result.rows as Array<{ $id: string }>)
+        .map((row) => row.$id)
         .filter(Boolean);
 
       if (!ids.length) {
