@@ -6,6 +6,7 @@ import { GazethoModule } from './modules/gazetho/gazetho.module';
 import { IGDBModule } from './modules/igdb/igdb.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
+import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     ProfileModule,
     GameModule,
     GazethoModule,
+    SitemapModule,
 
     /** Modulos do sístema */
     WebhookModule,
