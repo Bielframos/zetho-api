@@ -1,6 +1,6 @@
 import openAI from '@genkit-ai/compat-oai/openai';
-import { googleAI, vertexAI } from '@genkit-ai/google-genai';
-import { Module } from '@nestjs/common';
+import { googleAI } from '@genkit-ai/google-genai';
+import { forwardRef, Module } from '@nestjs/common';
 import { genkit, Genkit } from 'genkit';
 import { GameModule } from 'src/modules/game/game.module';
 import { GoogleModule } from 'src/modules/google/google.module';
@@ -32,6 +32,6 @@ import { TranslatorService } from './translator.service';
     TranslatorService,
   ],
   exports: [GENKIT, GENKIT_GOOGLE_AI, EditorService, TranslatorService],
-  imports: [GameModule, GoogleModule],
+  imports: [forwardRef(() => GameModule), GoogleModule],
 })
 export class AiModule {}
