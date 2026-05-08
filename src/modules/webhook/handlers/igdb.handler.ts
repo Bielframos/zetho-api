@@ -146,8 +146,22 @@ export class IGDBHandler {
       return existing.$id;
     }
 
-    const updatePayload = this.buildSafeGameUpdatePayload(game, existing);
+    const { updatePayload, companiesChanged, nextCompanies } =
+      this.buildSafeGameUpdatePayload(game, existing);
+
     await this.games.update(existing.$id, updatePayload);
+
+    if (companiesChanged) {
+      // Appwrite faz append em campos de relacionamento via updateRow.
+      // Para garantir replace, primeiro limpamos e depois setamos as companies.
+      await this.games.update(existing.$id, {
+        involvedCompanies: [],
+      } as unknown as GamesCreate);
+      await this.games.update(existing.$id, {
+        involvedCompanies: nextCompanies,
+      } as GamesCreate);
+    }
+
     return existing.$id;
   }
 
@@ -202,37 +216,23 @@ export class IGDBHandler {
   private buildSafeGameUpdatePayload(
     parsedGame: GamesCreate,
     existingGame: { involvedCompaniesIds: string[] },
-  ): GamesCreate {
-    const nextCompanies = (parsedGame.involvedCompanies ?? [])
-      .filter((company): company is string => typeof company === 'string')
-      .filter(Boolean);
+  ): {
+    updatePayload: GamesCreate;
+    companiesChanged: boolean;
+    nextCompanies: string[];
+  } {
+    const nextCompanies = (parsedGame.involvedCompanies ?? []).filter(
+      (company): company is string => typeof company === 'string',
+    );
 
-    if (
-      this.areSameCompanyRelations(
-        existingGame.involvedCompaniesIds,
-        nextCompanies,
-      )
-    ) {
-      const { involvedCompanies, ...payloadWithoutCompanies } = parsedGame;
-      return payloadWithoutCompanies;
-    }
+    const currentSet = new Set(existingGame.involvedCompaniesIds);
+    const companiesChanged =
+      currentSet.size !== nextCompanies.length ||
+      !nextCompanies.every((id) => currentSet.has(id));
 
-    return parsedGame;
-  }
+    const { involvedCompanies: _, ...updatePayload } = parsedGame;
 
-  private areSameCompanyRelations(current: string[], next: string[]) {
-    if (current.length !== next.length) {
-      return false;
-    }
-
-    const currentSet = new Set(current);
-    for (const companyId of next) {
-      if (!currentSet.has(companyId)) {
-        return false;
-      }
-    }
-
-    return true;
+    return { updatePayload, companiesChanged, nextCompanies };
   }
 
   private getDurationMs(startedAt: bigint) {
