@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Query } from 'node-appwrite';
 import { EditorService } from 'src/common/ai/editor.service';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { YoutubeService } from '../google/youtube.service';
@@ -7,6 +8,7 @@ import { TranslatorService } from 'src/common/ai/translator.service';
 @Injectable()
 export class SandboxService {
   private games: Appwrite['databases']['games'];
+  private tablesDB: Appwrite['databases']['api'];
 
   constructor(
     private readonly appwrite: Appwrite,
@@ -15,6 +17,7 @@ export class SandboxService {
     private readonly youtubeService: YoutubeService,
   ) {
     this.games = this.appwrite.databases.games;
+    this.tablesDB = this.appwrite.databases.api;
   }
 
   async runEditor() {
@@ -114,5 +117,42 @@ export class SandboxService {
 
   async translate(text: string, targetLanguage?: string) {
     return this.translateService.translate(text, targetLanguage);
+  }
+
+  async deleteGenresWithNullNamePt() {
+    const PAGE_SIZE = 100;
+    let deleted = 0;
+
+    while (true) {
+      const result = await this.tablesDB.listRows({
+        databaseId: 'app',
+        tableId: 'genres',
+        queries: [
+          Query.isNull('namePt'),
+          Query.select(['$id'] as any),
+          Query.limit(PAGE_SIZE),
+        ],
+      });
+
+      const ids = (result.rows as Array<{ $id: string }>).
+        map((row) => row.$id)
+        .filter(Boolean);
+
+      if (!ids.length) {
+        break;
+      }
+
+      await this.tablesDB.deleteRows({
+        databaseId: 'app',
+        tableId: 'genres',
+        queries: [Query.equal('$id' as any, ids as any)],
+      });
+
+      deleted += ids.length;
+    }
+
+    return {
+      deleted,
+    };
   }
 }

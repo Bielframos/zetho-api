@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
 import { SandboxService } from './sandbox.service';
 
 @Controller('sandbox')
@@ -29,5 +29,10 @@ export class SandboxController {
   async translate(@Body() body: { text: string; targetLanguage?: string }) {
     const { text, targetLanguage } = body;
     return this.sandboxService.translate(text, targetLanguage);
+  }
+
+  @Delete('genres/null-namept')
+  async deleteGenresWithNullNamePt() {
+    return this.sandboxService.deleteGenresWithNullNamePt();
   }
 }
