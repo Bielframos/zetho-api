@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { EditorService } from 'src/common/ai/editor.service';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { YoutubeService } from '../google/youtube.service';
+import { TranslatorService } from 'src/common/ai/translator.service';
 
 @Injectable()
 export class SandboxService {
@@ -10,6 +11,7 @@ export class SandboxService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly editorService: EditorService,
+    private readonly translateService: TranslatorService,
     private readonly youtubeService: YoutubeService,
   ) {
     this.games = this.appwrite.databases.games;
@@ -108,5 +110,9 @@ export class SandboxService {
 
   async searchVideosFromYoutube(query: string) {
     return this.youtubeService.searchVideos(query);
+  }
+
+  async translate(text: string, targetLanguage?: string) {
+    return this.translateService.translate(text, targetLanguage);
   }
 }

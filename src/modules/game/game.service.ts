@@ -520,6 +520,13 @@ export class GameService {
     }
   }
 
+  /** Traduz descrições dos jogos para pt-BR */
+  private async translateDescriptionsMigration(game: Game): Promise<void> {
+    // Implementação futura: usar um serviço de tradução para atualizar o campo de descrição
+    // Este é um placeholder para demonstrar onde a lógica de migração de tradução ocorreria
+    return;
+  }
+
   /**
    * Anexa o zEntry do usuário (via fingerprint) a cada jogo da lista.
    * Retorna null se o fingerprint não for informado ou o entry não existir.
