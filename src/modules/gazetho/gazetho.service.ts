@@ -139,7 +139,7 @@ export class GazethoService {
       ],
     });
 
-    const { mainImage, ...post } = response.rows[0];
+    const post = response.rows[0];
 
     if (!post) {
       throw new NotFoundException(
@@ -151,7 +151,7 @@ export class GazethoService {
 
     return {
       ...post,
-      mainImage: mainImage ? JSON.parse(mainImage) : null,
+      mainImage: post.mainImage ? JSON.parse(post.mainImage) : null,
       relatedGames,
     };
   }
