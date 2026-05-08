@@ -8,11 +8,12 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
 import { extractKeywords, slugify, calculateScore } from './game-search.utils';
+import { TranslatorService } from 'src/common/ai/translator.service';
 
 @Injectable()
 export class GameService {
   private readonly logger = new Logger(GameService.name);
-  private readonly currentVersion = 1;
+  private readonly currentVersion = 2;
 
   private games: Appwrite['databases']['games'];
   private gameMedias: Appwrite['databases']['gameMedias'];
@@ -27,6 +28,7 @@ export class GameService {
 
   constructor(
     private readonly appwrite: Appwrite,
+    private readonly translatorService: TranslatorService,
     private readonly igdbService: IGDBService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
@@ -429,6 +431,7 @@ export class GameService {
 
   private readonly migrations: Record<number, (game: Game) => Promise<void>> = {
     1: (game) => this.mediasMigration(game),
+    2: (game) => this.translateDescriptionsMigration(game),
   };
 
   private async mediasMigration(game: Game): Promise<void> {
@@ -522,8 +525,33 @@ export class GameService {
 
   /** Traduz descrições dos jogos para pt-BR */
   private async translateDescriptionsMigration(game: Game): Promise<void> {
-    // Implementação futura: usar um serviço de tradução para atualizar o campo de descrição
-    // Este é um placeholder para demonstrar onde a lógica de migração de tradução ocorreria
+    const summary = game.summary;
+    let translatedSummary: string | null = null;
+
+    if (summary) {
+      try {
+        translatedSummary = await this.translatorService.translate(summary);
+        const tx = await this.tablesDB.createTransaction();
+
+        await this.games.update(
+          game.$id,
+          { summaryPt: translatedSummary, zethoVersion: 2 },
+          { transactionId: tx.$id },
+        );
+
+        await this.tablesDB.updateTransaction({
+          transactionId: tx.$id,
+          commit: true,
+        });
+
+        game.zethoVersion = 2;
+        game.summaryPt = translatedSummary;
+
+        this.logger.log(`Migração de tradução concluída para jogo ${game.$id}`);
+      } catch (e) {
+        this.logger.error(`Erro ao migrar tradução para jogo ${game.$id}`, e);
+      }
+    }
     return;
   }
 

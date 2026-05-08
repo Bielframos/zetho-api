@@ -5,5 +5,5 @@
  * Re-run `appwrite generate` to regenerate.
  */
 
-export { createDatabasesApi } from './databases';
-export * from './types';
+export { databases } from "./databases";
+export * from "./types";
