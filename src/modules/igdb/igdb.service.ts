@@ -380,15 +380,15 @@ export class IGDBService {
       throw new NotFoundException('Jogo não encontrado no IGDB');
     }
 
-    if (this.shouldIgnore(igdbGame)) {
-      throw new ConflictException('Jogo não elegível para ingestão');
-    }
-
     const preferredGameId = `igdb_${igdbGame.id}`;
     const existingGame = await this.findExistingGameForUpdate(
       igdbGame.id,
       preferredGameId,
     );
+
+    if (this.shouldIgnore(igdbGame) && !existingGame.exists) {
+      throw new ConflictException('Jogo não elegível para ingestão');
+    }
 
     if (
       existingGame.exists &&
