@@ -1,14 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { GENKIT } from './ai.constants';
-import { type Genkit, z } from 'genkit';
 import { DOMParser } from '@xmldom/xmldom';
-import { GameService } from 'src/modules/game/game.service';
+import { z, type Genkit } from 'genkit';
 import { PostsStatus, type Games } from 'infra/appwrite';
-import { Appwrite } from '../appwrite/appwrite.provider';
 import { ID } from 'node-appwrite';
+import { GameService } from 'src/modules/game/game.service';
 import { YoutubeService } from 'src/modules/google/youtube.service';
-import { channel } from 'node:diagnostics_channel';
-import { description } from 'valibot';
+import { Appwrite } from '../appwrite/appwrite.provider';
+import { GENKIT } from './ai.constants';
 
 type Feed = {
   posts: {
