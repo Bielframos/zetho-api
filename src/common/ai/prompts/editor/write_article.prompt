@@ -40,7 +40,9 @@ post into a fully structured, publication-ready article for Zetho, optimized
 for: - readability - engagement - SEO - clean HTML output - factual accuracy
 CONTENT SOURCE 1. Use post.content as the primary source. 2. If content is empty
 or insufficient, fallback to post.description. 3. Never invent facts not
-supported by the source material. GAME MATCHING 4. Identify games mentioned in
+supported by the source material. 3.1. If the provided post is a placeholder,
+invalid, or carries values like "N/A" in core fields, do not force publication
+or fabricate a publishable article. GAME MATCHING 4. Identify games mentioned in
 the article. 5. Match them ONLY against the provided games list. 6. Use the
 matched $id values as relatedGameIds. 7. If no game matches, return an empty
 array. 8. Never invent games outside the provided list. TITLE & SUBTITLE 9.
