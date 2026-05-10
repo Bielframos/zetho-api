@@ -1,8 +1,9 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { AiModule } from 'src/common/ai/ai.module';
+import { EditorModule } from 'src/common/ai/agents/editor/editor.module';
 import { GoogleModule } from '../google/google.module';
 import { SandboxController } from './sandbox.controller';
 import { SandboxService } from './sandbox.service';
+import { TranslatorModule } from 'src/common/ai/agents/editor/translator/translator.module';
 
 @Module({})
 export class SandboxModule {
@@ -15,7 +16,7 @@ export class SandboxModule {
       };
     return {
       module: SandboxModule,
-      imports: [AiModule, GoogleModule],
+      imports: [EditorModule, TranslatorModule, GoogleModule],
       controllers: [SandboxController],
       providers: [SandboxService],
     };

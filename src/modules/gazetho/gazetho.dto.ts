@@ -17,6 +17,22 @@ export class GeneratePostDto {
   @IsString()
   @MaxLength(120)
   suggestion?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(720)
+  captureWindowHours?: number;
+}
+
+export class GetEditorNewsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(720)
+  captureWindowHours?: number;
 }
 
 export class CreatePostDto {

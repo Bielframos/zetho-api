@@ -1,5 +1,6 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppwriteModule } from './common/appwrite/appwrite.module';
 import { GameModule } from './modules/game/game.module';
 import { GazethoModule } from './modules/gazetho/gazetho.module';
@@ -8,6 +9,7 @@ import { ProfileModule } from './modules/profile/profile.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
+import { AiModule } from './common/ai/ai.module';
 
 @Module({
   imports: [
@@ -16,7 +18,9 @@ import { WebhookModule } from './modules/webhook/webhook.module';
       ttl: Number(process.env.APP_CACHE_TTL ?? 60_000),
       max: Number(process.env.APP_CACHE_MAX ?? 1_000),
     }),
+    ScheduleModule.forRoot(),
     AppwriteModule,
+    AiModule,
 
     /** Feature modules */
     IGDBModule,

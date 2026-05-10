@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { GazethoController } from './gazetho.controller';
 import { GazethoService } from './gazetho.service';
-import { AiModule } from 'src/common/ai/ai.module';
+import { EditorModule } from 'src/common/ai/agents/editor/editor.module';
 
 @Module({
-  imports: [AiModule],
+  imports: [EditorModule],
   controllers: [GazethoController],
   providers: [GazethoService],
   exports: [GazethoService],

@@ -8,7 +8,7 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
 import { extractKeywords, slugify, calculateScore } from './game-search.utils';
-import { TranslatorService } from 'src/common/ai/translator.service';
+import { TranslatorService } from 'src/common/ai/agents/editor/translator/translator.service';
 
 @Injectable()
 export class GameService {

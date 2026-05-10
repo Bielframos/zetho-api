@@ -9,11 +9,12 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { EditorService } from 'src/common/ai/editor.service';
+import { EditorService } from 'src/common/ai/agents/editor/editor.service';
 import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 import {
   CreatePostDto,
   GeneratePostDto,
+  GetEditorNewsDto,
   PopularTagsDto,
   SearchPostsDto,
   SitemapPostsDto,
@@ -37,12 +38,17 @@ export class GazethoController {
 
   @Post('editor/generate-article')
   generateArticle(@Body() dto: GeneratePostDto) {
-    return this.editorService.execute(dto.suggestion);
+    return this.editorService.execute({
+      suggestion: dto.suggestion,
+      captureWindowHours: dto.captureWindowHours,
+    });
   }
 
   @Get('editor/news')
-  getNews() {
-    return this.editorService.getNews();
+  getNews(@Query() dto: GetEditorNewsDto) {
+    return this.editorService.getNews({
+      captureWindowHours: dto.captureWindowHours,
+    });
   }
 
   @Post('posts')
