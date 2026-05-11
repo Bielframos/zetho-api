@@ -6,6 +6,7 @@ import { PostsStatus, type Games } from 'infra/appwrite';
 import { ID } from 'node-appwrite';
 import { GameService } from 'src/modules/game/game.service';
 import { YoutubeService } from 'src/modules/google/youtube.service';
+import { NotificationsService } from 'src/modules/notifications/notifications.service';
 import { Appwrite } from '../../../appwrite/appwrite.provider';
 import { GENKIT } from '../../ai.constants';
 
@@ -85,6 +86,7 @@ type ExecuteEditorOptions = NewsCaptureOptions & {
 
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
 const DEFAULT_CAPTURE_WINDOW_HOURS = 24;
+const GAZETHO_SITE_BASE_URL = 'https://ga.zetho.app';
 
 const feedUrls = [
   'https://feeds.feedburner.com/ign/games-all',
@@ -108,6 +110,7 @@ export class EditorService {
     private readonly gameService: GameService,
     private readonly appwrite: Appwrite,
     private readonly youtubeService: YoutubeService,
+    private readonly notificationsService: NotificationsService,
   ) {
     this.posts = this.appwrite.databases.posts;
   }
@@ -172,6 +175,13 @@ export class EditorService {
       article,
       fallbackMainImage: post.link,
       pickedMainImage: mainImage,
+    });
+
+    await this.notificationsService.sharePost({
+      title: savedPost.title,
+      subtitle: savedPost.subtitle ?? '',
+      postUrl: this.buildPostUrl(savedPost.slug),
+      mediaUrl: mainImage?.url,
     });
 
     this.invalidateFrontendCache();
@@ -551,6 +561,10 @@ export class EditorService {
     }
 
     return Math.min(numericValue, 24 * 30);
+  }
+
+  private buildPostUrl(slug: string) {
+    return new URL(`/posts/${slug}`, GAZETHO_SITE_BASE_URL).toString();
   }
 
   /**

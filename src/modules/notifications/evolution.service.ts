@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class EvolutionService {
+  private readonly logger = new Logger(EvolutionService.name);
+
   constructor() {}
 
   private async api({
@@ -21,20 +23,89 @@ export class EvolutionService {
     }
 
     const url = new URL(path, baseUrl).toString();
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: token,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: token,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
 
-    if (!res.ok) {
-      throw new Error('Error to communicate with evolution api');
+      const rawResponse = await res.text();
+      let data: unknown = null;
+
+      if (rawResponse) {
+        try {
+          data = JSON.parse(rawResponse);
+        } catch {
+          data = rawResponse;
+        }
+      }
+
+      if (!res.ok) {
+        this.logger.error(
+          `Evolution API request failed: ${method} ${path} (${res.status} ${res.statusText})`,
+        );
+        const errorDetails =
+          typeof data === 'string' && data.trim().length > 0
+            ? ` - ${data.slice(0, 300)}`
+            : '';
+        throw new Error(
+          `Evolution API request failed (${res.status} ${res.statusText})${errorDetails}`,
+        );
+      }
+
+      return data;
+    } catch (error) {
+      this.logger.error(
+        `Unexpected error communicating with Evolution API: ${method} ${path}`,
+        error as Error,
+      );
+      throw error;
     }
+  }
 
-    const data = await res.json();
-    return data;
+  /**
+   * Sends a text message to a specified recipient.
+   * @param param0 An object containing the recipient's number and the message text.
+   */
+  async sendTextMessage({ to, message }: { to: string; message: string }) {
+    await this.api({
+      method: 'POST',
+      path: '/send/text',
+      body: {
+        number: to,
+        text: message,
+      },
+    });
+  }
+
+  /**
+   * Sends a media message to a specified recipient.
+   * @param param0 An object containing the recipient's number, media URL, message text, and media type.
+   */
+  async sendMediaMessage({
+    to,
+    mediaUrl,
+    message,
+    type,
+  }: {
+    to: string;
+    mediaUrl: string;
+    message: string;
+    type: 'image' | 'video' | 'audio' | 'document';
+  }) {
+    await this.api({
+      method: 'POST',
+      path: '/send/media',
+      body: {
+        number: to,
+        mediaUrl,
+        caption: message,
+        type,
+      },
+    });
   }
 }
