@@ -3,7 +3,7 @@ import { Query } from 'node-appwrite';
 import { EditorService } from 'src/common/ai/agents/editor/editor.service';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { YoutubeService } from '../google/youtube.service';
-import { TranslatorService } from 'src/common/ai/agents/editor/translator/translator.service';
+import { TranslatorService } from 'src/common/ai/agents/translator/translator.service';
 
 @Injectable()
 export class SandboxService {

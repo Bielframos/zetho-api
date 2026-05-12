@@ -3,7 +3,7 @@ import { EditorModule } from 'src/common/ai/agents/editor/editor.module';
 import { GoogleModule } from '../google/google.module';
 import { SandboxController } from './sandbox.controller';
 import { SandboxService } from './sandbox.service';
-import { TranslatorModule } from 'src/common/ai/agents/editor/translator/translator.module';
+import { TranslatorModule } from 'src/common/ai/agents/translator/translator.module';
 
 @Module({})
 export class SandboxModule {
