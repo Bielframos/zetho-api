@@ -15,8 +15,8 @@ export class EvolutionService {
     path: string;
     body?: any;
   }) {
-    const baseUrl = process.env.EVOLUTION_API_URL;
-    const token = process.env.EVOLUTION_API_TOKEN;
+    const baseUrl = process.env.EVOLUTION_ENDPOINT;
+    const token = process.env.EVOLUTION_INSTANCE_TOKEN;
 
     if (!baseUrl || !token) {
       throw new Error('Evolution API URL and token must be set');
@@ -102,7 +102,7 @@ export class EvolutionService {
       path: '/send/media',
       body: {
         number: to,
-        mediaUrl,
+        url: mediaUrl,
         caption: message,
         type,
       },
