@@ -74,6 +74,7 @@ type RecentPostForAi = {
   title: string;
   pubDate: string;
   originalSourceUrl: string;
+  tags: string[];
 };
 
 type NewsCaptureOptions = {
@@ -140,7 +141,12 @@ export class EditorService {
     const { posts, contents } = await this.getNews({ captureWindowHours });
 
     const recentPosts = await this.getRecentPostsForAi();
-    const analysis = await this.trendAnalysis(posts, recentPosts, suggestion);
+    const postsForAnalysis = posts.slice(0, 60);
+    const analysis = await this.trendAnalysis(
+      postsForAnalysis,
+      recentPosts,
+      suggestion,
+    );
 
     if (this.shouldSkipPublication(analysis)) {
       return {
@@ -161,6 +167,13 @@ export class EditorService {
 
       post.content = content;
     } else throw new Error('Post not found');
+
+    if (post.link && (await this.sourceUrlAlreadyPublished(post.link))) {
+      return {
+        skipped: true as const,
+        reason: `Source URL already published: ${post.link}`,
+      };
+    }
 
     const relatedGames = await this.getRelatedGames(analysis.relatedGames);
 
@@ -284,13 +297,15 @@ export class EditorService {
    * @param limit
    * @returns
    */
-  private async getRecentPostsForAi(limit = 20): Promise<RecentPostForAi[]> {
-    const safeLimit = Math.max(1, Math.min(limit, 15));
+  private async getRecentPostsForAi(limit = 30): Promise<RecentPostForAi[]> {
+    const safeLimit = Math.max(1, Math.min(limit, 30));
+    const cutoffDate = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
 
     const response = await this.posts.list({
       queries: (q) => [
         q.equal('status', PostsStatus.PUBLISHED),
-        q.select(['title', '$createdAt', 'originalSourceUrl']),
+        q.greaterThan('$createdAt', cutoffDate),
+        q.select(['title', '$createdAt', 'originalSourceUrl', 'tags']),
         q.orderDesc('$createdAt'),
         q.limit(safeLimit),
       ],
@@ -302,7 +317,19 @@ export class EditorService {
         title: row.title,
         pubDate: row.$createdAt,
         originalSourceUrl: row.originalSourceUrl ?? '',
+        tags: row.tags ?? [],
       }));
+  }
+
+  private async sourceUrlAlreadyPublished(sourceUrl: string): Promise<boolean> {
+    const response = await this.posts.list({
+      queries: (q) => [
+        q.equal('originalSourceUrl', sourceUrl),
+        q.equal('status', PostsStatus.PUBLISHED),
+        q.limit(1),
+      ],
+    });
+    return response.rows.length > 0;
   }
 
   /**
@@ -513,7 +540,13 @@ export class EditorService {
         el.getElementsByTagName('content')[0]?.textContent ||
         '';
 
-      posts.push({ id, title, description, link, pubDate });
+      posts.push({
+        id,
+        title,
+        description: description.slice(0, 500),
+        link,
+        pubDate,
+      });
       contents.push({ id, content });
     }
 
