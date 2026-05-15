@@ -446,13 +446,30 @@ export class IGDBService {
 
     if (companiesChanged) {
       // Appwrite faz append em campos de relacionamento via updateRow.
-      // Para garantir replace, primeiro limpamos e depois setamos as companies.
-      await this.games.update(existingGame.$id, {
-        involvedCompanies: [],
-      } as unknown as GamesCreate);
-      await this.games.update(existingGame.$id, {
-        involvedCompanies: nextCompanies,
-      } as GamesCreate);
+      // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
+      const tx = await this.tableDB.createTransaction();
+      try {
+        await this.games.update(
+          existingGame.$id,
+          { involvedCompanies: [] } as unknown as GamesCreate,
+          { transactionId: tx.$id },
+        );
+        await this.games.update(
+          existingGame.$id,
+          { involvedCompanies: nextCompanies } as GamesCreate,
+          { transactionId: tx.$id },
+        );
+        await this.tableDB.updateTransaction({
+          transactionId: tx.$id,
+          commit: true,
+        });
+      } catch (err) {
+        await this.tableDB.updateTransaction({
+          transactionId: tx.$id,
+          rollback: true,
+        });
+        throw err;
+      }
     }
 
     return existingGame.$id;
@@ -510,8 +527,11 @@ export class IGDBService {
       (company): company is string => typeof company === 'string',
     );
 
-    const currentSet = new Set(existingGame.involvedCompaniesIds);
+    const currentIds = existingGame.involvedCompaniesIds;
+    const currentSet = new Set(currentIds);
+    const hasDuplicates = currentIds.length !== currentSet.size;
     const companiesChanged =
+      hasDuplicates ||
       currentSet.size !== nextCompanies.length ||
       !nextCompanies.every((id) => currentSet.has(id));
 

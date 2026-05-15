@@ -115,9 +115,8 @@ export class IGDBHandler {
   private extractInvolvedCompanies(game: IGDBGame): string[] {
     const companies = game.involved_companies ?? [];
     const ids = companies
-      .map((item) => item.company?.id)
-      .filter((companyId): companyId is number => typeof companyId === 'number')
-      .map((companyId) => `igdb_${companyId}`);
+      .filter((item) => item.developer && item.company?.id)
+      .map((item) => `igdb_${item.company.id}`);
 
     return Array.from(new Set(ids));
   }
@@ -153,13 +152,30 @@ export class IGDBHandler {
 
     if (companiesChanged) {
       // Appwrite faz append em campos de relacionamento via updateRow.
-      // Para garantir replace, primeiro limpamos e depois setamos as companies.
-      await this.games.update(existing.$id, {
-        involvedCompanies: [],
-      } as unknown as GamesCreate);
-      await this.games.update(existing.$id, {
-        involvedCompanies: nextCompanies,
-      } as GamesCreate);
+      // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
+      const tx = await this.tableDB.createTransaction();
+      try {
+        await this.games.update(
+          existing.$id,
+          { involvedCompanies: [] } as unknown as GamesCreate,
+          { transactionId: tx.$id },
+        );
+        await this.games.update(
+          existing.$id,
+          { involvedCompanies: nextCompanies } as GamesCreate,
+          { transactionId: tx.$id },
+        );
+        await this.tableDB.updateTransaction({
+          transactionId: tx.$id,
+          commit: true,
+        });
+      } catch (err) {
+        await this.tableDB.updateTransaction({
+          transactionId: tx.$id,
+          rollback: true,
+        });
+        throw err;
+      }
     }
 
     return existing.$id;
@@ -225,8 +241,11 @@ export class IGDBHandler {
       (company): company is string => typeof company === 'string',
     );
 
-    const currentSet = new Set(existingGame.involvedCompaniesIds);
+    const currentIds = existingGame.involvedCompaniesIds;
+    const currentSet = new Set(currentIds);
+    const hasDuplicates = currentIds.length !== currentSet.size;
     const companiesChanged =
+      hasDuplicates ||
       currentSet.size !== nextCompanies.length ||
       !nextCompanies.every((id) => currentSet.has(id));
 
