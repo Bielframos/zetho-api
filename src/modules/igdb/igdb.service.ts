@@ -373,7 +373,7 @@ export class IGDBService {
     return (results[0] as IGDBGameMedia) ?? null;
   }
 
-  async importGameById(id: number) {
+  async importGameById(id: number, options: { force?: boolean } = {}) {
     const [igdbGame] = await this.getGamesByIds([id], 1);
 
     if (!igdbGame) {
@@ -386,7 +386,7 @@ export class IGDBService {
       preferredGameId,
     );
 
-    if (this.shouldIgnore(igdbGame) && !existingGame.exists) {
+    if (this.shouldIgnore(igdbGame) && !existingGame.exists && !options.force) {
       throw new ConflictException('Jogo não elegível para ingestão');
     }
 
