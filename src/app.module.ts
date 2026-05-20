@@ -10,6 +10,7 @@ import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AiModule } from './common/ai/ai.module';
+import { ZCoinsModule } from './modules/zcoins/zcoins.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AiModule } from './common/ai/ai.module';
     GameModule,
     GazethoModule,
     SitemapModule,
+    ZCoinsModule,
 
     /** Modulos do sístema */
     WebhookModule,

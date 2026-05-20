@@ -537,6 +537,15 @@
                     "default": 0,
                     "min": 0,
                     "max": 9223372036854775807
+                },
+                {
+                    "key": "zcoin_balance",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": [
@@ -568,6 +577,110 @@
                     "status": "available",
                     "columns": [
                         "fingerprint"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "zcoin_transactions",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"any\")",
+                "create(\"team:zerei\")",
+                "read(\"team:zerei\")",
+                "update(\"team:zerei\")",
+                "delete(\"team:zerei\")"
+            ],
+            "databaseId": "app",
+            "name": "Z Coin Transactions",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "amount",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": 0,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": "enum",
+                    "elements": [
+                        "input",
+                        "output"
+                    ]
+                },
+                {
+                    "key": "reason",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": "enum",
+                    "elements": [
+                        "daily_login",
+                        "quest_complete",
+                        "streak_bonus",
+                        "profile_highlight",
+                        "nickname_change",
+                        "marketplace_item"
+                    ]
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "index_user_id",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "userId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "unique_id",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "id"
                     ],
                     "orders": [
                         "ASC"
