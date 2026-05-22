@@ -1,3 +1,6 @@
+packages:
+  - 'packages/*'
+
 allowBuilds:
   '@firebase/util': true
   '@nestjs/core': true
