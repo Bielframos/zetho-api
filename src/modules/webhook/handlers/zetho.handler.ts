@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import crypto from 'crypto';
 import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
-import { Models } from 'node-appwrite';
+import { ID, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import SCORE_TABLE from 'src/modules/zcoins/score-table';
 
 @Injectable()
 export class ZethoHandler {
@@ -95,6 +96,10 @@ export class ZethoHandler {
     const prevStatus = (previousEntry?.status as string | null) ?? null;
     const prevLiked = previousEntry?.liked ?? null;
     const prevHyped = previousEntry?.hyped ?? false;
+    let zcoinChanges = this.resolveStatusZCoinChanges(
+      prevStatus,
+      currentStatus,
+    );
 
     const readId = this.createId(entry.ownerFingerprint, entry.gameId);
 
@@ -159,6 +164,16 @@ export class ZethoHandler {
 
     let likeOp: any | null = null;
     let hypedOps: Array<any> = [];
+    let zcoinOps = zcoinChanges.map((change) =>
+      this.createIncDecOp(
+        change.type === 'input' ? 'increment' : 'decrement',
+        'app',
+        'user_profiles',
+        userProfile.$id,
+        'zcoinBalance',
+        change.amount,
+      ),
+    );
 
     if (prevLiked !== currentLiked) {
       const zStats = await this.zStats.get(`zstats_${entry.gameId}`);
@@ -179,6 +194,25 @@ export class ZethoHandler {
             likes: Math.max(0, likesCount + delta),
           },
         };
+      }
+
+      if (prevLiked !== true && currentLiked === true) {
+        const engagedValue = SCORE_TABLE.input.engaged;
+        const engagedOp = this.createIncDecOp(
+          'increment',
+          'app',
+          'user_profiles',
+          userProfile.$id,
+          'zcoinBalance',
+          engagedValue,
+        );
+
+        zcoinOps.push(engagedOp);
+        zcoinChanges.push({
+          type: 'input',
+          reason: 'engaged',
+          amount: engagedValue,
+        });
       }
     }
 
@@ -210,19 +244,48 @@ export class ZethoHandler {
 
     try {
       tx = await this.tablesDB.createTransaction();
+      if (!tx) {
+        throw new InternalServerErrorException('Falha ao iniciar transação');
+      }
+      const transactionId = tx.$id;
 
-      const operations = [...statusOps, likeOp, ...hypedOps].filter(Boolean);
+      const operations = [
+        ...statusOps,
+        likeOp,
+        ...hypedOps,
+        ...zcoinOps,
+      ].filter(Boolean);
 
       if (operations.length > 0) {
         await this.tablesDB.createOperations({
-          transactionId: tx.$id,
+          transactionId,
           operations,
         });
       }
 
+      if (zcoinChanges.length > 0) {
+        await Promise.all(
+          zcoinChanges.map((change) =>
+            this.tablesDB.createRow({
+              transactionId,
+              databaseId: 'app',
+              tableId: 'zcoin_transactions',
+              rowId: ID.unique(),
+              data: {
+                userId: userProfile.userId,
+                amount:
+                  change.type === 'input' ? change.amount : -change.amount,
+                type: change.type,
+                reason: change.reason,
+              },
+            }),
+          ),
+        );
+      }
+
       /** Marca o registro como processado */
       await this.tablesDB.createOperations({
-        transactionId: tx.$id,
+        transactionId,
         operations: [
           {
             action: 'update',
@@ -235,7 +298,7 @@ export class ZethoHandler {
       });
 
       await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
+        transactionId,
         commit: true,
       });
 
@@ -281,14 +344,54 @@ export class ZethoHandler {
     tableId: string,
     rowId: string,
     column: string,
+    value = 1,
   ) {
     return {
       action,
       databaseId,
       tableId,
       rowId,
-      data: { value: 1, column },
+      data: { value, column },
     };
+  }
+
+  private resolveStatusZCoinChanges(
+    prev: string | null,
+    current: string | null,
+  ) {
+    const reasonByStatus: Partial<
+      Record<string, keyof typeof SCORE_TABLE.input>
+    > = {
+      completed: 'finished_game',
+      backlog: 'add_game_to_library',
+      playing: 'playing_game',
+    };
+
+    const changes: Array<{
+      type: 'input' | 'output';
+      reason: keyof typeof SCORE_TABLE.input;
+      amount: number;
+    }> = [];
+
+    const previousReason = prev ? reasonByStatus[prev] : undefined;
+    if (previousReason && prev !== current) {
+      changes.push({
+        type: 'output',
+        reason: previousReason,
+        amount: SCORE_TABLE.input[previousReason],
+      });
+    }
+
+    const currentReason = current ? reasonByStatus[current] : undefined;
+    if (currentReason && prev !== current) {
+      changes.push({
+        type: 'input',
+        reason: currentReason,
+        amount: SCORE_TABLE.input[currentReason],
+      });
+    }
+
+    return changes;
   }
 
   //** Método para obter a ação da operação do status */
