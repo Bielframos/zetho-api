@@ -1,11 +1,13 @@
 const SCORE_TABLE = {
   input: {
-    welcome_bonus: 100,
+    welcome_bonus: 25,
     daily_login: 5,
-    finished_game: 25,
-    playing_game: 15,
-    add_game_to_library: 10,
-    engaged: 5,
+    finished_game: 8,
+    playing_game: 6,
+    add_game_to_library: 4,
+    engaged: 2,
+    invited_friend: 10,
+    friend_joined: 15,
   },
   output: {},
 } as const;
