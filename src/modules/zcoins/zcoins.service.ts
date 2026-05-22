@@ -6,21 +6,9 @@ import {
 import { UserProfiles } from 'infra/appwrite';
 import { ID, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import SCORE_TABLE from './score-table';
 
 type ZCoinTransactionType = 'input' | 'output';
-
-const ZCOIN_REASON_VALUES = {
-  input: {
-    daily_login: 5,
-    quest_complete: 20,
-    streak_bonus: 15,
-  },
-  output: {
-    profile_highlight: 10,
-    nickname_change: 25,
-    marketplace_item: 40,
-  },
-} as const;
 
 @Injectable()
 export class ZCoinsService {
@@ -139,8 +127,8 @@ export class ZCoinsService {
 
     const reasonValues =
       type === 'input'
-        ? (ZCOIN_REASON_VALUES.input as Record<string, number>)
-        : (ZCOIN_REASON_VALUES.output as Record<string, number>);
+        ? (SCORE_TABLE.input as Record<string, number>)
+        : (SCORE_TABLE.output as Record<string, number>);
     const amount = reasonValues[safeReason];
 
     if (!amount) {
