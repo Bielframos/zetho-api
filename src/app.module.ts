@@ -11,6 +11,7 @@ import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AiModule } from './common/ai/ai.module';
 import { ZCoinsModule } from './modules/zcoins/zcoins.module';
+import { RaffleModule } from './modules/raffle/raffle.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ZCoinsModule } from './modules/zcoins/zcoins.module';
     GazethoModule,
     SitemapModule,
     ZCoinsModule,
+    RaffleModule,
 
     /** Modulos do sístema */
     WebhookModule,

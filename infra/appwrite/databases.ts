@@ -77,6 +77,11 @@ tableIdMap['app']['Genres'] = 'genres';
 tableIdMap['app']['Game Medias'] = 'game_medias';
 tableIdMap['app']['Autores'] = 'authors';
 tableIdMap['app']['Posts'] = 'posts';
+tableIdMap['app']['Z Coin Transactions'] = 'zcoin_transactions';
+tableIdMap['app']['Sorteios'] = 'raffles';
+tableIdMap['app']['Entradas de Sorteio'] = 'raffle_entries';
+tableIdMap['app']['Chaves de Jogos'] = 'game_keys';
+tableIdMap['app']['Logs do Aplicativo'] = 'app_logs';
 
 const tablesWithRelationships = new Set<string>([
   'app:Games',
@@ -86,6 +91,7 @@ const tablesWithRelationships = new Set<string>([
   'app:List Items',
   'app:Game Medias',
   'app:Posts',
+  'app:Sorteios',
 ]);
 
 const roleBuilder: RoleBuilder = {

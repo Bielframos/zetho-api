@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Models } from 'node-appwrite';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { AppwriteException, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 import crypto from 'node:crypto';
@@ -35,8 +41,6 @@ export class ProfileService {
       ],
     });
 
-    let profile: UserProfiles;
-
     if (existingProfile.total > 0) {
       const currProfile = existingProfile.rows[0];
 
@@ -46,6 +50,7 @@ export class ProfileService {
           userId: user.$id,
           fingerprint,
           gamertag,
+          inviteCode: currProfile.inviteCode ?? this.generateInviteCode(),
         },
         { permissions: (p, r) => [p.update(r.user(user.$id))] },
       );
@@ -56,6 +61,7 @@ export class ProfileService {
         userId: user.$id,
         fingerprint,
         gamertag,
+        inviteCode: this.generateInviteCode(),
       },
       { permissions: (p, r) => [p.update(r.user(user.$id))] },
     );
@@ -81,6 +87,31 @@ export class ProfileService {
       total: response.total,
       totalPages: Math.max(1, Math.ceil(response.total / safeLimit)),
     };
+  }
+
+  async updateInviteCode(profileId: string) {
+    const inviteCode = this.generateInviteCode();
+
+    try {
+      const updated = await this.userProfiles.update(profileId, { inviteCode });
+
+      return {
+        profileId: updated.$id,
+        inviteCode: updated.inviteCode,
+      };
+    } catch (e) {
+      if (e instanceof AppwriteException) {
+        if (e.code === 404) {
+          throw new NotFoundException('Perfil não encontrado');
+        }
+
+        throw new HttpException(e.message, e.code);
+      }
+
+      throw new InternalServerErrorException(
+        'Erro ao atualizar código de convite',
+      );
+    }
   }
 
   async auditProfileById(profileId: string, fix = false) {
@@ -254,5 +285,9 @@ export class ProfileService {
   private generateFingerprint(email: string) {
     const normalized = this.normalizeEmail(email);
     return crypto.createHash('sha256').update(normalized).digest('base64url');
+  }
+
+  private generateInviteCode() {
+    return crypto.randomBytes(6).toString('base64url');
   }
 }

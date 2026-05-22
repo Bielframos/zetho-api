@@ -513,6 +513,15 @@
           "default": 0,
           "min": 0,
           "max": 9223372036854775807
+        },
+        {
+          "key": "inviteCode",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 48,
+          "default": null,
+          "encrypt": false
         }
       ],
       "indexes": [
@@ -1859,6 +1868,59 @@
           "type": "key",
           "status": "available",
           "columns": ["raffleId"],
+          "orders": ["ASC"]
+        }
+      ]
+    },
+    {
+      "$id": "app_logs",
+      "$permissions": [],
+      "databaseId": "app",
+      "name": "Logs do Aplicativo",
+      "enabled": true,
+      "rowSecurity": false,
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 48,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "relatedUserId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 48,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "metadata",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "size": 640,
+          "default": null,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "type_idx",
+          "type": "key",
+          "status": "available",
+          "columns": ["type"],
+          "orders": ["ASC"]
+        },
+        {
+          "key": "relatedUserId_idx",
+          "type": "key",
+          "status": "available",
+          "columns": ["relatedUserId"],
           "orders": ["ASC"]
         }
       ]

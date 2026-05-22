@@ -56,6 +56,13 @@ export class ProfileController {
     );
   }
 
+  @Post(':profileId/invite-code')
+  @UseGuards(AppwriteSessionGuard)
+  @Roles(['user'])
+  async updateInviteCode(@Param('profileId') profileId: string) {
+    return await this.profileService.updateInviteCode(profileId);
+  }
+
   private parsePositiveInt(value: string | undefined, fallback: number) {
     if (!value) {
       return fallback;

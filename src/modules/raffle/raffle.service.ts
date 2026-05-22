@@ -1,0 +1,551 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { randomInt } from 'node:crypto';
+import { ID, Models, Query } from 'node-appwrite';
+import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import type {
+  CreateRaffleDto,
+  CreateRaffleWithKeysDto,
+  PurchaseTicketsDto,
+  RegisterKeysDto,
+} from './raffle.dto';
+
+type RewardPolicy = 'one_key' | 'all_keys';
+type GameKeyStatus = 'available' | 'delivered';
+type GameKeyPlatform = 'steam' | 'xbox';
+
+type Raffle = Models.Row & {
+  game?: string;
+  rewardPolicy?: RewardPolicy;
+  basicProbability?: number;
+  ticketPrice?: number;
+  active?: boolean;
+  activatedAt?: string | null;
+  closedAt?: string | null;
+};
+
+type RaffleEntry = Models.Row & {
+  raffleId: string;
+  userId: string;
+  ticketCount: number;
+  totalCost: number;
+  luckyNumbers?: string[] | null;
+  won?: boolean;
+  drawNumber: string;
+};
+
+type GameKey = Models.Row & {
+  gameId: string;
+  raffleId: string;
+  key: string;
+  status?: GameKeyStatus;
+  platform?: GameKeyPlatform;
+  userWinnerId?: string | null;
+};
+
+type RaffleWithAvailableKeys = Raffle & {
+  availableKeysCount: number;
+  availableKeyPlatforms: GameKeyPlatform[];
+};
+
+@Injectable()
+export class RaffleService {
+  private static readonly DAILY_TICKET_LIMIT = 10;
+  private static readonly DB_ID = 'app';
+
+  private readonly tablesDB: Appwrite['databases']['api'];
+
+  constructor(private readonly appwrite: Appwrite) {
+    this.tablesDB = this.appwrite.databases.api;
+  }
+
+  async createRaffle(dto: CreateRaffleDto) {
+    const raffle = await this.tablesDB.createRow<Raffle>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffles',
+      rowId: ID.unique(),
+      data: {
+        game: dto.gameId,
+        rewardPolicy: dto.rewardPolicy,
+        basicProbability: dto.basicProbability,
+        ticketPrice: dto.ticketPrice,
+        active: false,
+      },
+    });
+
+    return raffle;
+  }
+
+  async createRaffleWithKeys(dto: CreateRaffleWithKeysDto) {
+    const raffle = await this.tablesDB.createRow<Raffle>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffles',
+      rowId: ID.unique(),
+      data: {
+        game: dto.gameId,
+        rewardPolicy: dto.rewardPolicy,
+        basicProbability: dto.basicProbability,
+        ticketPrice: dto.ticketPrice,
+        active: false,
+      },
+    });
+
+    await this.insertKeys(raffle.$id, dto.gameId, dto.keys);
+
+    return {
+      raffle,
+      keysRegistered: dto.keys.length,
+    };
+  }
+
+  async registerKeys(raffleId: string, dto: RegisterKeysDto) {
+    const raffle = await this.getRaffleOrThrow(raffleId);
+
+    await this.insertKeys(raffle.$id, raffle.game as string, dto.keys);
+
+    return {
+      raffleId,
+      keysRegistered: dto.keys.length,
+    };
+  }
+
+  async activateRaffle(raffleId: string) {
+    const raffle = await this.getRaffleOrThrow(raffleId);
+
+    if (raffle.active) {
+      throw new ConflictException('Sorteio já está ativo');
+    }
+
+    const availableKeys = await this.countAvailableKeys(raffleId);
+    if (availableKeys === 0) {
+      throw new UnprocessableEntityException(
+        'Não é possível ativar um sorteio sem chaves disponíveis',
+      );
+    }
+
+    return this.tablesDB.updateRow<Raffle>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffles',
+      rowId: raffleId,
+      data: {
+        active: true,
+        activatedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  async listRaffles(options: {
+    active?: boolean;
+    limit?: number;
+    cursor?: string;
+    gameId?: string;
+  }) {
+    const queries: string[] = [
+      Query.select([
+        '*',
+        'game.$id',
+        'game.name',
+        'game.slug',
+        'game.coverUrl',
+      ]),
+    ];
+
+    if (options.active !== undefined) {
+      queries.push(Query.equal('active', options.active));
+    }
+
+    if (options.gameId) {
+      queries.push(Query.equal('game', options.gameId));
+    }
+
+    queries.push(Query.orderDesc('$createdAt'));
+    queries.push(Query.limit(options.limit ?? 20));
+
+    if (options.cursor) {
+      queries.push(Query.cursorAfter(options.cursor));
+    }
+
+    const result = await this.tablesDB.listRows<Raffle>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffles',
+      queries,
+    });
+
+    const raffles = await Promise.all(
+      result.rows.map(async (raffle) => ({
+        ...(raffle as Raffle),
+        ...(await this.getAvailableKeysSummary(raffle.$id)),
+      })),
+    );
+
+    return {
+      total: result.total,
+      raffles,
+    };
+  }
+
+  async getUserEntries(raffleId: string, userId: string) {
+    const entries = await this.tablesDB.listRows<RaffleEntry>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffle_entries',
+      queries: [
+        Query.equal('raffleId', raffleId),
+        Query.equal('userId', userId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(1000),
+      ],
+    });
+
+    return {
+      total: entries.total,
+      entries: entries.rows,
+    };
+  }
+
+  async purchaseTickets(
+    raffleId: string,
+    userId: string,
+    dto: PurchaseTicketsDto,
+  ) {
+    const raffle = await this.getRaffleOrThrow(raffleId);
+
+    if (!raffle.active) {
+      throw new BadRequestException('Sorteio não está ativo');
+    }
+
+    const basicProbability = raffle.basicProbability ?? 1000;
+    const ticketPrice = raffle.ticketPrice ?? 30;
+    const totalCost = dto.ticketCount * ticketPrice;
+
+    await this.validateDailyTicketLimit(raffleId, userId, dto.ticketCount);
+
+    const profile = await this.getProfileByUserId(userId);
+    const currentBalance = Number(profile.zcoinBalance ?? 0);
+
+    if (currentBalance < totalCost) {
+      throw new BadRequestException(
+        `Saldo insuficiente. Necessário: ${totalCost} ZCoins, disponível: ${currentBalance}`,
+      );
+    }
+
+    const luckyNumbers = Array.from({ length: dto.ticketCount }, () =>
+      String(randomInt(1, basicProbability + 1)),
+    );
+    const drawNumber = String(randomInt(1, basicProbability + 1));
+    const won = luckyNumbers.includes(drawNumber);
+
+    const tx = await this.tablesDB.createTransaction();
+    const entryId = ID.unique();
+    const txId = ID.unique();
+
+    try {
+      await this.tablesDB.createOperations({
+        transactionId: tx.$id,
+        operations: [
+          {
+            action: 'decrement',
+            databaseId: RaffleService.DB_ID,
+            tableId: 'user_profiles',
+            rowId: profile.$id,
+            data: { value: totalCost, column: 'zcoinBalance' },
+          },
+        ],
+      });
+
+      await this.tablesDB.createRow({
+        transactionId: tx.$id,
+        databaseId: RaffleService.DB_ID,
+        tableId: 'zcoin_transactions',
+        rowId: txId,
+        data: {
+          userId,
+          amount: -totalCost,
+          type: 'output',
+          reason: 'raffle_ticket_purchase',
+        },
+      });
+
+      await this.tablesDB.createRow<RaffleEntry>({
+        transactionId: tx.$id,
+        databaseId: RaffleService.DB_ID,
+        tableId: 'raffle_entries',
+        rowId: entryId,
+        data: {
+          raffleId,
+          userId,
+          ticketCount: dto.ticketCount,
+          totalCost,
+          luckyNumbers,
+          won,
+          drawNumber,
+        },
+      });
+
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        commit: true,
+      });
+    } catch (error) {
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        rollback: true,
+      });
+      throw error;
+    }
+
+    let wonKey: GameKey | null = null;
+
+    if (won) {
+      wonKey = await this.deliverKey(raffleId, userId);
+
+      if (wonKey) {
+        await this.handleRaffleClose(raffle);
+      } else {
+        await this.closeRaffle(raffleId);
+      }
+    }
+
+    const updatedProfile = await this.tablesDB.getRow<
+      Models.Row & { zcoinBalance?: number }
+    >({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'user_profiles',
+      rowId: profile.$id,
+    });
+
+    return {
+      entryId,
+      raffleId,
+      userId,
+      ticketCount: dto.ticketCount,
+      totalCost,
+      luckyNumbers,
+      drawNumber,
+      won,
+      wonKey: wonKey ? { platform: wonKey.platform, key: wonKey.key } : null,
+      newBalance: Number(updatedProfile.zcoinBalance ?? 0),
+    };
+  }
+
+  async getWonKeys(userId: string) {
+    const keys = await this.tablesDB.listRows<GameKey>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      queries: [
+        Query.equal('userWinnerId', userId),
+        Query.equal('status', 'delivered'),
+        Query.orderDesc('$createdAt'),
+      ],
+    });
+
+    return {
+      total: keys.total,
+      keys: keys.rows.map((k) => ({
+        $id: k.$id,
+        gameId: k.gameId,
+        raffleId: k.raffleId,
+        key: k.key,
+        platform: k.platform,
+        wonAt: k.$createdAt,
+      })),
+    };
+  }
+
+  private async insertKeys(
+    raffleId: string,
+    gameId: string,
+    keys: Array<{ key: string; platform: string }>,
+  ) {
+    const rows = keys.map((k) => ({
+      $id: ID.unique(),
+      gameId,
+      raffleId,
+      key: k.key,
+      platform: k.platform,
+      status: 'available' as GameKeyStatus,
+    }));
+
+    await this.tablesDB.createRows({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      rows,
+    });
+  }
+
+  private async deliverKey(
+    raffleId: string,
+    userId: string,
+  ): Promise<GameKey | null> {
+    const result = await this.tablesDB.listRows<GameKey>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      queries: [
+        Query.equal('raffleId', raffleId),
+        Query.equal('status', 'available'),
+        Query.limit(1),
+      ],
+    });
+
+    const key = result.rows[0];
+
+    if (!key) {
+      return null;
+    }
+
+    await this.tablesDB.updateRow<GameKey>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      rowId: key.$id,
+      data: {
+        status: 'delivered',
+        userWinnerId: userId,
+      },
+    });
+
+    return { ...key, status: 'delivered', userWinnerId: userId };
+  }
+
+  private async handleRaffleClose(raffle: Raffle) {
+    if (raffle.rewardPolicy === 'one_key') {
+      await this.closeRaffle(raffle.$id);
+      return;
+    }
+
+    if (raffle.rewardPolicy === 'all_keys') {
+      const remaining = await this.countAvailableKeys(raffle.$id);
+      if (remaining === 0) {
+        await this.closeRaffle(raffle.$id);
+      }
+    }
+  }
+
+  private async closeRaffle(raffleId: string) {
+    await this.tablesDB.updateRow<Raffle>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffles',
+      rowId: raffleId,
+      data: {
+        active: false,
+        closedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  private async countAvailableKeys(raffleId: string): Promise<number> {
+    const result = await this.tablesDB.listRows<GameKey>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      queries: [
+        Query.equal('raffleId', raffleId),
+        Query.equal('status', 'available'),
+        Query.limit(1),
+      ],
+    });
+
+    return result.total;
+  }
+
+  private async getAvailableKeysSummary(raffleId: string): Promise<{
+    availableKeysCount: number;
+    availableKeyPlatforms: GameKeyPlatform[];
+  }> {
+    const result = await this.tablesDB.listRows<GameKey>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'game_keys',
+      queries: [
+        Query.equal('raffleId', raffleId),
+        Query.equal('status', 'available'),
+        Query.select(['platform']),
+        Query.limit(100),
+      ],
+    });
+
+    const platforms = result.rows
+      .map((key) => key.platform)
+      .filter(
+        (platform): platform is GameKeyPlatform => platform !== undefined,
+      );
+
+    const availableKeyPlatforms = Array.from(new Set(platforms));
+
+    return {
+      availableKeysCount: result.total,
+      availableKeyPlatforms,
+    };
+  }
+
+  private async validateDailyTicketLimit(
+    raffleId: string,
+    userId: string,
+    requested: number,
+  ) {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    const entries = await this.tablesDB.listRows<RaffleEntry>({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'raffle_entries',
+      queries: [
+        Query.equal('raffleId', raffleId),
+        Query.equal('userId', userId),
+        Query.greaterThanEqual('$createdAt', startOfDay.toISOString()),
+        Query.select(['ticketCount']),
+        Query.limit(100),
+      ],
+    });
+
+    const usedToday = entries.rows.reduce(
+      (sum, e) => sum + Number(e.ticketCount ?? 0),
+      0,
+    );
+
+    const remaining = RaffleService.DAILY_TICKET_LIMIT - usedToday;
+
+    if (remaining <= 0) {
+      throw new BadRequestException(
+        `Limite diário de ${RaffleService.DAILY_TICKET_LIMIT} tickets por sorteio atingido`,
+      );
+    }
+
+    if (requested > remaining) {
+      throw new BadRequestException(
+        `Você pode comprar no máximo ${remaining} ticket(s) hoje neste sorteio`,
+      );
+    }
+  }
+
+  private async getRaffleOrThrow(raffleId: string): Promise<Raffle> {
+    try {
+      return await this.tablesDB.getRow<Raffle>({
+        databaseId: RaffleService.DB_ID,
+        tableId: 'raffles',
+        rowId: raffleId,
+      });
+    } catch {
+      throw new NotFoundException(`Sorteio ${raffleId} não encontrado`);
+    }
+  }
+
+  private async getProfileByUserId(userId: string) {
+    const result = await this.tablesDB.listRows<
+      Models.Row & { zcoinBalance?: number; userId?: string }
+    >({
+      databaseId: RaffleService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [Query.equal('userId', userId), Query.limit(1)],
+    });
+
+    const profile = result.rows[0];
+
+    if (!profile) {
+      throw new NotFoundException('Perfil do usuário não encontrado');
+    }
+
+    return profile;
+  }
+}
