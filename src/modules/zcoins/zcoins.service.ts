@@ -56,14 +56,14 @@ export class ZCoinsService {
 
     if (type === 'output') {
       const current = await this.tablesDB.getRow<
-        Models.Row & { zcoin_balance?: number }
+        Models.Row & { zcoinBalance?: number }
       >({
         databaseId: 'app',
         tableId: 'user_profiles',
         rowId: profile.$id,
       });
 
-      const currentBalance = Number(current.zcoin_balance ?? 0);
+      const currentBalance = Number(current.zcoinBalance ?? 0);
       if (currentBalance < amount) {
         throw new BadRequestException('Saldo insuficiente para essa ação');
       }
@@ -82,7 +82,7 @@ export class ZCoinsService {
             databaseId: 'app',
             tableId: 'user_profiles',
             rowId: profile.$id,
-            data: { value: amount, column: 'zcoin_balance' },
+            data: { value: amount, column: 'zcoinBalance' },
           },
         ],
       });
@@ -93,12 +93,10 @@ export class ZCoinsService {
         tableId: 'zcoin_transactions',
         rowId: transactionId,
         data: {
-          id: transactionId,
           userId: safeUserId,
           amount: type === 'input' ? amount : -amount,
           type,
           reason,
-          createdAt: now,
         },
       });
 
@@ -116,7 +114,7 @@ export class ZCoinsService {
     }
 
     const updated = await this.tablesDB.getRow<
-      Models.Row & { zcoin_balance?: number }
+      Models.Row & { zcoinBalance?: number }
     >({
       databaseId: 'app',
       tableId: 'user_profiles',
@@ -128,7 +126,7 @@ export class ZCoinsService {
       type,
       reason,
       amount: type === 'input' ? amount : -amount,
-      balance: Number(updated.zcoin_balance ?? 0),
+      balance: Number(updated.zcoinBalance ?? 0),
     };
   }
 
