@@ -7,6 +7,8 @@ const SCORE_TABLE = {
     add_game_to_library: 2,
     engaged: 1,
     friend_joined: 30,
+    create_list: 2,
+    add_game_to_list: 1,
   },
   output: {},
 } as const;
