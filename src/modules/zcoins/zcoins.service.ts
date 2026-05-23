@@ -267,10 +267,12 @@ export class ZCoinsService {
           continue;
         }
 
-        totals.set(
-          row.userId,
-          (totals.get(row.userId) ?? 0) + Number(row.amount ?? 0),
-        );
+        const amount = Number(row.amount ?? 0);
+        if (amount <= 0) {
+          continue;
+        }
+
+        totals.set(row.userId, (totals.get(row.userId) ?? 0) + amount);
       }
 
       offset += page.rows.length;
