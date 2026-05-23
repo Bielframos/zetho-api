@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import crypto from 'crypto';
-import { ZEntries, ZEntriesStatus } from 'infra/appwrite';
+import { ZEntries, ZEntriesReadOnly, ZEntriesStatus } from 'infra/appwrite';
 import { ID, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
@@ -73,7 +73,8 @@ export class ZethoHandler {
           q.notEqual('$id', entry.$id),
           q.equal('gameId', entry.gameId),
           q.orderDesc('$createdAt'),
-          q.limit(1),
+          q.limit(1000),
+          q.select(['status', 'liked', 'hyped']),
         ],
       }),
       this.userProfiles.list({
@@ -94,14 +95,46 @@ export class ZethoHandler {
     }
 
     const prevStatus = (previousEntry?.status as string | null) ?? null;
-    const prevLiked = previousEntry?.liked ?? null;
     const prevHyped = previousEntry?.hyped ?? false;
-    let zcoinChanges = this.resolveStatusZCoinChanges(
-      prevStatus,
-      currentStatus,
-    );
 
     const readId = this.createId(entry.ownerFingerprint, entry.gameId);
+
+    // -------------------------------------------------
+    // Estado anti-spam: lido do registro persistido em z_entries_read
+    // -------------------------------------------------
+    const existingReadEntry = await this.tablesDB
+      .getRow<ZEntriesReadOnly>({
+        databaseId: 'app',
+        tableId: 'z_entries_read',
+        rowId: readId,
+      })
+      .catch(() => null);
+
+    const historyLikedEver = previousEntries.rows.some(
+      (entry) => entry.liked === true,
+    );
+
+    const likedEver =
+      (existingReadEntry?.likedEver ?? existingReadEntry?.liked === true) ||
+      historyLikedEver;
+
+    const historyMaxStatusReached = this.getHighestStatusReached(
+      previousEntries.rows,
+    );
+
+    const maxStatusReached =
+      existingReadEntry?.maxStatusReached ?? historyMaxStatusReached;
+
+    // Para o delta de likes usamos o estado atual do read model quando houver.
+    const prevLiked =
+      existingReadEntry != null
+        ? (existingReadEntry.liked ?? null)
+        : (previousEntry?.liked ?? null);
+
+    let zcoinChanges = this.resolveStatusZCoinChanges(
+      currentStatus,
+      maxStatusReached,
+    );
 
     // -------------------------------------------------
     // Registro da entrada
@@ -119,6 +152,12 @@ export class ZethoHandler {
       ...cleanEntry
     } = entry;
 
+    const newLikedEver = likedEver || currentLiked === true;
+    const newMaxStatusReached = this.resolveMaxStatusReached(
+      maxStatusReached,
+      currentStatus,
+    );
+
     try {
       await this.tablesDB.upsertRow({
         databaseId: 'app',
@@ -126,6 +165,8 @@ export class ZethoHandler {
         rowId: readId,
         data: {
           ...cleanEntry,
+          likedEver: newLikedEver,
+          maxStatusReached: newMaxStatusReached,
         },
       });
     } catch (err) {
@@ -196,7 +237,7 @@ export class ZethoHandler {
         };
       }
 
-      if (prevLiked !== true && currentLiked === true) {
+      if (currentLiked === true && !likedEver) {
         const engagedValue = SCORE_TABLE.input.engaged;
         const engagedOp = this.createIncDecOp(
           'increment',
@@ -355,16 +396,52 @@ export class ZethoHandler {
     };
   }
 
+  private getStatusRank(status: string | null): number {
+    const STATUS_RANK: Record<string, number> = {
+      backlog: 1,
+      playing: 2,
+      completed: 3,
+    };
+
+    return status ? (STATUS_RANK[status] ?? 0) : 0;
+  }
+
+  private getHighestStatusReached(
+    entries: Array<Pick<ZEntries, 'status'> | Pick<ZEntriesReadOnly, 'status'>>,
+  ): string | null {
+    let highest: string | null = null;
+
+    for (const entry of entries) {
+      const status = entry.status as string | null;
+      if (this.getStatusRank(status) > this.getStatusRank(highest)) {
+        highest = status;
+      }
+    }
+
+    return highest;
+  }
+
+  /**
+   * Resolve as mudanças de zcoins para mudança de status.
+   * Anti-spam: só premia na primeira vez que o usuário alcança cada nível de
+   * progresso, com base no maxStatusReached persistido em z_entries_read.
+   */
   private resolveStatusZCoinChanges(
-    prev: string | null,
     current: string | null,
+    maxStatusReached: string | null,
   ) {
+    const STATUS_RANK: Partial<Record<string, number>> = {
+      backlog: 1,
+      playing: 2,
+      completed: 3,
+    };
+
     const reasonByStatus: Partial<
       Record<string, keyof typeof SCORE_TABLE.input>
     > = {
-      completed: 'finished_game',
       backlog: 'add_game_to_library',
       playing: 'playing_game',
+      completed: 'finished_game',
     };
 
     const changes: Array<{
@@ -373,25 +450,38 @@ export class ZethoHandler {
       amount: number;
     }> = [];
 
-    const previousReason = prev ? reasonByStatus[prev] : undefined;
-    if (previousReason && prev !== current) {
-      changes.push({
-        type: 'output',
-        reason: previousReason,
-        amount: SCORE_TABLE.input[previousReason],
-      });
-    }
+    const currentRank = current ? (STATUS_RANK[current] ?? 0) : 0;
+    const maxRank = maxStatusReached ? (STATUS_RANK[maxStatusReached] ?? 0) : 0;
 
-    const currentReason = current ? reasonByStatus[current] : undefined;
-    if (currentReason && prev !== current) {
-      changes.push({
-        type: 'input',
-        reason: currentReason,
-        amount: SCORE_TABLE.input[currentReason],
-      });
+    if (currentRank > maxRank) {
+      const reason = current ? reasonByStatus[current] : undefined;
+      if (reason) {
+        changes.push({
+          type: 'input',
+          reason,
+          amount: SCORE_TABLE.input[reason],
+        });
+      }
     }
 
     return changes;
+  }
+
+  /** Retorna o maior status alcançado entre o atual e o candidato */
+  private resolveMaxStatusReached(
+    current: string | null,
+    candidate: string | null,
+  ): string | null {
+    const STATUS_RANK: Partial<Record<string, number>> = {
+      backlog: 1,
+      playing: 2,
+      completed: 3,
+    };
+
+    const currentRank = current ? (STATUS_RANK[current] ?? 0) : 0;
+    const candidateRank = candidate ? (STATUS_RANK[candidate] ?? 0) : 0;
+
+    return candidateRank > currentRank ? candidate : current;
   }
 
   //** Método para obter a ação da operação do status */

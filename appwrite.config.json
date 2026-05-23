@@ -1054,6 +1054,22 @@
           "required": false,
           "array": false,
           "default": null
+        },
+        {
+          "key": "likedEver",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "maxStatusReached",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": ["completed", "backlog", "dropped", "playing", "wishlist"]
         }
       ],
       "indexes": [
