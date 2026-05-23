@@ -1,12 +1,15 @@
 import {
+  BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { AppwriteException, Models } from 'node-appwrite';
+import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import SCORE_TABLE from 'src/modules/zcoins/score-table';
 
 import crypto from 'node:crypto';
 import { UserProfiles, ZEntriesReadOnly } from 'infra/appwrite';
@@ -22,15 +25,20 @@ type ProfileAuditTotals = {
 
 @Injectable()
 export class ProfileService {
+  private static readonly MONTHLY_BONUS_PER_INVITE = 5;
+  private static readonly MONTHLY_BONUS_MAX_INVITES = 3;
+
   private userProfiles: Appwrite['databases']['userProfiles'];
   private zEntriesReadonly: Appwrite['databases']['zEntriesReadonly'];
+  private tablesDB: Appwrite['databases']['api'];
 
   constructor(private appwrite: Appwrite) {
     this.userProfiles = this.appwrite.databases.userProfiles;
     this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
+    this.tablesDB = this.appwrite.databases.api;
   }
 
-  async create(user: Models.User, gamertag: string) {
+  async create(user: Models.User, gamertag: string, inviteCode?: string) {
     const fingerprint = this.generateFingerprint(user.email);
 
     const existingProfile = await this.userProfiles.list({
@@ -44,7 +52,7 @@ export class ProfileService {
     if (existingProfile.total > 0) {
       const currProfile = existingProfile.rows[0];
 
-      return await this.userProfiles.update(
+      const updatedProfile = await this.userProfiles.update(
         currProfile.$id,
         {
           userId: user.$id,
@@ -54,9 +62,11 @@ export class ProfileService {
         },
         { permissions: (p, r) => [p.update(r.user(user.$id))] },
       );
+
+      return updatedProfile;
     }
 
-    return await this.userProfiles.create(
+    const createdProfile = await this.userProfiles.create(
       {
         userId: user.$id,
         fingerprint,
@@ -65,6 +75,43 @@ export class ProfileService {
       },
       { permissions: (p, r) => [p.update(r.user(user.$id))] },
     );
+
+    await this.applyInviteReward({
+      invitedUserId: user.$id,
+      invitedProfileId: createdProfile.$id,
+      inviteCode,
+    });
+
+    return createdProfile;
+  }
+
+  async getMonthlyInviteBonus(userId: string) {
+    const period = this.getCurrentMonthPeriod();
+    const invitedUserIds = await this.getInvitedUsersInPeriod(
+      userId,
+      period.start,
+    );
+
+    const invitedUsersCount = invitedUserIds.size;
+    const eligibleInvites = Math.min(
+      invitedUsersCount,
+      ProfileService.MONTHLY_BONUS_MAX_INVITES,
+    );
+    const bonusPercent =
+      eligibleInvites * ProfileService.MONTHLY_BONUS_PER_INVITE;
+
+    return {
+      period: {
+        start: period.start,
+        endExclusive: period.endExclusive,
+      },
+      invitedUsersCount,
+      eligibleInvites,
+      bonusPercent,
+      maxBonusPercent:
+        ProfileService.MONTHLY_BONUS_MAX_INVITES *
+        ProfileService.MONTHLY_BONUS_PER_INVITE,
+    };
   }
 
   async listProfiles(page = 1, limit = 20) {
@@ -289,5 +336,189 @@ export class ProfileService {
 
   private generateInviteCode() {
     return crypto.randomBytes(6).toString('base64url');
+  }
+
+  private async applyInviteReward(params: {
+    invitedUserId: string;
+    invitedProfileId: string;
+    inviteCode?: string;
+  }) {
+    const rawInviteCode = params.inviteCode?.trim();
+
+    if (!rawInviteCode) {
+      return;
+    }
+
+    const inviterResult = await this.userProfiles.list({
+      queries: (q) => [q.equal('inviteCode', rawInviteCode), q.limit(1)],
+    });
+
+    const inviterProfile = inviterResult.rows[0];
+
+    if (!inviterProfile || !inviterProfile.userId) {
+      throw new BadRequestException('Código de convite inválido');
+    }
+
+    if (inviterProfile.userId === params.invitedUserId) {
+      throw new BadRequestException(
+        'Não é possível utilizar o próprio código de convite',
+      );
+    }
+
+    const logRowId = this.generateInviteLogRowId(
+      inviterProfile.userId,
+      params.invitedUserId,
+    );
+
+    let inviteAlreadyUsed = false;
+
+    try {
+      await this.tablesDB.getRow({
+        databaseId: 'app',
+        tableId: 'app_logs',
+        rowId: logRowId,
+      });
+      inviteAlreadyUsed = true;
+    } catch (error) {
+      if (error instanceof AppwriteException && error.code !== 404) {
+        throw error;
+      }
+    }
+
+    if (inviteAlreadyUsed) {
+      throw new ConflictException('Convite já utilizado para este usuário');
+    }
+
+    const rewardAmount = SCORE_TABLE.input.friend_joined;
+    const tx = await this.tablesDB.createTransaction();
+
+    try {
+      await this.tablesDB.createOperations({
+        transactionId: tx.$id,
+        operations: [
+          {
+            action: 'increment',
+            databaseId: 'app',
+            tableId: 'user_profiles',
+            rowId: inviterProfile.$id,
+            data: { value: rewardAmount, column: 'zcoinBalance' },
+          },
+        ],
+      });
+
+      await this.tablesDB.createRow({
+        transactionId: tx.$id,
+        databaseId: 'app',
+        tableId: 'zcoin_transactions',
+        rowId: crypto.randomUUID(),
+        data: {
+          userId: inviterProfile.userId,
+          amount: rewardAmount,
+          type: 'input',
+          reason: 'friend_joined',
+        },
+      });
+
+      await this.tablesDB.createRow({
+        transactionId: tx.$id,
+        databaseId: 'app',
+        tableId: 'app_logs',
+        rowId: logRowId,
+        data: {
+          type: 'invite_applied',
+          relatedUserId: inviterProfile.userId,
+          metadata: JSON.stringify({
+            inviteCode: rawInviteCode,
+            invitedUserId: params.invitedUserId,
+            invitedProfileId: params.invitedProfileId,
+            inviterProfileId: inviterProfile.$id,
+            rewardAmount,
+          }),
+        },
+      });
+
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        commit: true,
+      });
+    } catch (error) {
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        rollback: true,
+      });
+      throw error;
+    }
+  }
+
+  private generateInviteLogRowId(inviterUserId: string, invitedUserId: string) {
+    return crypto
+      .createHash('sha256')
+      .update(`${inviterUserId}:${invitedUserId}`)
+      .digest('hex')
+      .slice(0, 32);
+  }
+
+  private getCurrentMonthPeriod() {
+    const now = new Date();
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0),
+    );
+    const endExclusive = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0, 0),
+    );
+
+    return {
+      start: start.toISOString(),
+      endExclusive: endExclusive.toISOString(),
+    };
+  }
+
+  private async getInvitedUsersInPeriod(userId: string, start: string) {
+    const invitedUserIds = new Set<string>();
+    const pageSize = 100;
+    let offset = 0;
+
+    while (true) {
+      const page = await this.tablesDB.listRows<
+        Models.Row & { metadata?: string; relatedUserId?: string }
+      >({
+        databaseId: 'app',
+        tableId: 'app_logs',
+        queries: [
+          Query.equal('type', 'invite_applied'),
+          Query.equal('relatedUserId', userId),
+          Query.greaterThanEqual('$createdAt', start),
+          Query.select(['metadata']),
+          Query.limit(pageSize),
+          Query.offset(offset),
+        ],
+      });
+
+      for (const row of page.rows) {
+        if (!row.metadata) {
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(row.metadata) as {
+            invitedUserId?: string;
+          };
+
+          if (parsed.invitedUserId) {
+            invitedUserIds.add(parsed.invitedUserId);
+          }
+        } catch {
+          // Ignora logs com metadata inválida.
+        }
+      }
+
+      offset += page.rows.length;
+
+      if (offset >= page.total || page.rows.length === 0) {
+        break;
+      }
+    }
+
+    return invitedUserIds;
   }
 }

@@ -19,9 +19,21 @@ export class ProfileController {
 
   @Post()
   @UseGuards(AppwriteSessionGuard)
-  async create(@Req() req: any, @Body('gamertag') gamertag: string) {
+  async create(
+    @Req() req: any,
+    @Body('gamertag') gamertag: string,
+    @Body('inviteCode') inviteCode?: string,
+  ) {
     const user = req.user as Models.User;
-    return await this.profileService.create(user, gamertag);
+    return await this.profileService.create(user, gamertag, inviteCode);
+  }
+
+  @Get('me/bonus')
+  @UseGuards(AppwriteSessionGuard)
+  @Roles(['user'])
+  async getMyInviteBonus(@Req() req: any) {
+    const user = req.user as Models.User;
+    return await this.profileService.getMonthlyInviteBonus(user.$id);
   }
 
   @Get()

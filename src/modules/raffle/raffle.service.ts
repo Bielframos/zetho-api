@@ -56,6 +56,8 @@ type RaffleWithAvailableKeys = Raffle & {
 @Injectable()
 export class RaffleService {
   private static readonly DAILY_TICKET_LIMIT = 10;
+  private static readonly MONTHLY_BONUS_PER_INVITE = 5;
+  private static readonly MONTHLY_BONUS_MAX_INVITES = 3;
   private static readonly DB_ID = 'app';
 
   private readonly tablesDB: Appwrite['databases']['api'];
@@ -220,12 +222,17 @@ export class RaffleService {
 
     const basicProbability = raffle.basicProbability ?? 1000;
     const ticketPrice = raffle.ticketPrice ?? 30;
-    const totalCost = dto.ticketCount * ticketPrice;
+    const baseTotalCost = dto.ticketCount * ticketPrice;
 
     await this.validateDailyTicketLimit(raffleId, userId, dto.ticketCount);
 
     const profile = await this.getProfileByUserId(userId);
     const currentBalance = Number(profile.zcoinBalance ?? 0);
+
+    const bonus = await this.getMonthlyInviteBonus(userId);
+    const discountPercent = bonus.bonusPercent;
+    const discountAmount = baseTotalCost * (discountPercent / 100);
+    const totalCost = Math.max(0, Math.floor(baseTotalCost - discountAmount));
 
     if (currentBalance < totalCost) {
       throw new BadRequestException(
@@ -323,6 +330,9 @@ export class RaffleService {
       raffleId,
       userId,
       ticketCount: dto.ticketCount,
+      baseTotalCost,
+      discountPercent,
+      discountAmount,
       totalCost,
       luckyNumbers,
       drawNumber,
@@ -547,5 +557,72 @@ export class RaffleService {
     }
 
     return profile;
+  }
+
+  private async getMonthlyInviteBonus(userId: string) {
+    const periodStart = this.getCurrentMonthStart();
+    const invitedUsers = await this.getInvitedUsersInMonth(userId, periodStart);
+    const eligibleInvites = Math.min(
+      invitedUsers.size,
+      RaffleService.MONTHLY_BONUS_MAX_INVITES,
+    );
+
+    return {
+      invitedUsersCount: invitedUsers.size,
+      eligibleInvites,
+      bonusPercent: eligibleInvites * RaffleService.MONTHLY_BONUS_PER_INVITE,
+    };
+  }
+
+  private getCurrentMonthStart() {
+    const now = new Date();
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0),
+    ).toISOString();
+  }
+
+  private async getInvitedUsersInMonth(userId: string, start: string) {
+    const invitedUserIds = new Set<string>();
+    const pageSize = 100;
+    let offset = 0;
+
+    while (true) {
+      const page = await this.tablesDB.listRows<
+        Models.Row & { metadata?: string }
+      >({
+        databaseId: RaffleService.DB_ID,
+        tableId: 'app_logs',
+        queries: [
+          Query.equal('type', 'invite_applied'),
+          Query.equal('relatedUserId', userId),
+          Query.greaterThanEqual('$createdAt', start),
+          Query.select(['metadata']),
+          Query.limit(pageSize),
+          Query.offset(offset),
+        ],
+      });
+
+      for (const row of page.rows) {
+        if (!row.metadata) {
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(row.metadata) as { invitedUserId?: string };
+          if (parsed.invitedUserId) {
+            invitedUserIds.add(parsed.invitedUserId);
+          }
+        } catch {
+          // Ignora logs com metadata inválida.
+        }
+      }
+
+      offset += page.rows.length;
+      if (offset >= page.total || page.rows.length === 0) {
+        break;
+      }
+    }
+
+    return invitedUserIds;
   }
 }
