@@ -9,7 +9,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Reflector } from '@nestjs/core';
-import { ENDPOINT, PROJECT_ID } from 'infra/appwrite/constants';
+import { ENDPOINT, PROJECT_ID } from 'src/common/appwrite/constants';
 import { Account, Client, Models } from 'node-appwrite';
 import { Roles } from './roles.decorator';
 import { Appwrite } from '../appwrite/appwrite.provider';

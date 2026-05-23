@@ -60,10 +60,10 @@ export class RaffleService {
   private static readonly MONTHLY_BONUS_MAX_INVITES = 3;
   private static readonly DB_ID = 'app';
 
-  private readonly tablesDB: Appwrite['databases']['api'];
+  private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(private readonly appwrite: Appwrite) {
-    this.tablesDB = this.appwrite.databases.api;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async createRaffle(dto: CreateRaffleDto) {

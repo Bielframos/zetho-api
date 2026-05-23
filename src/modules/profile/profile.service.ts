@@ -7,13 +7,23 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { AppwriteException, Models, Query } from 'node-appwrite';
+import {
+  AppwriteException,
+  ID,
+  Models,
+  Permission,
+  Query,
+  Role,
+} from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 
 import crypto from 'node:crypto';
-import { UserProfiles, ZEntriesReadOnly } from 'infra/appwrite';
+import type {
+  UserProfiles,
+  ZEntriesReadOnly,
+} from 'src/common/appwrite/appwrite';
 
 type ProfileAuditTotals = {
   totalsCompleted: number;
@@ -28,54 +38,68 @@ type ProfileAuditTotals = {
 export class ProfileService {
   private static readonly MONTHLY_BONUS_PER_INVITE = 5;
   private static readonly MONTHLY_BONUS_MAX_INVITES = 3;
+  private static readonly DB_ID = 'app';
 
-  private userProfiles: Appwrite['databases']['userProfiles'];
-  private zEntriesReadonly: Appwrite['databases']['zEntriesReadonly'];
-  private tablesDB: Appwrite['databases']['api'];
+  private readonly tablesDB: Appwrite['tablesDB'];
 
-  constructor(private appwrite: Appwrite, private readonly zCoinsService: ZCoinsService) {
-    this.userProfiles = this.appwrite.databases.userProfiles;
-    this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
-    this.tablesDB = this.appwrite.databases.api;
+  constructor(
+    private appwrite: Appwrite,
+    private readonly zCoinsService: ZCoinsService,
+  ) {
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async create(user: Models.User, gamertag: string, inviteCode?: string) {
     const fingerprint = this.generateFingerprint(user.email);
 
-    const existingProfile = await this.userProfiles.list({
-      queries: (q) => [
-        q.equal('fingerprint', fingerprint),
-        q.select(['$id']),
-        q.limit(1),
+    const existingProfile = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ProfileService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [
+        Query.equal('fingerprint', fingerprint),
+        Query.select(['$id', 'inviteCode']),
+        Query.limit(1),
       ],
     });
 
     if (existingProfile.total > 0) {
       const currProfile = existingProfile.rows[0];
 
-      const updatedProfile = await this.userProfiles.update(
-        currProfile.$id,
-        {
+      const updatedProfile = await this.tablesDB.updateRow<UserProfiles>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'user_profiles',
+        rowId: currProfile.$id,
+        data: {
           userId: user.$id,
           fingerprint,
           gamertag,
           inviteCode: currProfile.inviteCode ?? this.generateInviteCode(),
         },
-        { permissions: (p, r) => [p.update(r.user(user.$id))] },
-      );
+        permissions: [Permission.update(Role.user(user.$id))],
+      });
 
       return updatedProfile;
     }
 
-    const createdProfile = await this.userProfiles.create(
-      {
+    const createdProfile = await this.tablesDB.createRow<
+      Models.Row & {
+        userId: string;
+        fingerprint: string;
+        gamertag: string;
+        inviteCode: string | null;
+      }
+    >({
+      databaseId: ProfileService.DB_ID,
+      tableId: 'user_profiles',
+      rowId: ID.unique(),
+      data: {
         userId: user.$id,
         fingerprint,
         gamertag,
         inviteCode: this.generateInviteCode(),
       },
-      { permissions: (p, r) => [p.update(r.user(user.$id))] },
-    );
+      permissions: [Permission.update(Role.user(user.$id))],
+    });
 
     await this.applyWelcomeBonus(user.$id);
 
@@ -126,11 +150,13 @@ export class ProfileService {
     const safePage = Math.max(page, 1);
     const offset = (safePage - 1) * safeLimit;
 
-    const response = await this.userProfiles.list({
-      queries: (q) => [
-        q.orderDesc('$createdAt'),
-        q.limit(safeLimit),
-        q.offset(offset),
+    const response = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ProfileService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [
+        Query.orderDesc('$createdAt'),
+        Query.limit(safeLimit),
+        Query.offset(offset),
       ],
     });
 
@@ -147,7 +173,12 @@ export class ProfileService {
     const inviteCode = this.generateInviteCode();
 
     try {
-      const updated = await this.userProfiles.update(profileId, { inviteCode });
+      const updated = await this.tablesDB.updateRow<UserProfiles>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'user_profiles',
+        rowId: profileId,
+        data: { inviteCode },
+      });
 
       return {
         profileId: updated.$id,
@@ -172,7 +203,11 @@ export class ProfileService {
     let profile: UserProfiles;
 
     try {
-      profile = await this.userProfiles.get(profileId);
+      profile = await this.tablesDB.getRow<UserProfiles>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'user_profiles',
+        rowId: profileId,
+      });
     } catch {
       throw new NotFoundException('Perfil não encontrado');
     }
@@ -187,8 +222,10 @@ export class ProfileService {
     let total = 0;
 
     while (true) {
-      const page = await this.userProfiles.list({
-        queries: (q) => [q.limit(pageSize), q.offset(offset)],
+      const page = await this.tablesDB.listRows<UserProfiles>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'user_profiles',
+        queries: [Query.limit(pageSize), Query.offset(offset)],
       });
 
       total = page.total;
@@ -234,7 +271,12 @@ export class ProfileService {
     let fixed = false;
 
     if (fix && shouldFix) {
-      await this.userProfiles.update(profile.$id, actualTotals);
+      await this.tablesDB.updateRow<UserProfiles>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'user_profiles',
+        rowId: profile.$id,
+        data: actualTotals,
+      });
       fixed = true;
     }
 
@@ -278,12 +320,14 @@ export class ProfileService {
     let offset = 0;
 
     while (true) {
-      const page = await this.zEntriesReadonly.list({
-        queries: (q) => [
-          q.equal('ownerFingerprint', fingerprint),
-          q.select(['status']),
-          q.limit(limit),
-          q.offset(offset),
+      const page = await this.tablesDB.listRows<ZEntriesReadOnly>({
+        databaseId: ProfileService.DB_ID,
+        tableId: 'z_entries_read',
+        queries: [
+          Query.equal('ownerFingerprint', fingerprint),
+          Query.select(['status', 'hyped']),
+          Query.limit(limit),
+          Query.offset(offset),
         ],
       });
 
@@ -356,8 +400,10 @@ export class ProfileService {
       return;
     }
 
-    const inviterResult = await this.userProfiles.list({
-      queries: (q) => [q.equal('inviteCode', rawInviteCode), q.limit(1)],
+    const inviterResult = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ProfileService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [Query.equal('inviteCode', rawInviteCode), Query.limit(1)],
     });
 
     const inviterProfile = inviterResult.rows[0];

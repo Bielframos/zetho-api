@@ -2,8 +2,12 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { ID, Models, Query } from 'node-appwrite';
-import type { Games as Game, ZEntriesReadOnly } from 'infra/appwrite';
-import { GameMedias, GameMediasType } from 'infra/appwrite';
+import type {
+  GameMedias,
+  Games as Game,
+  ZEntriesReadOnly,
+} from 'src/common/appwrite/appwrite';
+import { GameMediasType } from 'src/common/appwrite/appwrite.enums';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
@@ -14,11 +18,9 @@ import { TranslatorService } from 'src/common/ai/agents/translator/translator.se
 export class GameService {
   private readonly logger = new Logger(GameService.name);
   private readonly currentVersion = 2;
+  private static readonly DB_ID = 'app';
 
-  private games: Appwrite['databases']['games'];
-  private gameMedias: Appwrite['databases']['gameMedias'];
-  private tablesDB: Appwrite['databases']['api'];
-  private zEntriesReadonly: Appwrite['databases']['zEntriesReadonly'];
+  private readonly tablesDB: Appwrite['tablesDB'];
 
   /** In-process migration locks: prevents duplicate concurrent migrations */
   private readonly migrationPromises = new Map<string, Promise<void>>();
@@ -32,10 +34,7 @@ export class GameService {
     private readonly igdbService: IGDBService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
-    this.games = this.appwrite.databases.games;
-    this.gameMedias = this.appwrite.databases.gameMedias;
-    this.tablesDB = this.appwrite.databases.api;
-    this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
@@ -57,11 +56,13 @@ export class GameService {
       ? ([...new Set([...requestedFields, ...internalFields])] as any[])
       : undefined;
 
-    const result = await this.games.list({
-      queries: (q) => [
-        q.equal('slug', slug),
-        q.limit(1),
-        ...(queryFields?.length ? [q.select(queryFields)] : []),
+    const result = await this.tablesDB.listRows<Game>({
+      databaseId: GameService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('slug', slug),
+        Query.limit(1),
+        ...(queryFields?.length ? [Query.select(queryFields)] : []),
       ],
     });
 
@@ -74,11 +75,13 @@ export class GameService {
     // Se o jogo não está totalmente sincronizado, enriquece agora
     if (enrich && game.syncStage !== 'full') {
       await this.igdbService.importGameById(game.externalReference);
-      const enrichedResult = await this.games.list({
-        queries: (q) => [
-          q.equal('slug', slug),
-          q.limit(1),
-          ...(queryFields?.length ? [q.select(queryFields)] : []),
+      const enrichedResult = await this.tablesDB.listRows<Game>({
+        databaseId: GameService.DB_ID,
+        tableId: 'games',
+        queries: [
+          Query.equal('slug', slug),
+          Query.limit(1),
+          ...(queryFields?.length ? [Query.select(queryFields)] : []),
         ],
       });
       game = enrichedResult.rows[0] ?? game;
@@ -114,11 +117,17 @@ export class GameService {
     // Busca exata por slug (somente na primeira página e se q existir)
     if (q && page === 1) {
       const slugQuery = slugify(q);
-      const exactResult = await this.games.list({
-        queries: (qb) => [
-          qb.equal('slug', slugQuery),
-          qb.select([...gameFields, 'syncStage', 'externalReference'] as any),
-          qb.limit(1),
+      const exactResult = await this.tablesDB.listRows<Game>({
+        databaseId: GameService.DB_ID,
+        tableId: 'games',
+        queries: [
+          Query.equal('slug', slugQuery),
+          Query.select([
+            ...gameFields,
+            'syncStage',
+            'externalReference',
+          ] as any),
+          Query.limit(1),
         ],
       });
       exactMatch = exactResult.rows[0] ?? null;
@@ -128,37 +137,40 @@ export class GameService {
     let total = exactMatch ? 1 : 0;
 
     if (shouldSearch) {
-      const criteriaResult = await this.games.list({
-        queries: (qb) => {
-          const conditions: string[] = [];
+      const conditions: string[] = [];
 
-          for (const kw of keywords) {
-            conditions.push(qb.contains('slug', kw as any));
-          }
+      for (const kw of keywords) {
+        conditions.push(Query.contains('slug', kw as any));
+      }
 
-          if (dto.genre) {
-            conditions.push(qb.contains('genres' as any, dto.genre as any));
-          }
+      if (dto.genre) {
+        conditions.push(Query.contains('genres' as any, dto.genre as any));
+      }
 
-          if (dto.year) {
-            conditions.push(qb.equal('releaseYear', dto.year));
-          }
+      if (dto.year) {
+        conditions.push(Query.equal('releaseYear', dto.year));
+      }
 
-          if (exactMatch) {
-            conditions.push(qb.notEqual('slug', exactMatch.slug));
-          }
+      if (exactMatch) {
+        conditions.push(Query.notEqual('slug', exactMatch.slug));
+      }
 
-          const baseQueries: string[] = [
-            qb.select([...gameFields, 'syncStage', 'externalReference'] as any),
-            qb.limit(pageSize),
-            qb.offset((page - 1) * pageSize),
-          ];
+      const criteriaQueries: string[] = [
+        Query.select([...gameFields, 'syncStage', 'externalReference'] as any),
+        Query.limit(pageSize),
+        Query.offset((page - 1) * pageSize),
+      ];
 
-          if (conditions.length > 1) baseQueries.unshift(qb.and(...conditions));
-          else baseQueries.unshift(conditions[0]);
+      if (conditions.length > 1) {
+        criteriaQueries.unshift(Query.and(conditions));
+      } else if (conditions.length === 1) {
+        criteriaQueries.unshift(conditions[0]);
+      }
 
-          return baseQueries;
-        },
+      const criteriaResult = await this.tablesDB.listRows<Game>({
+        databaseId: GameService.DB_ID,
+        tableId: 'games',
+        queries: criteriaQueries,
       });
 
       criteriaResults = criteriaResult.rows;
@@ -203,11 +215,13 @@ export class GameService {
     const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 12;
 
-    const result = await this.games.list({
-      queries: (q) => [
-        q.greaterThan('releaseDate', new Date().toISOString() as any),
-        q.greaterThanEqual('hypes', 35 as any),
-        q.select([
+    const result = await this.tablesDB.listRows<Game>({
+      databaseId: GameService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.greaterThan('releaseDate', new Date().toISOString() as any),
+        Query.greaterThanEqual('hypes', 35 as any),
+        Query.select([
           '$id',
           'name',
           'slug',
@@ -218,10 +232,10 @@ export class GameService {
           'syncStage',
           'externalReference',
         ] as any),
-        q.orderDesc('hypes'),
-        q.orderAsc('releaseDate'),
-        q.limit(pageSize),
-        q.offset((page - 1) * pageSize),
+        Query.orderDesc('hypes'),
+        Query.orderAsc('releaseDate'),
+        Query.limit(pageSize),
+        Query.offset((page - 1) * pageSize),
       ],
     });
 
@@ -243,8 +257,14 @@ export class GameService {
       await this.cache.get<ReturnType<typeof this.buildMediaDtos>>(cacheKey);
     if (cached) return cached;
 
-    const gameResult = await this.games.list({
-      queries: (q) => [q.equal('slug', slug), q.limit(1), q.select(['$id'])],
+    const gameResult = await this.tablesDB.listRows<Game>({
+      databaseId: GameService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('slug', slug),
+        Query.limit(1),
+        Query.select(['$id']),
+      ],
     });
 
     const game = gameResult.rows[0];
@@ -252,8 +272,10 @@ export class GameService {
       throw new NotFoundException(`Jogo com slug "${slug}" não encontrado`);
     }
 
-    const mediasResult = await this.gameMedias.list({
-      queries: (q) => [q.equal('game' as any, game.$id as any)],
+    const mediasResult = await this.tablesDB.listRows<GameMedias>({
+      databaseId: GameService.DB_ID,
+      tableId: 'game_medias',
+      queries: [Query.equal('game' as any, game.$id as any)],
     });
 
     const response = this.buildMediaDtos(mediasResult.rows);
@@ -291,8 +313,14 @@ export class GameService {
     );
     if (cached) return cached;
 
-    const gameResult = await this.games.list({
-      queries: (q) => [q.equal('slug', slug), q.limit(1), q.select(['$id'])],
+    const gameResult = await this.tablesDB.listRows<Game>({
+      databaseId: GameService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('slug', slug),
+        Query.limit(1),
+        Query.select(['$id']),
+      ],
     });
 
     const game = gameResult.rows[0];
@@ -300,8 +328,10 @@ export class GameService {
       throw new NotFoundException(`Jogo com slug "${slug}" não encontrado`);
     }
 
-    const mediasResult = await this.gameMedias.list({
-      queries: (q) => [q.equal('game' as any, game.$id as any)],
+    const mediasResult = await this.tablesDB.listRows<GameMedias>({
+      databaseId: GameService.DB_ID,
+      tableId: 'game_medias',
+      queries: [Query.equal('game' as any, game.$id as any)],
     });
 
     const artwork = mediasResult.rows.find(
@@ -380,7 +410,12 @@ export class GameService {
           return null;
         }
 
-        return this.games.update(game.$id, { coverUrl });
+        return this.tablesDB.updateRow<Game>({
+          databaseId: GameService.DB_ID,
+          tableId: 'games',
+          rowId: game.$id,
+          data: { coverUrl },
+        });
       })
       .filter((operation): operation is Promise<Game> => operation !== null);
 
@@ -533,11 +568,13 @@ export class GameService {
         translatedSummary = await this.translatorService.translate(summary);
         const tx = await this.tablesDB.createTransaction();
 
-        await this.games.update(
-          game.$id,
-          { summaryPt: translatedSummary, zethoVersion: 2 },
-          { transactionId: tx.$id },
-        );
+        await this.tablesDB.updateRow({
+          databaseId: GameService.DB_ID,
+          tableId: 'games',
+          rowId: game.$id,
+          data: { summaryPt: translatedSummary, zethoVersion: 2 },
+          transactionId: tx.$id,
+        });
 
         await this.tablesDB.updateTransaction({
           transactionId: tx.$id,
@@ -569,12 +606,14 @@ export class GameService {
 
     const gameIds = games.map((g) => g.$id);
 
-    const entriesResult = await this.zEntriesReadonly.list({
-      queries: (q) => [
-        q.equal('ownerFingerprint', fingerprint),
-        q.equal('gameId', gameIds as any),
-        q.select(['gameId', 'status', 'liked', 'hyped']),
-        q.limit(gameIds.length),
+    const entriesResult = await this.tablesDB.listRows<ZEntriesReadOnly>({
+      databaseId: GameService.DB_ID,
+      tableId: 'z_entries_read',
+      queries: [
+        Query.equal('ownerFingerprint', fingerprint),
+        Query.equal('gameId', gameIds as any),
+        Query.select(['gameId', 'status', 'liked', 'hyped']),
+        Query.limit(gameIds.length),
       ],
     });
 

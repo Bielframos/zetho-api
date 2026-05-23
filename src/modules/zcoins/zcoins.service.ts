@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
-import { UserProfiles } from 'infra/appwrite';
+import type { UserProfiles } from 'src/common/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import SCORE_TABLE from './score-table';
@@ -17,16 +17,15 @@ type ZCoinTransactionType = 'input' | 'output';
 @Injectable()
 export class ZCoinsService {
   private static readonly WEEKLY_LEADERBOARD_CACHE_TTL_MS = 15 * 60 * 1000;
+  private static readonly DB_ID = 'app';
 
-  private readonly tablesDB: Appwrite['databases']['api'];
-  private readonly userProfiles: Appwrite['databases']['userProfiles'];
+  private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly appwrite: Appwrite,
   ) {
-    this.tablesDB = this.appwrite.databases.api;
-    this.userProfiles = this.appwrite.databases.userProfiles;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async applyInput(userId: string, reason: string, bonusId?: string | null) {
@@ -126,7 +125,7 @@ export class ZCoinsService {
       const current = await this.tablesDB.getRow<
         Models.Row & { zcoinBalance?: number }
       >({
-        databaseId: 'app',
+        databaseId: ZCoinsService.DB_ID,
         tableId: 'user_profiles',
         rowId: profile.$id,
       });
@@ -146,7 +145,7 @@ export class ZCoinsService {
         operations: [
           {
             action: type === 'input' ? 'increment' : 'decrement',
-            databaseId: 'app',
+            databaseId: ZCoinsService.DB_ID,
             tableId: 'user_profiles',
             rowId: profile.$id,
             data: { value: amount, column: 'zcoinBalance' },
@@ -156,7 +155,7 @@ export class ZCoinsService {
 
       await this.tablesDB.createRow({
         transactionId: tx.$id,
-        databaseId: 'app',
+        databaseId: ZCoinsService.DB_ID,
         tableId: 'zcoin_transactions',
         rowId: transactionId,
         data: {
@@ -183,7 +182,7 @@ export class ZCoinsService {
     const updated = await this.tablesDB.getRow<
       Models.Row & { zcoinBalance?: number }
     >({
-      databaseId: 'app',
+      databaseId: ZCoinsService.DB_ID,
       tableId: 'user_profiles',
       rowId: profile.$id,
     });
@@ -223,8 +222,10 @@ export class ZCoinsService {
   }
 
   private async getProfileByUserId(userId: string): Promise<UserProfiles> {
-    const result = await this.userProfiles.list({
-      queries: (q) => [q.equal('userId', userId), q.limit(1)],
+    const result = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ZCoinsService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [Query.equal('userId', userId), Query.limit(1)],
     });
 
     const profile = result.rows[0];
@@ -263,7 +264,7 @@ export class ZCoinsService {
       const page = await this.tablesDB.listRows<
         Models.Row & { userId?: string; amount?: number }
       >({
-        databaseId: 'app',
+        databaseId: ZCoinsService.DB_ID,
         tableId: 'zcoin_transactions',
         queries,
       });
@@ -324,8 +325,10 @@ export class ZCoinsService {
   }
 
   private async findProfileByUserId(userId: string) {
-    const result = await this.userProfiles.list({
-      queries: (q) => [q.equal('userId', userId), q.limit(1)],
+    const result = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ZCoinsService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [Query.equal('userId', userId), Query.limit(1)],
     });
 
     return result.rows[0] ?? null;
@@ -337,7 +340,7 @@ export class ZCoinsService {
     todayStart.setHours(0, 0, 0, 0);
 
     const result = await this.tablesDB.listRows<Models.Row>({
-      databaseId: 'app',
+      databaseId: ZCoinsService.DB_ID,
       tableId: 'zcoin_transactions',
       queries: [
         Query.equal('userId', userId as any),

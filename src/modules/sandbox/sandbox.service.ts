@@ -7,8 +7,8 @@ import { TranslatorService } from 'src/common/ai/agents/translator/translator.se
 
 @Injectable()
 export class SandboxService {
-  private games: Appwrite['databases']['games'];
-  private tablesDB: Appwrite['databases']['api'];
+  private static readonly DB_ID = 'app';
+  private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(
     private readonly appwrite: Appwrite,
@@ -16,8 +16,7 @@ export class SandboxService {
     private readonly translateService: TranslatorService,
     private readonly youtubeService: YoutubeService,
   ) {
-    this.games = this.appwrite.databases.games;
-    this.tablesDB = this.appwrite.databases.api;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async runEditor() {
@@ -32,11 +31,13 @@ export class SandboxService {
     let inspected = 0;
 
     while (hasMore) {
-      const { rows } = await this.games.list({
-        queries: (q) => [
-          q.select(['$id', 'involvedCompanies.$id'] as any),
-          q.limit(PAGE_SIZE),
-          q.offset(offset),
+      const { rows } = await this.tablesDB.listRows({
+        databaseId: SandboxService.DB_ID,
+        tableId: 'games',
+        queries: [
+          Query.select(['$id', 'involvedCompanies.$id'] as any),
+          Query.limit(PAGE_SIZE),
+          Query.offset(offset),
         ],
       });
 
@@ -53,14 +54,24 @@ export class SandboxService {
 
         if (unique.length === ids.length) continue;
 
-        await this.games.update(game.$id, {
-          involvedCompanies: [],
-        } as any);
+        await this.tablesDB.updateRow({
+          databaseId: SandboxService.DB_ID,
+          tableId: 'games',
+          rowId: game.$id,
+          data: {
+            involvedCompanies: [],
+          } as any,
+        });
 
         if (unique.length > 0) {
-          await this.games.update(game.$id, {
-            involvedCompanies: unique,
-          } as any);
+          await this.tablesDB.updateRow({
+            databaseId: SandboxService.DB_ID,
+            tableId: 'games',
+            rowId: game.$id,
+            data: {
+              involvedCompanies: unique,
+            } as any,
+          });
         }
 
         fixed++;
@@ -125,7 +136,7 @@ export class SandboxService {
 
     while (true) {
       const result = await this.tablesDB.listRows({
-        databaseId: 'app',
+        databaseId: SandboxService.DB_ID,
         tableId: 'genres',
         queries: [
           Query.isNull('namePt'),
@@ -143,7 +154,7 @@ export class SandboxService {
       }
 
       await this.tablesDB.deleteRows({
-        databaseId: 'app',
+        databaseId: SandboxService.DB_ID,
         tableId: 'genres',
         queries: [Query.equal('$id' as any, ids as any)],
       });

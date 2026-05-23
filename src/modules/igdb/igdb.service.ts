@@ -7,17 +7,14 @@ import {
 } from '@nestjs/common';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
-import { AppwriteException } from 'node-appwrite';
-import { GamesCreate } from 'infra/appwrite';
+import { AppwriteException, ID, Models, Query } from 'node-appwrite';
+import type { GamesCreate } from 'src/common/appwrite/appwrite';
 
 @Injectable()
 export class IGDBService {
   private readonly logger = new Logger(IGDBService.name);
-  private tokens: Appwrite['databases']['igdbTokens'];
-  private tableDB: Appwrite['databases']['api'];
-  private games: Appwrite['databases']['games'];
-  private companies: Appwrite['databases']['companies'];
-  private zStats: Appwrite['databases']['zStats'];
+  private static readonly DB_ID = 'app';
+  private tableDB: Appwrite['tablesDB'];
 
   private token: string | null = null;
   private tokenExpiry: Date | null = null;
@@ -32,11 +29,7 @@ export class IGDBService {
   private requestTimestamps: number[] = [];
 
   constructor(private appwrite: Appwrite) {
-    this.tokens = this.appwrite.databases.igdbTokens;
-    this.tableDB = this.appwrite.databases.api;
-    this.companies = this.appwrite.databases.companies;
-    this.games = this.appwrite.databases.games;
-    this.zStats = this.appwrite.databases.zStats;
+    this.tableDB = this.appwrite.tablesDB;
   }
 
   private async applyRateLimit(): Promise<void> {
@@ -85,8 +78,12 @@ export class IGDBService {
 
   private async resolveToken(): Promise<string> {
     try {
-      const existing = await this.tokens.list({
-        queries: (q) => [q.orderDesc('$createdAt'), q.limit(1)],
+      const existing = await this.tableDB.listRows<
+        Models.Row & { secret: string; expiresAt: string }
+      >({
+        databaseId: IGDBService.DB_ID,
+        tableId: 'igdb_tokens',
+        queries: [Query.orderDesc('$createdAt'), Query.limit(1)],
       });
 
       if (existing.rows.length > 0) {
@@ -136,9 +133,14 @@ export class IGDBService {
     this.tokenExpiry = expiresAt;
 
     try {
-      await this.tokens.create({
-        secret: data.access_token,
-        expiresAt: expiresAt.toISOString(),
+      await this.tableDB.createRow({
+        databaseId: IGDBService.DB_ID,
+        tableId: 'igdb_tokens',
+        rowId: ID.unique(),
+        data: {
+          secret: data.access_token,
+          expiresAt: expiresAt.toISOString(),
+        },
       });
     } catch (e) {
       this.logger.error('Erro ao salvar token no Appwrite', e);
@@ -258,11 +260,18 @@ export class IGDBService {
       return new Map<number, { $id: string; checksum: string | null }>();
     }
 
-    const existingGames = await this.games.list({
-      queries: (q) => [
-        q.equal('externalReference', uniqueReferences as any),
-        q.select(['$id', 'externalReference', 'checksum']),
-        q.limit(uniqueReferences.length),
+    const existingGames = await this.tableDB.listRows<
+      Models.Row & {
+        externalReference: number;
+        checksum?: string | null;
+      }
+    >({
+      databaseId: IGDBService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('externalReference', uniqueReferences as any),
+        Query.select(['$id', 'externalReference', 'checksum']),
+        Query.limit(uniqueReferences.length),
       ],
     });
 
@@ -420,7 +429,12 @@ export class IGDBService {
     const preferredGameId = `igdb_${parsedGame.externalReference}`;
 
     try {
-      await this.games.create(parsedGame, { rowId: preferredGameId });
+      await this.tableDB.createRow({
+        databaseId: IGDBService.DB_ID,
+        tableId: 'games',
+        rowId: preferredGameId,
+        data: parsedGame,
+      });
       return preferredGameId;
     } catch (error) {
       const appwriteError = error as AppwriteException;
@@ -442,23 +456,32 @@ export class IGDBService {
     const { updatePayload, companiesChanged, nextCompanies } =
       this.buildSafeGameUpdatePayload(parsedGame, existingGame);
 
-    await this.games.update(existingGame.$id, updatePayload);
+    await this.tableDB.updateRow({
+      databaseId: IGDBService.DB_ID,
+      tableId: 'games',
+      rowId: existingGame.$id,
+      data: updatePayload,
+    });
 
     if (companiesChanged) {
       // Appwrite faz append em campos de relacionamento via updateRow.
       // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
       const tx = await this.tableDB.createTransaction();
       try {
-        await this.games.update(
-          existingGame.$id,
-          { involvedCompanies: [] } as unknown as GamesCreate,
-          { transactionId: tx.$id },
-        );
-        await this.games.update(
-          existingGame.$id,
-          { involvedCompanies: nextCompanies } as GamesCreate,
-          { transactionId: tx.$id },
-        );
+        await this.tableDB.updateRow({
+          databaseId: IGDBService.DB_ID,
+          tableId: 'games',
+          rowId: existingGame.$id,
+          data: { involvedCompanies: [] } as unknown as GamesCreate,
+          transactionId: tx.$id,
+        });
+        await this.tableDB.updateRow({
+          databaseId: IGDBService.DB_ID,
+          tableId: 'games',
+          rowId: existingGame.$id,
+          data: { involvedCompanies: nextCompanies } as GamesCreate,
+          transactionId: tx.$id,
+        });
         await this.tableDB.updateTransaction({
           transactionId: tx.$id,
           commit: true,
@@ -484,11 +507,18 @@ export class IGDBService {
     checksum: string | null;
     involvedCompaniesIds: string[];
   }> {
-    const response = await this.games.list({
-      queries: (q) => [
-        q.equal('externalReference', externalReference),
-        q.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
-        q.limit(1),
+    const response = await this.tableDB.listRows<
+      Models.Row & {
+        checksum?: string | null;
+        involvedCompanies?: Array<{ $id?: string }>;
+      }
+    >({
+      databaseId: IGDBService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('externalReference', externalReference),
+        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
+        Query.limit(1),
       ],
     });
 
@@ -606,7 +636,12 @@ export class IGDBService {
     const zstatsId = `zstats_${gameId}`;
 
     try {
-      await this.zStats.create({ game: gameId }, { rowId: zstatsId });
+      await this.tableDB.createRow({
+        databaseId: IGDBService.DB_ID,
+        tableId: 'z_entry_count',
+        rowId: zstatsId,
+        data: { game: gameId },
+      });
     } catch (error) {
       const appwriteError = error as AppwriteException;
 
@@ -627,8 +662,10 @@ export class IGDBService {
 
     if (developerIds.length === 0) return developerIds;
 
-    const { rows: existing } = await this.companies.list({
-      queries: (q) => [q.equal('$id', developerIds as any), q.select(['$id'])],
+    const { rows: existing } = await this.tableDB.listRows<Models.Row>({
+      databaseId: IGDBService.DB_ID,
+      tableId: 'companies',
+      queries: [Query.equal('$id', developerIds as any), Query.select(['$id'])],
     });
 
     const existingIds = new Set(existing.map((row) => row.$id));

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PostsStatus } from 'infra/appwrite';
+import { PostsStatus } from 'src/common/appwrite/appwrite.enums';
+import { ID, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import {
   CreatePostDto,
@@ -17,98 +18,106 @@ type RelatedGameSummary = {
 
 @Injectable()
 export class GazethoService {
-  posts: Appwrite['databases']['posts'];
-  authors: Appwrite['databases']['authors'];
-  games: Appwrite['databases']['games'];
+  private static readonly DB_ID = 'app';
+  private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(private readonly appwrite: Appwrite) {
-    this.posts = this.appwrite.databases.posts;
-    this.authors = this.appwrite.databases.authors;
-    this.games = this.appwrite.databases.games;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   async createPost(dto: CreatePostDto) {
     const slug = this.slugify(dto.slug ?? dto.title);
 
-    return await this.posts.create({
-      title: dto.title.trim(),
-      subtitle: dto.subtitle?.trim() || null,
-      slug,
-      body: dto.body,
-      mainImage: dto.mainImage,
-      status: dto.status ?? PostsStatus.DRAFT,
-      tags: dto.tags?.map((tag) => tag.trim()).filter(Boolean) || null,
-      relatedGameIds:
-        dto.relatedGameIds?.map((gameId) => gameId.trim()).filter(Boolean) ||
-        null,
-      seo: dto.seo?.trim() || null,
-      originalSourceUrl: dto.originalSourceUrl?.trim() || null,
-      author: dto.authorId,
+    return await this.tablesDB.createRow({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      rowId: ID.unique(),
+      data: {
+        title: dto.title.trim(),
+        subtitle: dto.subtitle?.trim() || null,
+        slug,
+        body: dto.body,
+        mainImage: dto.mainImage,
+        status: dto.status ?? PostsStatus.DRAFT,
+        tags: dto.tags?.map((tag) => tag.trim()).filter(Boolean) || null,
+        relatedGameIds:
+          dto.relatedGameIds?.map((gameId) => gameId.trim()).filter(Boolean) ||
+          null,
+        seo: dto.seo?.trim() || null,
+        originalSourceUrl: dto.originalSourceUrl?.trim() || null,
+        author: dto.authorId,
+      },
     });
   }
 
-  async searchPosts(dto: SearchPostsDto) {
+  async searchPosts(dto: SearchPostsDto): Promise<{
+    items: Array<Record<string, unknown>>;
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  }> {
     const safePage = this.toPositiveInt(dto.page, 1);
     const safePageSize = this.toSafeLimit(dto.pageSize, 12, 100);
     const offset = (safePage - 1) * safePageSize;
     const term = dto.q?.trim();
 
-    const response = await this.posts.list({
-      queries: (q) => {
-        const filters: string[] = [];
+    const filters: string[] = [];
 
-        if (dto.status) {
-          filters.push(q.equal('status', dto.status));
-        }
+    if (dto.status) {
+      filters.push(Query.equal('status', dto.status));
+    }
 
-        if (dto.authorId) {
-          filters.push(q.equal('author' as any, dto.authorId as any));
-        }
+    if (dto.authorId) {
+      filters.push(Query.equal('author' as any, dto.authorId as any));
+    }
 
-        if (dto.tag?.trim()) {
-          filters.push(q.contains('tags', dto.tag.trim()));
-        }
+    if (dto.tag?.trim()) {
+      filters.push(Query.contains('tags', dto.tag.trim()));
+    }
 
-        if (dto.gameId?.trim()) {
-          filters.push(q.contains('relatedGameIds', dto.gameId.trim()));
-        }
+    if (dto.gameId?.trim()) {
+      filters.push(Query.contains('relatedGameIds', dto.gameId.trim()));
+    }
 
-        if (term) {
-          filters.push(
-            q.or(
-              q.search('title', term),
-              q.search('subtitle', term),
-              q.search('body', term),
-              q.contains('slug', this.slugify(term)),
-            ),
-          );
-        }
+    if (term) {
+      filters.push(
+        Query.or([
+          Query.search('title', term),
+          Query.search('subtitle', term),
+          Query.search('body', term),
+          Query.contains('slug', this.slugify(term)),
+        ]),
+      );
+    }
 
-        const queries: string[] = [
-          q.orderDesc('$createdAt'),
-          q.limit(safePageSize),
-          q.offset(offset),
-          q.select([
-            '$id',
-            'title',
-            'subtitle',
-            'slug',
-            'status',
-            'tags',
-            'mainImage',
-            'author.name',
-            'author.avatarUrl',
-          ] as any),
-        ];
+    const queries: string[] = [
+      Query.orderDesc('$createdAt'),
+      Query.limit(safePageSize),
+      Query.offset(offset),
+      Query.select([
+        '$id',
+        'title',
+        'subtitle',
+        'slug',
+        'status',
+        'tags',
+        'mainImage',
+        'author.name',
+        'author.avatarUrl',
+      ] as any),
+    ];
 
-        if (filters.length > 1) {
-          queries.unshift(q.and(...filters));
-        } else if (filters.length === 1) {
-          queries.unshift(filters[0]);
-        }
+    if (filters.length > 1) {
+      queries.unshift(Query.and(filters));
+    } else if (filters.length === 1) {
+      queries.unshift(filters[0]);
+    }
 
-        return queries;
-      },
+    const response = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      queries,
     });
 
     const parsedPosts = response.rows.map((row) => {
@@ -128,14 +137,16 @@ export class GazethoService {
     };
   }
 
-  async findPostBySlug(slug: string) {
+  async findPostBySlug(slug: string): Promise<Record<string, unknown>> {
     const sanitizedSlug = slug.trim();
 
-    const response = await this.posts.list({
-      queries: (q) => [
-        q.equal('slug', sanitizedSlug),
-        q.limit(1),
-        q.select(['*', 'author.*'] as any),
+    const response = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        Query.equal('slug', sanitizedSlug),
+        Query.limit(1),
+        Query.select(['*', 'author.*'] as any),
       ],
     });
 
@@ -167,12 +178,14 @@ export class GazethoService {
     while (page <= totalPages) {
       const offset = (page - 1) * pageSize;
 
-      const response = await this.posts.list({
-        queries: (q) => [
-          q.equal('status', PostsStatus.PUBLISHED),
-          q.select(['tags']),
-          q.limit(pageSize),
-          q.offset(offset),
+      const response = await this.tablesDB.listRows({
+        databaseId: GazethoService.DB_ID,
+        tableId: 'posts',
+        queries: [
+          Query.equal('status', PostsStatus.PUBLISHED),
+          Query.select(['tags']),
+          Query.limit(pageSize),
+          Query.offset(offset),
         ],
       });
 
@@ -219,12 +232,20 @@ export class GazethoService {
     const offset = (safePage - 1) * safePageSize;
     const maxRows = 5000;
 
-    const response = await this.posts.list({
-      queries: (q) => [
-        q.select(['$id', 'title', 'slug', '$createdAt', '$updatedAt'] as any),
-        q.orderDesc('$createdAt'),
-        q.limit(safePageSize),
-        q.offset(offset),
+    const response = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        Query.select([
+          '$id',
+          'title',
+          'slug',
+          '$createdAt',
+          '$updatedAt',
+        ] as any),
+        Query.orderDesc('$createdAt'),
+        Query.limit(safePageSize),
+        Query.offset(offset),
       ],
     });
 
@@ -258,10 +279,12 @@ export class GazethoService {
       return [];
     }
 
-    const gamesResponse = await this.games.list({
-      queries: (q) => [
-        q.equal('$id' as any, uniqueIds as any),
-        q.select(['$id', 'name', 'slug', 'coverUrl'] as any),
+    const gamesResponse = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('$id' as any, uniqueIds as any),
+        Query.select(['$id', 'name', 'slug', 'coverUrl'] as any),
       ],
     });
 

@@ -1,21 +1,19 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { GamesCreate, GamesSyncStage } from 'infra/appwrite';
-import { AppwriteException } from 'node-appwrite';
+import type { GamesCreate } from 'src/common/appwrite/appwrite';
+import { GamesSyncStage } from 'src/common/appwrite/appwrite.enums';
+import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
 
 @Injectable()
 export class IGDBHandler {
   private readonly logger = new Logger(IGDBHandler.name);
+  private static readonly DB_ID = 'app';
 
-  private tableDB: Appwrite['databases']['api'];
-  private games: Appwrite['databases']['games'];
-  private zStats: Appwrite['databases']['zStats'];
+  private tableDB: Appwrite['tablesDB'];
 
   constructor(private appwrite: Appwrite) {
-    this.tableDB = this.appwrite.databases.api;
-    this.games = this.appwrite.databases.games;
-    this.zStats = this.appwrite.databases.zStats;
+    this.tableDB = this.appwrite.tablesDB;
   }
 
   /** Método principal para processar o jogo recebido do webhook */
@@ -125,7 +123,12 @@ export class IGDBHandler {
     const preferredGameId = `igdb_${game.externalReference}`;
 
     try {
-      await this.games.create(game, { rowId: preferredGameId });
+      await this.tableDB.createRow({
+        databaseId: IGDBHandler.DB_ID,
+        tableId: 'games',
+        rowId: preferredGameId,
+        data: game,
+      });
       return preferredGameId;
     } catch (error) {
       const appwriteError = error as AppwriteException;
@@ -148,23 +151,32 @@ export class IGDBHandler {
     const { updatePayload, companiesChanged, nextCompanies } =
       this.buildSafeGameUpdatePayload(game, existing);
 
-    await this.games.update(existing.$id, updatePayload);
+    await this.tableDB.updateRow({
+      databaseId: IGDBHandler.DB_ID,
+      tableId: 'games',
+      rowId: existing.$id,
+      data: updatePayload,
+    });
 
     if (companiesChanged) {
       // Appwrite faz append em campos de relacionamento via updateRow.
       // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
       const tx = await this.tableDB.createTransaction();
       try {
-        await this.games.update(
-          existing.$id,
-          { involvedCompanies: [] } as unknown as GamesCreate,
-          { transactionId: tx.$id },
-        );
-        await this.games.update(
-          existing.$id,
-          { involvedCompanies: nextCompanies } as GamesCreate,
-          { transactionId: tx.$id },
-        );
+        await this.tableDB.updateRow({
+          databaseId: IGDBHandler.DB_ID,
+          tableId: 'games',
+          rowId: existing.$id,
+          data: { involvedCompanies: [] } as unknown as GamesCreate,
+          transactionId: tx.$id,
+        });
+        await this.tableDB.updateRow({
+          databaseId: IGDBHandler.DB_ID,
+          tableId: 'games',
+          rowId: existing.$id,
+          data: { involvedCompanies: nextCompanies } as GamesCreate,
+          transactionId: tx.$id,
+        });
         await this.tableDB.updateTransaction({
           transactionId: tx.$id,
           commit: true,
@@ -185,7 +197,12 @@ export class IGDBHandler {
     const zstatsId = `zstats_${gameId}`;
 
     try {
-      await this.zStats.create({ game: gameId }, { rowId: zstatsId });
+      await this.tableDB.createRow({
+        databaseId: IGDBHandler.DB_ID,
+        tableId: 'z_entry_count',
+        rowId: zstatsId,
+        data: { game: gameId },
+      });
       return;
     } catch (error) {
       const appwriteError = error as AppwriteException;
@@ -204,11 +221,18 @@ export class IGDBHandler {
     checksum: string | null;
     involvedCompaniesIds: string[];
   }> {
-    const response = await this.games.list({
-      queries: (q) => [
-        q.equal('externalReference', externalReference),
-        q.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
-        q.limit(1),
+    const response = await this.tableDB.listRows<
+      Models.Row & {
+        checksum?: string | null;
+        involvedCompanies?: Array<{ $id?: string }>;
+      }
+    >({
+      databaseId: IGDBHandler.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('externalReference', externalReference),
+        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
+        Query.limit(1),
       ],
     });
 

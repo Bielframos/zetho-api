@@ -2,8 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
-import { PostsStatus, type Games } from 'infra/appwrite';
-import { ID } from 'node-appwrite';
+import type { Games } from 'src/common/appwrite/appwrite';
+import { PostsStatus } from 'src/common/appwrite/appwrite.enums';
+import { ID, Query } from 'node-appwrite';
 import { GameService } from 'src/modules/game/game.service';
 import { YoutubeService } from 'src/modules/google/youtube.service';
 import { NotificationsService } from 'src/modules/notifications/notifications.service';
@@ -100,7 +101,8 @@ const feedUrls = [
 @Injectable()
 export class EditorService {
   private readonly logger = new Logger(EditorService.name);
-  private posts: Appwrite['databases']['posts'];
+  private static readonly DB_ID = 'app';
+  private readonly tablesDB: Appwrite['tablesDB'];
   private readonly defaultCaptureWindowHours =
     this.resolveCaptureWindowHours(
       process.env.EDITOR_NEWS_CAPTURE_WINDOW_HOURS,
@@ -113,7 +115,7 @@ export class EditorService {
     private readonly youtubeService: YoutubeService,
     private readonly notificationsService: NotificationsService,
   ) {
-    this.posts = this.appwrite.databases.posts;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -301,13 +303,15 @@ export class EditorService {
     const safeLimit = Math.max(1, Math.min(limit, 30));
     const cutoffDate = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
 
-    const response = await this.posts.list({
-      queries: (q) => [
-        q.equal('status', PostsStatus.PUBLISHED),
-        q.greaterThan('$createdAt', cutoffDate),
-        q.select(['title', '$createdAt', 'originalSourceUrl', 'tags']),
-        q.orderDesc('$createdAt'),
-        q.limit(safeLimit),
+    const response = await this.tablesDB.listRows({
+      databaseId: EditorService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        Query.equal('status', PostsStatus.PUBLISHED),
+        Query.greaterThan('$createdAt', cutoffDate),
+        Query.select(['title', '$createdAt', 'originalSourceUrl', 'tags']),
+        Query.orderDesc('$createdAt'),
+        Query.limit(safeLimit),
       ],
     });
 
@@ -322,11 +326,13 @@ export class EditorService {
   }
 
   private async sourceUrlAlreadyPublished(sourceUrl: string): Promise<boolean> {
-    const response = await this.posts.list({
-      queries: (q) => [
-        q.equal('originalSourceUrl', sourceUrl),
-        q.equal('status', PostsStatus.PUBLISHED),
-        q.limit(1),
+    const response = await this.tablesDB.listRows({
+      databaseId: EditorService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        Query.equal('originalSourceUrl', sourceUrl),
+        Query.equal('status', PostsStatus.PUBLISHED),
+        Query.limit(1),
       ],
     });
     return response.rows.length > 0;
@@ -420,25 +426,30 @@ export class EditorService {
 
     const mainImage = pickedMainImage ? JSON.stringify(pickedMainImage) : null;
 
-    return this.posts.create({
-      title,
-      subtitle: this.toNullableString(article.post.subtitle),
-      slug,
-      body: article.post.body,
-      mainImage: String(mainImage),
-      status: PostsStatus.PUBLISHED,
-      tags: article.post.tags
-        .map((tag) => this.slugify(tag))
-        .filter(Boolean)
-        .slice(0, 10),
-      relatedGameIds: article.post.relatedGameIds
-        .map((id) => this.toTrimmedString(id))
-        .filter((id): id is string => Boolean(id)),
-      seo: this.buildSeoString(article.post.seo),
-      originalSourceUrl:
-        this.toNullableString(article.post.originalSourceUrl) ||
-        this.toNullableString(fallbackMainImage),
-      author: ZETHO_INSIDER_ID,
+    return this.tablesDB.createRow({
+      databaseId: EditorService.DB_ID,
+      tableId: 'posts',
+      rowId: ID.unique(),
+      data: {
+        title,
+        subtitle: this.toNullableString(article.post.subtitle),
+        slug,
+        body: article.post.body,
+        mainImage: String(mainImage),
+        status: PostsStatus.PUBLISHED,
+        tags: article.post.tags
+          .map((tag) => this.slugify(tag))
+          .filter(Boolean)
+          .slice(0, 10),
+        relatedGameIds: article.post.relatedGameIds
+          .map((id) => this.toTrimmedString(id))
+          .filter((id): id is string => Boolean(id)),
+        seo: this.buildSeoString(article.post.seo),
+        originalSourceUrl:
+          this.toNullableString(article.post.originalSourceUrl) ||
+          this.toNullableString(fallbackMainImage),
+        author: ZETHO_INSIDER_ID,
+      },
     });
   }
 

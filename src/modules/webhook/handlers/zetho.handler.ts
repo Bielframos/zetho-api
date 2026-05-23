@@ -5,20 +5,21 @@ import {
   Logger,
 } from '@nestjs/common';
 import crypto from 'crypto';
-import { ZEntries, ZEntriesReadOnly, ZEntriesStatus } from 'infra/appwrite';
-import { ID, Models } from 'node-appwrite';
+import type {
+  ZEntries,
+  ZEntriesReadOnly,
+  ZEntriesStatus,
+} from 'src/common/appwrite/appwrite';
+import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 
 @Injectable()
 export class ZethoHandler {
   private readonly logger = new Logger(ZethoHandler.name);
+  private static readonly DB_ID = 'app';
 
-  private tablesDB: Appwrite['databases']['api'];
-  private zEntries: Appwrite['databases']['zEntries'];
-  private userProfiles: Appwrite['databases']['userProfiles'];
-  private zStats: Appwrite['databases']['zStats'];
-  private games: Appwrite['databases']['games'];
+  private tablesDB: Appwrite['tablesDB'];
 
   private statuses: `${ZEntriesStatus}`[] = [
     'completed',
@@ -29,11 +30,7 @@ export class ZethoHandler {
   ];
 
   constructor(private appwrite: Appwrite) {
-    this.tablesDB = this.appwrite.databases.api;
-    this.zEntries = this.appwrite.databases.zEntries;
-    this.userProfiles = this.appwrite.databases.userProfiles;
-    this.zStats = this.appwrite.databases.zStats;
-    this.games = this.appwrite.databases.games;
+    this.tablesDB = this.appwrite.tablesDB;
   }
 
   /** Método que faz a sincronização de novas entries */
@@ -50,7 +47,13 @@ export class ZethoHandler {
 
     if (currentHyped) {
       try {
-        const game = await this.games.get(entry.gameId);
+        const game = await this.tablesDB.getRow<
+          Models.Row & { releaseDate?: string | null }
+        >({
+          databaseId: ZethoHandler.DB_ID,
+          tableId: 'games',
+          rowId: entry.gameId,
+        });
         if (game.releaseDate) {
           const releaseTime = new Date(game.releaseDate).getTime();
           if (releaseTime <= Date.now()) {
@@ -67,20 +70,26 @@ export class ZethoHandler {
     }
 
     const [previousEntries, profiles] = await Promise.all([
-      this.zEntries.list({
-        queries: (q) => [
-          q.equal('ownerFingerprint', entry.ownerFingerprint),
-          q.notEqual('$id', entry.$id),
-          q.equal('gameId', entry.gameId),
-          q.orderDesc('$createdAt'),
-          q.limit(1000),
-          q.select(['status', 'liked', 'hyped']),
+      this.tablesDB.listRows<ZEntries>({
+        databaseId: ZethoHandler.DB_ID,
+        tableId: 'z_entries',
+        queries: [
+          Query.equal('ownerFingerprint', entry.ownerFingerprint),
+          Query.notEqual('$id', entry.$id),
+          Query.equal('gameId', entry.gameId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(1000),
+          Query.select(['status', 'liked', 'hyped']),
         ],
       }),
-      this.userProfiles.list({
-        queries: (q) => [
-          q.equal('fingerprint', entry.ownerFingerprint),
-          q.select(['$id', 'userId', 'fingerprint']),
+      this.tablesDB.listRows<
+        Models.Row & { userId?: string; fingerprint?: string }
+      >({
+        databaseId: ZethoHandler.DB_ID,
+        tableId: 'user_profiles',
+        queries: [
+          Query.equal('fingerprint', entry.ownerFingerprint),
+          Query.select(['$id', 'userId', 'fingerprint']),
         ],
       }),
     ]);
@@ -217,7 +226,13 @@ export class ZethoHandler {
     );
 
     if (prevLiked !== currentLiked) {
-      const zStats = await this.zStats.get(`zstats_${entry.gameId}`);
+      const zStats = await this.tablesDB.getRow<
+        Models.Row & { likes?: number }
+      >({
+        databaseId: ZethoHandler.DB_ID,
+        tableId: 'z_entry_count',
+        rowId: `zstats_${entry.gameId}`,
+      });
       const likesCount = zStats.likes ?? 0;
 
       let delta = 0;
