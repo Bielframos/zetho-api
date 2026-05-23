@@ -10,6 +10,7 @@ import {
 import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
+import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 
 import crypto from 'node:crypto';
 import { UserProfiles, ZEntriesReadOnly } from 'infra/appwrite';
@@ -32,7 +33,7 @@ export class ProfileService {
   private zEntriesReadonly: Appwrite['databases']['zEntriesReadonly'];
   private tablesDB: Appwrite['databases']['api'];
 
-  constructor(private appwrite: Appwrite) {
+  constructor(private appwrite: Appwrite, private readonly zCoinsService: ZCoinsService) {
     this.userProfiles = this.appwrite.databases.userProfiles;
     this.zEntriesReadonly = this.appwrite.databases.zEntriesReadonly;
     this.tablesDB = this.appwrite.databases.api;
@@ -76,6 +77,8 @@ export class ProfileService {
       { permissions: (p, r) => [p.update(r.user(user.$id))] },
     );
 
+    await this.applyWelcomeBonus(user.$id);
+
     await this.applyInviteReward({
       invitedUserId: user.$id,
       invitedProfileId: createdProfile.$id,
@@ -83,6 +86,10 @@ export class ProfileService {
     });
 
     return createdProfile;
+  }
+
+  private async applyWelcomeBonus(userId: string) {
+    await this.zCoinsService.applyInput(userId, 'welcome_bonus');
   }
 
   async getMonthlyInviteBonus(userId: string) {
