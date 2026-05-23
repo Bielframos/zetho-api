@@ -9,6 +9,7 @@ const SCORE_TABLE = {
     friend_joined: 30,
     create_list: 2,
     add_game_to_list: 1,
+    special_bonus: Infinity,
   },
   output: {},
 } as const;

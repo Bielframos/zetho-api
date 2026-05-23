@@ -4,6 +4,7 @@ import { ZCoinsService } from './zcoins.service';
 type ZCoinBody = {
   userId: string;
   reason: string;
+  bonusId?: string | null;
 };
 
 @Controller('zcoins')
@@ -18,7 +19,11 @@ export class ZCoinsController {
 
   @Post('input')
   async input(@Body() body: ZCoinBody) {
-    return this.zCoinsService.applyInput(body.userId, body.reason);
+    return this.zCoinsService.applyInput(
+      body.userId,
+      body.reason,
+      body.bonusId,
+    );
   }
 
   @Post('output')

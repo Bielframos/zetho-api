@@ -29,8 +29,8 @@ export class ZCoinsService {
     this.userProfiles = this.appwrite.databases.userProfiles;
   }
 
-  async applyInput(userId: string, reason: string) {
-    return this.applyTransaction(userId, 'input', reason);
+  async applyInput(userId: string, reason: string, bonusId?: string | null) {
+    return this.applyTransaction(userId, 'input', reason, bonusId);
   }
 
   async applyOutput(userId: string, reason: string) {
@@ -102,6 +102,7 @@ export class ZCoinsService {
     userId: string,
     type: ZCoinTransactionType,
     reason: string,
+    bonusId?: string | null,
   ) {
     const safeUserId = userId?.trim();
 
@@ -118,7 +119,7 @@ export class ZCoinsService {
       }
     }
 
-    const amount = this.resolveAmount(type, reason);
+    const amount = this.resolveAmount(type, reason, bonusId);
     const profile = await this.getProfileByUserId(safeUserId);
 
     if (type === 'output') {
@@ -196,7 +197,11 @@ export class ZCoinsService {
     };
   }
 
-  private resolveAmount(type: ZCoinTransactionType, reason: string) {
+  private resolveAmount(
+    type: ZCoinTransactionType,
+    reason: string,
+    bonusId?: string | null,
+  ) {
     const safeReason = reason?.trim();
 
     if (!safeReason) {
@@ -207,7 +212,8 @@ export class ZCoinsService {
       type === 'input'
         ? (SCORE_TABLE.input as Record<string, number>)
         : (SCORE_TABLE.output as Record<string, number>);
-    const amount = reasonValues[safeReason];
+
+    let amount = reasonValues[safeReason];
 
     if (!amount) {
       throw new BadRequestException('reason inválido para o tipo informado');
