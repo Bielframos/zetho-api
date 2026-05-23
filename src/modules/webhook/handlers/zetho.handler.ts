@@ -18,6 +18,11 @@ import SCORE_TABLE from 'src/modules/zcoins/score-table';
 export class ZethoHandler {
   private readonly logger = new Logger(ZethoHandler.name);
   private static readonly DB_ID = 'app';
+  private static readonly STATUS_RANK: Record<string, number> = {
+    backlog: 1,
+    playing: 2,
+    completed: 3,
+  };
 
   private tablesDB: Appwrite['tablesDB'];
 
@@ -33,7 +38,16 @@ export class ZethoHandler {
     this.tablesDB = this.appwrite.tablesDB;
   }
 
-  /** Método que faz a sincronização de novas entries */
+  /**
+   * Processa um registro de `z_entries` enviado pelo webhook.
+   *
+   * O método valida se a entry já foi processada, aplica regras de hype,
+   * calcula o estado anti-spam com base em `z_entries_read`, e atualiza os
+   * contadores e saldo dentro de uma transação.
+   *
+   * @param entry A entrada do usuário a ser sincronizada.
+   * @returns Um objeto de sucesso/falha para o processamento do webhook.
+   */
   async syncEntry(entry: ZEntries) {
     this.logger.debug({ message: 'Iniciando processamento de entrada', entry });
 
@@ -41,7 +55,7 @@ export class ZethoHandler {
       throw new ConflictException('Z Entry já processada');
     }
 
-    let currentStatus = entry.status as string | null;
+    const currentStatus = entry.status as string | null;
     const currentLiked = entry.liked;
     const currentHyped = entry.hyped ?? false;
 
@@ -69,19 +83,9 @@ export class ZethoHandler {
       }
     }
 
-    const [previousEntries, profiles] = await Promise.all([
-      this.tablesDB.listRows<ZEntries>({
-        databaseId: ZethoHandler.DB_ID,
-        tableId: 'z_entries',
-        queries: [
-          Query.equal('ownerFingerprint', entry.ownerFingerprint),
-          Query.notEqual('$id', entry.$id),
-          Query.equal('gameId', entry.gameId),
-          Query.orderDesc('$createdAt'),
-          Query.limit(1000),
-          Query.select(['status', 'liked', 'hyped']),
-        ],
-      }),
+    const readId = this.createId(entry.ownerFingerprint, entry.gameId);
+
+    const [profiles, existingReadEntry] = await Promise.all([
       this.tablesDB.listRows<
         Models.Row & { userId?: string; fingerprint?: string }
       >({
@@ -92,55 +96,113 @@ export class ZethoHandler {
           Query.select(['$id', 'userId', 'fingerprint']),
         ],
       }),
+      this.tablesDB
+        .getRow<ZEntriesReadOnly>({
+          databaseId: 'app',
+          tableId: 'z_entries_read',
+          rowId: readId,
+        })
+        .catch(() => null),
     ]);
 
-    const previousEntry = previousEntries.rows[0] ?? null;
     const userProfile = profiles.rows[0];
 
-    if (!userProfile) {
+    if (!userProfile?.userId) {
       throw new InternalServerErrorException(
         'Perfil de usuário não encontrado',
       );
     }
 
-    const prevStatus = (previousEntry?.status as string | null) ?? null;
-    const prevHyped = previousEntry?.hyped ?? false;
+    type LegacyEntrySnapshot = Models.Row & {
+      status?: string | null;
+      liked?: boolean | null;
+      hyped?: boolean | null;
+    };
 
-    const readId = this.createId(entry.ownerFingerprint, entry.gameId);
+    let fallbackPreviousEntry: LegacyEntrySnapshot | null = null;
+    let legacyLikedEver = false;
+    let legacyMaxStatusReached: string | null = null;
+    const scanLegacyHistory =
+      existingReadEntry == null ||
+      existingReadEntry.likedEver == null ||
+      existingReadEntry.maxStatusReached == null;
 
-    // -------------------------------------------------
-    // Estado anti-spam: lido do registro persistido em z_entries_read
-    // -------------------------------------------------
-    const existingReadEntry = await this.tablesDB
-      .getRow<ZEntriesReadOnly>({
-        databaseId: 'app',
-        tableId: 'z_entries_read',
-        rowId: readId,
-      })
-      .catch(() => null);
+    if (scanLegacyHistory) {
+      const pageLimit = 100;
+      let offset = 0;
 
-    const historyLikedEver = previousEntries.rows.some(
-      (entry) => entry.liked === true,
-    );
+      while (true) {
+        const legacyPage = await this.tablesDB.listRows<LegacyEntrySnapshot>({
+          databaseId: ZethoHandler.DB_ID,
+          tableId: 'z_entries',
+          queries: [
+            Query.equal('ownerFingerprint', entry.ownerFingerprint),
+            Query.notEqual('$id', entry.$id),
+            Query.equal('gameId', entry.gameId),
+            Query.orderDesc('$createdAt'),
+            Query.limit(pageLimit),
+            Query.offset(offset),
+            Query.select(['status', 'liked', 'hyped']),
+          ],
+        });
 
-    const likedEver =
-      (existingReadEntry?.likedEver ?? existingReadEntry?.liked === true) ||
-      historyLikedEver;
+        if (!fallbackPreviousEntry) {
+          fallbackPreviousEntry = legacyPage.rows[0] ?? null;
+        }
 
-    const historyMaxStatusReached = this.getHighestStatusReached(
-      previousEntries.rows,
-    );
+        for (const legacyEntry of legacyPage.rows) {
+          if (legacyEntry.liked === true) {
+            legacyLikedEver = true;
+          }
 
-    const maxStatusReached =
-      existingReadEntry?.maxStatusReached ?? historyMaxStatusReached;
+          const legacyStatus = legacyEntry.status ?? null;
+          if (
+            this.getStatusRank(legacyStatus) >
+            this.getStatusRank(legacyMaxStatusReached)
+          ) {
+            legacyMaxStatusReached = legacyStatus;
+          }
+        }
 
-    // Para o delta de likes usamos o estado atual do read model quando houver.
+        const reachedTopRank =
+          this.getStatusRank(legacyMaxStatusReached) >=
+          this.getStatusRank('completed');
+
+        if (
+          legacyPage.rows.length === 0 ||
+          offset + legacyPage.rows.length >= legacyPage.total ||
+          (legacyLikedEver && reachedTopRank)
+        ) {
+          break;
+        }
+
+        offset += legacyPage.rows.length;
+      }
+    }
+
+    const prevStatus =
+      (existingReadEntry?.status as string | null) ??
+      fallbackPreviousEntry?.status ??
+      null;
+    const prevHyped =
+      existingReadEntry != null
+        ? (existingReadEntry.hyped ?? false)
+        : (fallbackPreviousEntry?.hyped ?? false);
     const prevLiked =
       existingReadEntry != null
         ? (existingReadEntry.liked ?? null)
-        : (previousEntry?.liked ?? null);
+        : (fallbackPreviousEntry?.liked ?? null);
+    const likedEver =
+      existingReadEntry != null
+        ? (existingReadEntry.likedEver ?? existingReadEntry.liked === true)
+        : legacyLikedEver || prevLiked === true;
+    const maxStatusReached =
+      (existingReadEntry?.maxStatusReached as string | null) ??
+      (existingReadEntry?.status as string | null) ??
+      legacyMaxStatusReached ??
+      prevStatus;
 
-    let zcoinChanges = this.resolveStatusZCoinChanges(
+    const zcoinChanges = this.resolveStatusZCoinChanges(
       currentStatus,
       maxStatusReached,
     );
@@ -166,25 +228,6 @@ export class ZethoHandler {
       maxStatusReached,
       currentStatus,
     );
-
-    try {
-      await this.tablesDB.upsertRow({
-        databaseId: 'app',
-        tableId: 'z_entries_read',
-        rowId: readId,
-        data: {
-          ...cleanEntry,
-          likedEver: newLikedEver,
-          maxStatusReached: newMaxStatusReached,
-        },
-      });
-    } catch (err) {
-      throw new InternalServerErrorException('Erro ao salvar o registro');
-    }
-
-    // -------------------------------------------------
-    // Preparativo da transaction
-    // -------------------------------------------------
 
     const statusOps = this.statuses
       .map((status) => {
@@ -212,44 +255,44 @@ export class ZethoHandler {
       .filter(Boolean)
       .flat();
 
-    let likeOp: any | null = null;
-    let hypedOps: Array<any> = [];
-    let zcoinOps = zcoinChanges.map((change) =>
-      this.createIncDecOp(
-        change.type === 'input' ? 'increment' : 'decrement',
-        'app',
-        'user_profiles',
-        userProfile.$id,
-        'zcoinBalance',
-        change.amount,
-      ),
+    let likeOp: Record<string, unknown> | null = null;
+    let hypedOps: Array<Record<string, unknown>> = [];
+    const zcoinOps: Array<Record<string, unknown>> = zcoinChanges.map(
+      (change) =>
+        this.createIncDecOp(
+          change.type === 'input' ? 'increment' : 'decrement',
+          'app',
+          'user_profiles',
+          userProfile.$id,
+          'zcoinBalance',
+          change.amount,
+        ),
     );
 
     if (prevLiked !== currentLiked) {
-      const zStats = await this.tablesDB.getRow<
-        Models.Row & { likes?: number }
-      >({
-        databaseId: ZethoHandler.DB_ID,
-        tableId: 'z_entry_count',
-        rowId: `zstats_${entry.gameId}`,
-      });
-      const likesCount = zStats.likes ?? 0;
-
       let delta = 0;
 
       if (prevLiked !== true && currentLiked === true) delta = 1;
       if (prevLiked === true && currentLiked !== true) delta = -1;
 
-      if (delta !== 0) {
-        likeOp = {
-          action: 'update',
-          databaseId: 'app',
-          tableId: 'z_entry_count',
-          rowId: `zstats_${entry.gameId}`,
-          data: {
-            likes: Math.max(0, likesCount + delta),
-          },
-        };
+      if (delta === 1) {
+        likeOp = this.createIncDecOp(
+          'increment',
+          'app',
+          'z_entry_count',
+          `zstats_${entry.gameId}`,
+          'likes',
+        );
+      }
+
+      if (delta === -1) {
+        likeOp = this.createIncDecOp(
+          'decrement',
+          'app',
+          'z_entry_count',
+          `zstats_${entry.gameId}`,
+          'likes',
+        );
       }
 
       if (currentLiked === true && !likedEver) {
@@ -305,12 +348,26 @@ export class ZethoHandler {
       }
       const transactionId = tx.$id;
 
+      await this.tablesDB.upsertRow({
+        transactionId,
+        databaseId: 'app',
+        tableId: 'z_entries_read',
+        rowId: readId,
+        data: {
+          ...cleanEntry,
+          likedEver: newLikedEver,
+          maxStatusReached: newMaxStatusReached,
+        },
+      });
+
       const operations = [
         ...statusOps,
         likeOp,
         ...hypedOps,
         ...zcoinOps,
-      ].filter(Boolean);
+      ].filter((operation): operation is Record<string, unknown> =>
+        Boolean(operation),
+      );
 
       if (operations.length > 0) {
         await this.tablesDB.createOperations({
@@ -384,7 +441,10 @@ export class ZethoHandler {
 
   /** Métodos auxiliares */
 
-  /** Méotodo para criação de um id deterministico */
+  /**
+   * Cria um ID determinístico para a linha de leitura de um par
+   * `ownerFingerprint` / `gameId`.
+   */
   private createId(ownerFingerprint: string, gameId: string) {
     return crypto
       .createHash('sha256')
@@ -393,9 +453,18 @@ export class ZethoHandler {
       .substring(0, 32);
   }
 
-  /** Método para criar uma operação de incremento ou decremento */
+  /**
+   * Constrói uma operação de tabela para incrementar ou decrementar um campo.
+   *
+   * @param action Tipo de operação em TablesDB.
+   * @param databaseId ID do banco de dados Appwrite.
+   * @param tableId ID da tabela alvo.
+   * @param rowId ID da linha a ser atualizada.
+   * @param column Coluna que receberá o delta.
+   * @param value Valor do delta.
+   */
   private createIncDecOp(
-    action: string,
+    action: 'increment' | 'decrement',
     databaseId: string,
     tableId: string,
     rowId: string,
@@ -411,29 +480,13 @@ export class ZethoHandler {
     };
   }
 
+  /**
+   * Retorna a posição do status no ranking de progressão.
+   *
+   * @param status Status de biblioteca do usuário.
+   */
   private getStatusRank(status: string | null): number {
-    const STATUS_RANK: Record<string, number> = {
-      backlog: 1,
-      playing: 2,
-      completed: 3,
-    };
-
-    return status ? (STATUS_RANK[status] ?? 0) : 0;
-  }
-
-  private getHighestStatusReached(
-    entries: Array<Pick<ZEntries, 'status'> | Pick<ZEntriesReadOnly, 'status'>>,
-  ): string | null {
-    let highest: string | null = null;
-
-    for (const entry of entries) {
-      const status = entry.status as string | null;
-      if (this.getStatusRank(status) > this.getStatusRank(highest)) {
-        highest = status;
-      }
-    }
-
-    return highest;
+    return status ? (ZethoHandler.STATUS_RANK[status] ?? 0) : 0;
   }
 
   /**
@@ -441,16 +494,19 @@ export class ZethoHandler {
    * Anti-spam: só premia na primeira vez que o usuário alcança cada nível de
    * progresso, com base no maxStatusReached persistido em z_entries_read.
    */
+  /**
+   * Calcula as recompensas de zcoin para transições de status.
+   *
+   * O backend deve concordar com o cálculo otimista do frontend:
+   * premia apenas a primeira vez que o usuário sobe de nível.
+   *
+   * @param current Status atual do registro.
+   * @param maxStatusReached Melhor status já alcançado.
+   */
   private resolveStatusZCoinChanges(
     current: string | null,
     maxStatusReached: string | null,
   ) {
-    const STATUS_RANK: Partial<Record<string, number>> = {
-      backlog: 1,
-      playing: 2,
-      completed: 3,
-    };
-
     const reasonByStatus: Partial<
       Record<string, keyof typeof SCORE_TABLE.input>
     > = {
@@ -465,8 +521,8 @@ export class ZethoHandler {
       amount: number;
     }> = [];
 
-    const currentRank = current ? (STATUS_RANK[current] ?? 0) : 0;
-    const maxRank = maxStatusReached ? (STATUS_RANK[maxStatusReached] ?? 0) : 0;
+    const currentRank = this.getStatusRank(current);
+    const maxRank = this.getStatusRank(maxStatusReached);
 
     if (currentRank > maxRank) {
       const reason = current ? reasonByStatus[current] : undefined;
@@ -482,24 +538,28 @@ export class ZethoHandler {
     return changes;
   }
 
-  /** Retorna o maior status alcançado entre o atual e o candidato */
+  /**
+   * Retorna o maior status alcançado entre o atual e o candidato.
+   *
+   * Usado para manter `maxStatusReached` no read model.
+   */
   private resolveMaxStatusReached(
     current: string | null,
     candidate: string | null,
   ): string | null {
-    const STATUS_RANK: Partial<Record<string, number>> = {
-      backlog: 1,
-      playing: 2,
-      completed: 3,
-    };
-
-    const currentRank = current ? (STATUS_RANK[current] ?? 0) : 0;
-    const candidateRank = candidate ? (STATUS_RANK[candidate] ?? 0) : 0;
+    const currentRank = this.getStatusRank(current);
+    const candidateRank = this.getStatusRank(candidate);
 
     return candidateRank > currentRank ? candidate : current;
   }
 
-  //** Método para obter a ação da operação do status */
+  /**
+   * Determina se a operação de contador deve incrementar ou decrementar um status.
+   *
+   * @param status Status alvo.
+   * @param prev Status anterior.
+   * @param current Status atual.
+   */
   private getStatusAction(
     status: `${ZEntriesStatus}`,
     prev?: string | null,
