@@ -36,11 +36,13 @@ export class ZCoinsService {
     return this.applyTransaction(userId, 'output', reason);
   }
 
-  async getWeeklyLeaderboard(limit = 20) {
+  async getWeeklyLeaderboard(limit = 30) {
     const safeLimit = this.parseLimit(limit);
     const cacheKey = `zcoins:leaderboard:weekly:${safeLimit}`;
+
     const cached = await this.cache.get<{
       syncedAt: string;
+      resetsIn: string;
       payload: {
         period: 'weekly';
         since: string;
@@ -65,11 +67,17 @@ export class ZCoinsService {
       return {
         ...cached.payload,
         lastSyncAt: cached.syncedAt,
+        resetsIn: cached.resetsIn,
         nextSyncAt,
       };
     }
 
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date();
+    const lastSunday = new Date(now);
+    lastSunday.setDate(now.getDate() - now.getDay());
+    lastSunday.setHours(0, 0, 0, 0);
+    const since = lastSunday.toISOString();
+
     const sums = await this.aggregateTransactionsByUser(safeLimit, since);
     const payload = await this.formatLeaderboard(
       'weekly',
@@ -77,12 +85,17 @@ export class ZCoinsService {
       sums,
       since,
     );
+
     const syncedAt = new Date().toISOString();
+    const resetsIn = new Date(
+      lastSunday.getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     await this.cache.set(
       cacheKey,
       {
         syncedAt,
+        resetsIn,
         payload,
       },
       ZCoinsService.WEEKLY_LEADERBOARD_CACHE_TTL_MS,
@@ -94,6 +107,7 @@ export class ZCoinsService {
       nextSyncAt: new Date(
         Date.parse(syncedAt) + ZCoinsService.WEEKLY_LEADERBOARD_CACHE_TTL_MS,
       ).toISOString(),
+      resetsIn,
     };
   }
 
@@ -247,13 +261,14 @@ export class ZCoinsService {
 
   private async aggregateTransactionsByUser(limit: number, since?: string) {
     const totals = new Map<string, number>();
-    const pageSize = 100;
+    const pageSize = 500;
     let offset = 0;
 
     while (true) {
       const queries = [
         Query.limit(pageSize),
         Query.offset(offset),
+        Query.greaterThan('amount', 0),
         Query.select(['userId', 'amount']),
       ];
 
@@ -275,10 +290,6 @@ export class ZCoinsService {
         }
 
         const amount = Number(row.amount ?? 0);
-        if (amount <= 0) {
-          continue;
-        }
-
         totals.set(row.userId, (totals.get(row.userId) ?? 0) + amount);
       }
 
@@ -336,16 +347,19 @@ export class ZCoinsService {
 
   private async hasReceivedDailyLoginBonusToday(userId: string) {
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    const brazilDate = now.toLocaleDateString('en-US', {
+      timeZone: 'America/Sao_Paulo',
+    });
+    const brazilDateStart = new Date(`${brazilDate} 00:00:00 GMT-0300`);
+    const todayStartISO = brazilDateStart.toISOString();
 
     const result = await this.tablesDB.listRows<Models.Row>({
       databaseId: ZCoinsService.DB_ID,
       tableId: 'zcoin_transactions',
       queries: [
-        Query.equal('userId', userId as any),
-        Query.equal('reason', 'daily_login' as any),
-        Query.greaterThanEqual('$createdAt', todayStart.toISOString() as any),
+        Query.equal('userId', userId),
+        Query.equal('reason', 'daily_login'),
+        Query.greaterThanEqual('$createdAt', todayStartISO),
         Query.limit(1),
       ],
     });

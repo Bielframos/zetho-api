@@ -13,7 +13,7 @@ export class ZCoinsController {
 
   @Get('leaderboard/weekly')
   async weeklyLeaderboard(@Query('limit') limit?: string) {
-    const safeLimit = this.parsePositiveInt(limit, 20);
+    const safeLimit = this.parsePositiveInt(limit, 30);
     return this.zCoinsService.getWeeklyLeaderboard(safeLimit);
   }
 
