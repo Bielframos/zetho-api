@@ -494,8 +494,11 @@ export class RaffleService {
     userId: string,
     requested: number,
   ) {
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
+    const now = new Date();
+    const brazilDate = now.toLocaleDateString('sv-SE', {
+      timeZone: 'America/Sao_Paulo',
+    });
+    const startOfDay = new Date(`${brazilDate}T00:00:00-03:00`);
 
     const entries = await this.tablesDB.listRows<RaffleEntry>({
       databaseId: RaffleService.DB_ID,

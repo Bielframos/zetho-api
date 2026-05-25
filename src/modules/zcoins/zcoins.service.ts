@@ -347,10 +347,10 @@ export class ZCoinsService {
 
   private async hasReceivedDailyLoginBonusToday(userId: string) {
     const now = new Date();
-    const brazilDate = now.toLocaleDateString('en-US', {
+    const brazilDate = now.toLocaleDateString('sv-SE', {
       timeZone: 'America/Sao_Paulo',
     });
-    const brazilDateStart = new Date(`${brazilDate} 00:00:00 GMT-0300`);
+    const brazilDateStart = new Date(`${brazilDate}T00:00:00-03:00`);
     const todayStartISO = brazilDateStart.toISOString();
 
     const result = await this.tablesDB.listRows<Models.Row>({
