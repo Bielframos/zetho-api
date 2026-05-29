@@ -320,22 +320,19 @@ const retryable = status === 429 || status >= 500 || error.name === 'TimeoutErro
 | A2 | Existing zcoins clients may rely on body `userId` contract and need migration path. | Risks and Tradeoffs | Breaking change for existing clients/integrations. |
 | A3 | Structured reason-code taxonomy (`NOOP_*`, `RETRYABLE_*`) is acceptable without conflicting log schema constraints. | Risks and Tradeoffs | Operational dashboards/alerts could fragment if schema conflicts. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Replay key retention window and storage target**
-   - What we know: ingress replay gate is required by decision D-05.
-   - What's unclear: retention duration and preferred table/index strategy in Appwrite.
-   - Recommendation: decide explicit TTL (for example 7-30 days) during plan creation and add cleanup task.
+   - Resolution: Use a dedicated replay persistence service in `src/modules/webhook/replay/replay.service.ts` with deterministic keys at ingress and bounded retention policy of 30 days; add cleanup execution coverage in Plan 01-02 Task 2.
+   - Planning impact: Captured in Plan 01-02 artifacts and action text (`replay.service.ts`, `replay.module.ts`, ingress pre-check wiring).
 
 2. **Public zcoins mutation backward compatibility**
-   - What we know: current contract accepts body `userId` on public endpoints.
-   - What's unclear: whether external clients currently use this directly.
-   - Recommendation: include compatibility checkpoint and rollout strategy (parallel route or temporary compatibility adapter).
+   - Resolution: Keep explicit contract split between protected user mutations and machine-only paths per D-03; user-mutation authority binds to `request.user` and body identity is removed/ignored on protected routes.
+   - Planning impact: Captured in Plan 01-01 Task 2 with guarded route hardening and DTO/controller contract updates.
 
 3. **Canonical URL strategy for Appwrite signature input**
-   - What we know: verification includes URL + raw body.
-   - What's unclear: source-of-truth URL in multi-env/proxy deployment.
-   - Recommendation: lock canonical webhook base URL config and add environment parity test cases.
+   - Resolution: Keep canonical message construction using stable configured base URL + endpoint + raw body, and harden comparison with timing-safe buffers.
+   - Planning impact: Captured in Plan 01-02 Task 2 with `webhook.guard.ts` canonical signature flow hardening and explicit timing-safe verification.
 
 ## Environment Availability
 
