@@ -28,17 +28,17 @@ Cross-cutting rails:
 
 ## Component Boundaries
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| Ingress layer (`controllers`, webhook handlers, cron triggers) | Transport concerns only: auth, validation, request mapping | Application facades |
-| Application facades (new per module) | Orchestrate use-case flow, transactions, and events | Domain services, ports |
-| Domain services | Deterministic business rules; no SDK/network calls | Ports, value objects |
-| Persistence port (`AppwriteTablesPort`) | Abstract row/query/transaction primitives | Appwrite adapter |
-| Integration ports (`IgdbPort`, `YouTubePort`, `NotificationPort`) | Hide external API details and retries | Provider adapters |
-| Domain event bus (in-process first) | Decouple side effects from core writes | Event handlers, queue producer |
-| Async workflow module (queue workers) | Reliable processing for long/fragile work | Domain events, integration ports |
-| Observability module | Correlated logs, metrics, health, failure counters | All modules |
-| Policy module | Reusable authz and role checks, endpoint classification | Ingress + facades |
+| Component                                                         | Responsibility                                             | Communicates With                |
+| ----------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------- |
+| Ingress layer (`controllers`, webhook handlers, cron triggers)    | Transport concerns only: auth, validation, request mapping | Application facades              |
+| Application facades (new per module)                              | Orchestrate use-case flow, transactions, and events        | Domain services, ports           |
+| Domain services                                                   | Deterministic business rules; no SDK/network calls         | Ports, value objects             |
+| Persistence port (`AppwriteTablesPort`)                           | Abstract row/query/transaction primitives                  | Appwrite adapter                 |
+| Integration ports (`IgdbPort`, `YouTubePort`, `NotificationPort`) | Hide external API details and retries                      | Provider adapters                |
+| Domain event bus (in-process first)                               | Decouple side effects from core writes                     | Event handlers, queue producer   |
+| Async workflow module (queue workers)                             | Reliable processing for long/fragile work                  | Domain events, integration ports |
+| Observability module                                              | Correlated logs, metrics, health, failure counters         | All modules                      |
+| Policy module                                                     | Reusable authz and role checks, endpoint classification    | Ingress + facades                |
 
 ## Data Flow
 
@@ -75,26 +75,31 @@ Why: reduces Appwrite payload size and keeps API contracts stable.
 ## Patterns To Follow
 
 ### Pattern 1: Facade + Port boundary per module
+
 **What:** Add `application/` and `infrastructure/` seams inside each domain module, with interfaces at domain edges.
 **When:** Immediately for high-churn modules (`game`, `igdb`, `webhook`, `raffle`, `zcoins`, `gazetho`).
 **Benefit:** Reduces direct coupling to Appwrite SDK and external adapters.
 
 ### Pattern 2: Post-commit domain events
+
 **What:** Emit events only after transaction success; listeners handle side effects.
 **When:** For notifications, content publishing fan-out, enrichment, recalculations.
 **Benefit:** Prevents side effects from triggering on failed writes.
 
 ### Pattern 3: Transaction-backed write orchestration
+
 **What:** Use Appwrite Databases transactions (`createTransaction` -> stage operations with `transactionId` -> `updateTransaction` commit/rollback) for multi-row invariants.
 **When:** Raffle purchases, zcoins updates, profile/economy coupled changes.
 **Benefit:** Cuts race-condition and partial-write risk.
 
 ### Pattern 4: Typed, centralized configuration
+
 **What:** Introduce `@nestjs/config` with startup schema validation and namespaced config per module.
 **When:** First phase, before further module extraction.
 **Benefit:** Removes hidden runtime failures from scattered `process.env` access.
 
 ### Pattern 5: Reliability envelope for async jobs
+
 **What:** Queue retries, bounded backoff, idempotency keys, DLQ/failed-job observability.
 **When:** Introduce before moving expensive sync operations to background workers.
 **Benefit:** Improves resilience without silent data drift.
@@ -102,16 +107,19 @@ Why: reduces Appwrite payload size and keeps API contracts stable.
 ## Anti-Patterns To Avoid
 
 ### Anti-Pattern 1: Controller/service omniscience
+
 **What:** One service directly calling many domains and external APIs.
 **Why bad:** Hidden dependencies and high regression blast radius.
 **Instead:** Facade orchestrates domain + ports; each dependency is explicit.
 
 ### Anti-Pattern 2: Global mutable state in services
+
 **What:** Shared mutable promises/locks without clear ownership.
 **Why bad:** Concurrency bugs and hard-to-reproduce failures.
 **Instead:** Encapsulate lock/idempotency behavior in dedicated infra utilities with metrics.
 
 ### Anti-Pattern 3: Sync external side effects inside critical command path
+
 **What:** Notification/enrichment calls in request transaction path.
 **Why bad:** Increases latency and failure coupling.
 **Instead:** Emit event and process side effect asynchronously.
@@ -121,45 +129,53 @@ Why: reduces Appwrite payload size and keeps API contracts stable.
 ### Phase A: Foundations and safety rails (first)
 
 Scope:
+
 - Introduce `ConfigModule` globally with schema validation.
 - Centralize env access and secret naming.
 - Add request correlation IDs, structured logs, and baseline metrics.
 - Standardize global validation/serialization defaults.
 
 Dependencies:
+
 - Required before major refactors to avoid changing behavior without visibility.
 - Low risk, high leverage.
 
 ### Phase B: Boundary extraction in critical modules
 
 Scope:
+
 - Refactor `game`, `igdb`, `webhook`, `raffle`, `zcoins` into facade/domain/port structure.
 - Replace direct cross-module calls with interface contracts.
 - Publish internal domain events for side-effect hooks.
 
 Dependencies:
+
 - Depends on Phase A config/observability for safe rollout.
 - Enables parallel work by reducing hidden coupling.
 
 ### Phase C: Transactional consistency + async workflows
 
 Scope:
+
 - Wrap multi-row mutations in Appwrite transactions where invariants exist.
 - Add BullMQ for durable background jobs for non-critical side effects.
 - Implement idempotency + retry/DLQ policy.
 
 Dependencies:
+
 - Depends on Phase B contracts (ports/events) for clean async handoff.
 - Requires operational telemetry from Phase A to tune retries.
 
 ### Phase D: Query/read-model optimization and operability hardening
 
 Scope:
+
 - Introduce dedicated query services and projection tables where needed.
 - Optimize Appwrite queries (`select`, indexes, pagination strategy).
 - Add runbooks, health checks, and rollback playbooks per critical flow.
 
 Dependencies:
+
 - Depends on stable write/event model from Phase C.
 - Can execute incrementally per endpoint.
 
@@ -179,12 +195,12 @@ Phase C
 
 ## Scalability Considerations
 
-| Concern | At 100 users | At 10K users | At 1M users |
-|---------|--------------|--------------|-------------|
-| Sync write contention | Direct writes acceptable | Add transaction boundaries for hot invariants | Introduce finer-grained sharding strategy by domain keys |
-| External API reliability | Inline retries acceptable | Queue side effects + backoff + DLQ | Dedicated worker pools + rate-limit governance |
-| Query performance | Basic pagination | Index audit + select field minimization + cache hot paths | Projection/read-model strategy with strict SLA tiers |
-| Operational visibility | Logs only | Structured logs + metrics + error taxonomy | SLOs, alerting, and automated remediation runbooks |
+| Concern                  | At 100 users              | At 10K users                                              | At 1M users                                              |
+| ------------------------ | ------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
+| Sync write contention    | Direct writes acceptable  | Add transaction boundaries for hot invariants             | Introduce finer-grained sharding strategy by domain keys |
+| External API reliability | Inline retries acceptable | Queue side effects + backoff + DLQ                        | Dedicated worker pools + rate-limit governance           |
+| Query performance        | Basic pagination          | Index audit + select field minimization + cache hot paths | Projection/read-model strategy with strict SLA tiers     |
+| Operational visibility   | Logs only                 | Structured logs + metrics + error taxonomy                | SLOs, alerting, and automated remediation runbooks       |
 
 ## Confidence Notes
 

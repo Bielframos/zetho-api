@@ -37,6 +37,7 @@ Deliver a reliable and secure gaming backend that continuously provides fresh, u
 The repository is a brownfield backend with a recent codebase map under `.planning/codebase/` documenting stack, architecture, concerns, conventions, integrations, and testing posture. Current strengths include broad domain coverage and strong integration reach. Current risks include uneven validation/test coverage, large service classes, operational blind spots, and security hardening gaps in selected endpoints.
 
 Priority themes for this cycle:
+
 - Reliability and observability
 - Security and authorization
 - Quality and test coverage
@@ -55,18 +56,19 @@ Delivery horizon: short (2-4 weeks), with phased execution and measurable outcom
 
 ## Key Decisions
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Initialize as brownfield with inferred validated capabilities | Existing production code and codebase map already prove baseline functionality | — Pending |
-| Prioritize reliability, security, and quality before broad feature expansion | Reduces regressions and increases delivery confidence for new features | — Pending |
-| Use coarse-grained phased roadmap for the current cycle | Matches short timeline and allows faster execution with clear milestones | — Pending |
-| Keep planning docs committed to git | Improves traceability and team alignment during rapid iteration | — Pending |
+| Decision                                                                     | Rationale                                                                      | Outcome   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------- |
+| Initialize as brownfield with inferred validated capabilities                | Existing production code and codebase map already prove baseline functionality | — Pending |
+| Prioritize reliability, security, and quality before broad feature expansion | Reduces regressions and increases delivery confidence for new features         | — Pending |
+| Use coarse-grained phased roadmap for the current cycle                      | Matches short timeline and allows faster execution with clear milestones       | — Pending |
+| Keep planning docs committed to git                                          | Improves traceability and team alignment during rapid iteration                | — Pending |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition** (via `/gsd-transition`):
+
 1. Requirements invalidated? -> Move to Out of Scope with reason
 2. Requirements validated? -> Move to Validated with phase reference
 3. New requirements emerged? -> Add to Active
@@ -74,10 +76,12 @@ This document evolves at phase transitions and milestone boundaries.
 5. "What This Is" still accurate? -> Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
+
 1. Full review of all sections
 2. Core Value check -> still the right priority?
 3. Audit Out of Scope -> reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-29 after initialization*
+
+_Last updated: 2026-05-29 after initialization_

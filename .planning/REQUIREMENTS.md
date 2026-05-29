@@ -62,45 +62,47 @@
 
 ## Out of Scope
 
-| Feature | Reason |
-|---------|--------|
-| Full frontend redesign/replatform | Current initiative is API/platform-focused and backend-first. |
-| NestJS/Appwrite platform replacement | High migration risk with low short-horizon ROI. |
-| Broad microservices split | Premature for current maturity and timeline; boundary extraction first. |
-| Multi-region active-active redesign | Not justified for this cycle and would dilute core hardening work. |
+| Feature                              | Reason                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| Full frontend redesign/replatform    | Current initiative is API/platform-focused and backend-first.           |
+| NestJS/Appwrite platform replacement | High migration risk with low short-horizon ROI.                         |
+| Broad microservices split            | Premature for current maturity and timeline; boundary extraction first. |
+| Multi-region active-active redesign  | Not justified for this cycle and would dilute core hardening work.      |
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| SECU-01 | Phase 1 | Pending |
-| SECU-02 | Phase 1 | Pending |
-| SECU-03 | Phase 1 | Pending |
-| SECU-04 | Phase 1 | Pending |
-| RELY-01 | Phase 1 | Pending |
-| RELY-02 | Phase 1 | Pending |
-| RELY-03 | Phase 2 | Pending |
-| RELY-04 | Phase 1 | Pending |
-| OBSV-01 | Phase 2 | Pending |
-| OBSV-02 | Phase 2 | Pending |
-| OBSV-03 | Phase 2 | Pending |
-| ARCH-01 | Phase 3 | Pending |
-| ARCH-02 | Phase 3 | Pending |
-| ARCH-03 | Phase 3 | Pending |
-| DATA-01 | Phase 3 | Pending |
-| DATA-02 | Phase 4 | Pending |
-| DATA-03 | Phase 3 | Pending |
-| QUAL-01 | Phase 4 | Pending |
-| QUAL-02 | Phase 4 | Pending |
-| QUAL-03 | Phase 4 | Pending |
-| LIVE-01 | Phase 5 | Pending |
-| LIVE-02 | Phase 5 | Pending |
+| Requirement | Phase   | Status  |
+| ----------- | ------- | ------- |
+| SECU-01     | Phase 1 | Pending |
+| SECU-02     | Phase 1 | Pending |
+| SECU-03     | Phase 1 | Pending |
+| SECU-04     | Phase 1 | Pending |
+| RELY-01     | Phase 1 | Pending |
+| RELY-02     | Phase 1 | Pending |
+| RELY-03     | Phase 2 | Pending |
+| RELY-04     | Phase 1 | Pending |
+| OBSV-01     | Phase 2 | Pending |
+| OBSV-02     | Phase 2 | Pending |
+| OBSV-03     | Phase 2 | Pending |
+| ARCH-01     | Phase 3 | Pending |
+| ARCH-02     | Phase 3 | Pending |
+| ARCH-03     | Phase 3 | Pending |
+| DATA-01     | Phase 3 | Pending |
+| DATA-02     | Phase 4 | Pending |
+| DATA-03     | Phase 3 | Pending |
+| QUAL-01     | Phase 4 | Pending |
+| QUAL-02     | Phase 4 | Pending |
+| QUAL-03     | Phase 4 | Pending |
+| LIVE-01     | Phase 5 | Pending |
+| LIVE-02     | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 22 total
 - Mapped to phases: 22
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-05-29*
-*Last updated: 2026-05-29 after roadmap phase mapping*
+
+_Requirements defined: 2026-05-29_
+_Last updated: 2026-05-29 after roadmap phase mapping_

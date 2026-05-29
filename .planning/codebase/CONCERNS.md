@@ -5,6 +5,7 @@
 ## Tech Debt
 
 **Business-heavy service classes (coupling + maintainability hotspot):**
+
 - Severity: High
 - Issue: Domain logic, persistence, transaction handling, and external API orchestration are concentrated in single services with very large file size and many responsibilities.
 - Files: `src/common/ai/agents/editor/editor.service.ts`, `src/modules/igdb/igdb.service.ts`, `src/modules/raffle/raffle.service.ts`, `src/modules/game/game.service.ts`, `src/modules/profile/profile.service.ts`, `src/modules/webhook/handlers/zetho.handler.ts`
@@ -13,6 +14,7 @@
 - Fix approach: Extract orchestrators from domain services, move Appwrite read/write operations into repository-like adapters per bounded context, and split workflows into smaller use-case services.
 
 **Duplicated IGDB upsert/update logic across modules:**
+
 - Severity: Medium
 - Issue: Similar conflict-resolution and transaction logic is duplicated between IGDB ingestion paths.
 - Files: `src/modules/igdb/igdb.service.ts`, `src/modules/webhook/handlers/igdb.handler.ts`
@@ -21,6 +23,7 @@
 - Fix approach: Centralize shared IGDB upsert flow in one service and reuse from webhook + API entrypoints.
 
 **Custom validation pipe exists but is mostly unused:**
+
 - Severity: Medium
 - Issue: A project-level validation pipe is implemented but request validation is applied inconsistently, mostly per-controller.
 - Files: `src/common/pipes/validation/validation.pipe.ts`, `src/main.ts`, `src/modules/game/game.controller.ts`, `src/modules/profile/profile.controller.ts`, `src/modules/zcoins/zcoins.controller.ts`
@@ -31,6 +34,7 @@
 ## Known Bugs
 
 **Webhook IGDB errors are surfaced as HTTP 200:**
+
 - Severity: High
 - Symptoms: Failures in webhook processing are thrown as `HttpException(..., HttpStatus.OK)`.
 - Files: `src/modules/webhook/handlers/igdb.handler.ts`
@@ -39,6 +43,7 @@
 - Rationale: Monitoring and retry systems can treat failed operations as successful.
 
 **Cache invalidation call is fire-and-forget without error handling:**
+
 - Severity: Medium
 - Symptoms: Frontend revalidation can fail silently while API flow continues as if successful.
 - Files: `src/common/ai/agents/editor/editor.service.ts`
@@ -49,6 +54,7 @@
 ## Security Considerations
 
 **Unauthenticated ZCoins mutation endpoints:**
+
 - Severity: Critical
 - Risk: External clients can attempt direct score/balance mutations by posting `userId` and `reason` payloads.
 - Files: `src/modules/zcoins/zcoins.controller.ts`, `src/modules/zcoins/zcoins.service.ts`
@@ -57,6 +63,7 @@
 - Rationale: Direct body-provided identity on mutation endpoints is a high-value abuse surface.
 
 **Environment/config values are used without startup validation:**
+
 - Severity: High
 - Risk: Misconfiguration causes runtime failures, weak security posture, or inconsistent guard behavior.
 - Files: `src/main.ts`, `src/common/appwrite/constants.ts`, `src/common/appwrite/appwrite.provider.ts`, `src/common/ai/ai.module.ts`, `src/common/guards/webhook.guard.ts`, `src/common/guards/system-api.guard.ts`, `src/modules/google/youtube.service.ts`, `src/modules/notifications/evolution.service.ts`, `functions/Gamer Scout/src/main.js`
@@ -65,6 +72,7 @@
 - Rationale: Several critical secrets/URLs are cast and consumed directly from `process.env`.
 
 **Webhook secret/signature comparison is plain equality:**
+
 - Severity: Medium
 - Risk: Comparison is not constant-time and relies on exact URL reconstruction from environment.
 - Files: `src/common/guards/webhook.guard.ts`, `src/common/guards/igdb.guard.ts`
@@ -75,6 +83,7 @@
 ## Performance Bottlenecks
 
 **Leaderboard computation scans and aggregates transaction history in app layer:**
+
 - Severity: High
 - Problem: Weekly leaderboard loops through pages and aggregates in memory, then resolves each profile separately.
 - Files: `src/modules/zcoins/zcoins.service.ts`
@@ -83,6 +92,7 @@
 - Rationale: Cost grows with transaction volume and player count.
 
 **In-memory IGDB rate-limit/token state is per-process only:**
+
 - Severity: Medium
 - Problem: Throttle/token reuse logic does not coordinate across horizontally scaled instances.
 - Files: `src/modules/igdb/igdb.service.ts`
@@ -93,6 +103,7 @@
 ## Fragile Areas
 
 **Manual Appwrite transaction choreography repeated across modules:**
+
 - Severity: High
 - Files: `src/modules/webhook/handlers/zetho.handler.ts`, `src/modules/webhook/handlers/igdb.handler.ts`, `src/modules/zcoins/zcoins.service.ts`, `src/modules/raffle/raffle.service.ts`, `src/modules/game/game.service.ts`, `src/modules/profile/profile.service.ts`, `src/modules/igdb/igdb.service.ts`
 - Why fragile: Repeated create/operations/commit/rollback blocks increase chance of inconsistent error semantics and partial rollback handling.
@@ -100,6 +111,7 @@
 - Test coverage: Limited automated coverage of rollback/error paths.
 
 **Direct module-to-module coupling in AI/editor flow:**
+
 - Severity: Medium
 - Files: `src/common/ai/agents/editor/editor.service.ts`
 - Why fragile: Editor pipeline depends on feeds parsing, game lookup, YouTube service, notifications, AI prompt outputs, and external media APIs in one execution path.
@@ -109,12 +121,14 @@
 ## Scaling Limits
 
 **Weekly leaderboard throughput tied to full-history reads:**
+
 - Severity: High
 - Current capacity: Bounded by 500-row pages and in-process aggregation loops.
 - Limit: Response latency and memory grow with `zcoin_transactions` size.
 - Scaling path: Incremental aggregates per period, scheduled rollups, and index-aware query strategy.
 
 **Feed/AI pipeline fan-out in scheduled editor run:**
+
 - Severity: Medium
 - Current capacity: Hourly cron executes multi-feed fetch + AI processing + external services sequentially.
 - Limit: External provider latency/failure can elongate run and reduce reliability.
@@ -123,6 +137,7 @@
 ## Dependencies at Risk
 
 **External API dependency volatility (IGDB/Twitch, Unsplash, Google, Evolution):**
+
 - Severity: Medium
 - Risk: API quota shifts, auth key rotation, or upstream contract changes degrade critical flows.
 - Impact: Game sync, media enrichment, notifications, and editorial automation can fail.
@@ -132,12 +147,14 @@
 ## Missing Critical Features
 
 **No CI pipeline detected in repository:**
+
 - Severity: High
 - Problem: No `.github/workflows` directory detected.
 - Blocks: Reliable pre-merge checks for lint/test/build and policy enforcement.
 - Files: `package.json`, `test/app.e2e-spec.ts`, `src/app.controller.spec.ts`
 
 **No health/readiness endpoints for operational checks:**
+
 - Severity: Medium
 - Problem: No dedicated health module/controller detected.
 - Blocks: Infrastructure-level readiness/liveness checks and safer rollout automation.
@@ -146,6 +163,7 @@
 ## Test Coverage Gaps
 
 **Business-critical modules are effectively untested:**
+
 - Severity: Critical
 - What's not tested: IGDB sync, webhook handlers, raffle transactions, profile audit/invite flows, zcoins mutation safety, AI/editor orchestration.
 - Files: `src/modules/igdb/igdb.service.ts`, `src/modules/webhook/handlers/zetho.handler.ts`, `src/modules/webhook/handlers/igdb.handler.ts`, `src/modules/raffle/raffle.service.ts`, `src/modules/profile/profile.service.ts`, `src/modules/zcoins/zcoins.service.ts`, `src/common/ai/agents/editor/editor.service.ts`
@@ -155,4 +173,4 @@
 
 ---
 
-*Concerns audit: 2026-05-29*
+_Concerns audit: 2026-05-29_

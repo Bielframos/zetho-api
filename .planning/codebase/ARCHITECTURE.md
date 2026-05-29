@@ -1,4 +1,5 @@
 <!-- refreshed: 2026-05-29 -->
+
 # Architecture
 
 **Analysis Date:** 2026-05-29
@@ -31,25 +32,26 @@
 
 ## Component Responsibilities
 
-| Component | Responsibility | File |
-|-----------|----------------|------|
-| Bootstrap + platform setup | Starts Nest app, CORS/cookie parser, raw-body webhook support | `src/main.ts` |
-| Root composition | Wires cache, scheduler, infra modules, and feature modules | `src/app.module.ts` |
-| Appwrite gateway | Centralized Appwrite client and typed DB clients | `src/common/appwrite/appwrite.provider.ts` |
-| AI runtime container | Creates Genkit providers for OpenAI-compatible and Google GenAI | `src/common/ai/ai.module.ts` |
-| Game catalog domain | Search/read/enrich game records and media with cache and migrations | `src/modules/game/game.service.ts` |
-| IGDB ingestion domain | Pulls/syncs catalog from IGDB and persists to Appwrite | `src/modules/igdb/igdb.service.ts` |
-| Webhook projection domain | Consumes Appwrite and IGDB webhooks, projects data/counters | `src/modules/webhook/handlers/zetho.handler.ts` |
-| Editorial pipeline | Hourly trend analysis + article generation + publish + notify | `src/common/ai/agents/editor/editor.service.ts` |
-| Content API domain | CRUD/search/sitemap-oriented access to posts | `src/modules/gazetho/gazetho.service.ts` |
-| Economy + raffle domain | ZCoins ledger/leaderboards and raffle lifecycle | `src/modules/zcoins/zcoins.service.ts`, `src/modules/raffle/raffle.service.ts` |
-| Scheduled function boundary | Daily Appwrite Function calling API sync endpoint | `functions/Gamer Scout/src/main.js` |
+| Component                   | Responsibility                                                      | File                                                                           |
+| --------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Bootstrap + platform setup  | Starts Nest app, CORS/cookie parser, raw-body webhook support       | `src/main.ts`                                                                  |
+| Root composition            | Wires cache, scheduler, infra modules, and feature modules          | `src/app.module.ts`                                                            |
+| Appwrite gateway            | Centralized Appwrite client and typed DB clients                    | `src/common/appwrite/appwrite.provider.ts`                                     |
+| AI runtime container        | Creates Genkit providers for OpenAI-compatible and Google GenAI     | `src/common/ai/ai.module.ts`                                                   |
+| Game catalog domain         | Search/read/enrich game records and media with cache and migrations | `src/modules/game/game.service.ts`                                             |
+| IGDB ingestion domain       | Pulls/syncs catalog from IGDB and persists to Appwrite              | `src/modules/igdb/igdb.service.ts`                                             |
+| Webhook projection domain   | Consumes Appwrite and IGDB webhooks, projects data/counters         | `src/modules/webhook/handlers/zetho.handler.ts`                                |
+| Editorial pipeline          | Hourly trend analysis + article generation + publish + notify       | `src/common/ai/agents/editor/editor.service.ts`                                |
+| Content API domain          | CRUD/search/sitemap-oriented access to posts                        | `src/modules/gazetho/gazetho.service.ts`                                       |
+| Economy + raffle domain     | ZCoins ledger/leaderboards and raffle lifecycle                     | `src/modules/zcoins/zcoins.service.ts`, `src/modules/raffle/raffle.service.ts` |
+| Scheduled function boundary | Daily Appwrite Function calling API sync endpoint                   | `functions/Gamer Scout/src/main.js`                                            |
 
 ## Pattern Overview
 
 **Overall:** Modular monolith with NestJS module boundaries and service-centric orchestration.
 
 **Key Characteristics:**
+
 - Feature-first modules in `src/modules` with classic controller -> service flow.
 - Shared infrastructure in `src/common` (guards, Appwrite provider, AI providers).
 - Appwrite TablesDB acts as the system of record and transaction coordinator.
@@ -57,6 +59,7 @@
 ## Layers
 
 **Presentation Layer (Controllers):**
+
 - Purpose: Expose HTTP endpoints and apply guards/DTO validation.
 - Location: `src/modules/*/*.controller.ts`
 - Contains: Route handlers for games, igdb, profile, raffle, gazetho, webhook, sitemap, sandbox, zcoins.
@@ -64,6 +67,7 @@
 - Used by: Public clients, system clients, webhooks, scheduled function callers.
 
 **Application Layer (Services):**
+
 - Purpose: Implement domain workflows and orchestration logic.
 - Location: `src/modules/*/*.service.ts`, `src/common/ai/agents/*/*.service.ts`
 - Contains: Game search/enrichment, IGDB sync, profile audits, raffle purchasing, content generation.
@@ -71,6 +75,7 @@
 - Used by: Controllers and cron jobs.
 
 **Infrastructure Layer:**
+
 - Purpose: External system adapters and cross-cutting services.
 - Location: `src/common/appwrite/*`, `src/modules/google/*`, `src/modules/notifications/*`, `src/common/guards/*`
 - Contains: Appwrite client bootstrap, YouTube API client, Evolution API sender, security guards.
@@ -78,6 +83,7 @@
 - Used by: Application services and controllers.
 
 **Function Runtime Layer:**
+
 - Purpose: Decouple scheduled sync trigger from main API process.
 - Location: `functions/Gamer Scout/src/main.js`, `appwrite.config.json`
 - Contains: Scheduled HTTP trigger to `/igdb/games/popular-sync`.
@@ -116,6 +122,7 @@
 4. IGDB service fetches and upserts games (`src/modules/igdb/igdb.service.ts:188`).
 
 **State Management:**
+
 - Primary persisted state is Appwrite TablesDB (`databaseId = app`) across modules.
 - Request/session caching uses global cache manager (configured in `src/app.module.ts`).
 - In-process transient state exists for token and migration locks (`IGDBService.authPromise`, `GameService.migrationPromises`).
@@ -123,16 +130,19 @@
 ## Key Abstractions
 
 **Appwrite Provider:**
+
 - Purpose: Single injected gateway for Account/Users/TablesDB operations.
 - Examples: `src/common/appwrite/appwrite.provider.ts`, consumers in `src/modules/*/*.service.ts`.
 - Pattern: Global singleton provider imported once in root module.
 
 **Guard-based access envelope:**
+
 - Purpose: Enforce caller identity and role policy by endpoint type.
 - Examples: `src/common/guards/session.guard.ts`, `src/common/guards/system-api.guard.ts`, `src/common/guards/webhook.guard.ts`.
 - Pattern: Route-level `@UseGuards` plus optional role metadata.
 
 **AI Agent services:**
+
 - Purpose: Encapsulate prompt-driven workflows as injectable services.
 - Examples: `src/common/ai/agents/editor/editor.service.ts`, `src/common/ai/agents/translator/translator.service.ts`.
 - Pattern: Services depend on `AiModule` provider tokens and expose task-oriented methods.
@@ -140,21 +150,25 @@
 ## Entry Points
 
 **HTTP API entrypoint:**
+
 - Location: `src/main.ts`
 - Triggers: Node process startup via `pnpm start*`.
 - Responsibilities: Build Nest app, configure CORS/cookies, start listener.
 
 **Webhook entrypoint:**
+
 - Location: `src/modules/webhook/webhook.controller.ts`
 - Triggers: Appwrite and IGDB webhook events.
 - Responsibilities: Validate webhook authenticity and dispatch to handlers.
 
 **Cron entrypoint (in API):**
+
 - Location: `src/common/ai/agents/editor/editor.service.ts`
 - Triggers: Nest scheduler (`@Cron` hourly).
 - Responsibilities: Execute editorial generation/publish workflow.
 
 **Cron entrypoint (function):**
+
 - Location: `functions/Gamer Scout/src/main.js`
 - Triggers: Appwrite function schedule.
 - Responsibilities: Trigger IGDB popular sync endpoint with system API key.
@@ -185,6 +199,7 @@
 **Strategy:** Exception-driven control flow using Nest exceptions, with selective error swallowing for non-critical side effects.
 
 **Patterns:**
+
 - Domain validation and auth failures use `BadRequestException`, `ConflictException`, `UnauthorizedException`, `ForbiddenException`.
 - External/integration failures often log and continue where appropriate (for example post-share failures in notifications).
 
@@ -196,4 +211,4 @@
 
 ---
 
-*Architecture analysis: 2026-05-29*
+_Architecture analysis: 2026-05-29_
