@@ -73,34 +73,34 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SECU-01 | Phase TBD | Pending |
-| SECU-02 | Phase TBD | Pending |
-| SECU-03 | Phase TBD | Pending |
-| SECU-04 | Phase TBD | Pending |
-| RELY-01 | Phase TBD | Pending |
-| RELY-02 | Phase TBD | Pending |
-| RELY-03 | Phase TBD | Pending |
-| RELY-04 | Phase TBD | Pending |
-| OBSV-01 | Phase TBD | Pending |
-| OBSV-02 | Phase TBD | Pending |
-| OBSV-03 | Phase TBD | Pending |
-| ARCH-01 | Phase TBD | Pending |
-| ARCH-02 | Phase TBD | Pending |
-| ARCH-03 | Phase TBD | Pending |
-| DATA-01 | Phase TBD | Pending |
-| DATA-02 | Phase TBD | Pending |
-| DATA-03 | Phase TBD | Pending |
-| QUAL-01 | Phase TBD | Pending |
-| QUAL-02 | Phase TBD | Pending |
-| QUAL-03 | Phase TBD | Pending |
-| LIVE-01 | Phase TBD | Pending |
-| LIVE-02 | Phase TBD | Pending |
+| SECU-01 | Phase 1 | Pending |
+| SECU-02 | Phase 1 | Pending |
+| SECU-03 | Phase 1 | Pending |
+| SECU-04 | Phase 1 | Pending |
+| RELY-01 | Phase 1 | Pending |
+| RELY-02 | Phase 1 | Pending |
+| RELY-03 | Phase 2 | Pending |
+| RELY-04 | Phase 1 | Pending |
+| OBSV-01 | Phase 2 | Pending |
+| OBSV-02 | Phase 2 | Pending |
+| OBSV-03 | Phase 2 | Pending |
+| ARCH-01 | Phase 3 | Pending |
+| ARCH-02 | Phase 3 | Pending |
+| ARCH-03 | Phase 3 | Pending |
+| DATA-01 | Phase 3 | Pending |
+| DATA-02 | Phase 4 | Pending |
+| DATA-03 | Phase 3 | Pending |
+| QUAL-01 | Phase 4 | Pending |
+| QUAL-02 | Phase 4 | Pending |
+| QUAL-03 | Phase 4 | Pending |
+| LIVE-01 | Phase 5 | Pending |
+| LIVE-02 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 ⚠️
+- Mapped to phases: 22
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-29*
-*Last updated: 2026-05-29 after auto initialization*
+*Last updated: 2026-05-29 after roadmap phase mapping*
