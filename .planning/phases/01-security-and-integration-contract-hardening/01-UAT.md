@@ -13,20 +13,23 @@ updated: 2026-05-30T00:15:00Z
 ## Tests
 
 ### 1. Protected Mutation Requires Authenticated User
+
 expected: |
-  When a user tries a protected zcoins mutation without a valid session, the request is denied.
-  When the user is authenticated and authorized, the mutation succeeds and is bound to the signed-in user, not to any userId from the request body.
+When a user tries a protected zcoins mutation without a valid session, the request is denied.
+When the user is authenticated and authorized, the mutation succeeds and is bound to the signed-in user, not to any userId from the request body.
 result: pass
 
 ### 2. Webhook Rejects Invalid Or Duplicate Events
+
 expected: |
-  Invalid webhook or IGDB secrets are rejected.
-  Replayed or duplicate webhook deliveries are treated as no-ops with a successful response.
+Invalid webhook or IGDB secrets are rejected.
+Replayed or duplicate webhook deliveries are treated as no-ops with a successful response.
 result: pass
 
 ### 3. Retryable Failures Return Observable Error Status
+
 expected: |
-  When webhook or outbound integration processing fails in a retryable way, the API returns a non-2xx status so the failure is observable and can be retried or alerted on.
+When webhook or outbound integration processing fails in a retryable way, the API returns a non-2xx status so the failure is observable and can be retried or alerted on.
 result: pass
 
 ## Summary
