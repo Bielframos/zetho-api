@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Headers,
   HttpException,
@@ -14,27 +15,67 @@ import { IGDBGuard } from 'src/common/guards/igdb.guard';
 import type { IGDBGame, IGDBGenre } from '../igdb/igdb.types';
 import { ZethoHandler } from './handlers/zetho.handler';
 import { IGDBHandler } from './handlers/igdb.handler';
+import { WebhookReplayService } from './replay/replay.service';
 
 @Controller('webhook')
 export class WebhookController {
   constructor(
     private zethoHandler: ZethoHandler,
     private IGDBHandler: IGDBHandler,
+    private readonly replayService: WebhookReplayService,
   ) {}
 
   @Post('entry-sync')
   @UseGuards(new AppwriteWebhookGuard('entry-sync'))
-  syncZEntry(
+  async syncZEntry(
     @Headers('x-appwrite-webhook-events') events: string,
+    @Headers('x-appwrite-webhook-id') webhookId?: string,
+    @Headers('x-appwrite-trigger') trigger?: string,
     @Body() entry: ZEntries,
   ) {
-    const eventArray = events.split(',');
+    const eventArray = String(events ?? '')
+      .split(',')
+      .map((event) => event.trim())
+      .filter(Boolean);
 
     if (!eventArray.some((event) => event.endsWith('.create'))) {
-      throw new HttpException('Evento não suportado.', HttpStatus.OK);
+      return {
+        message: 'Evento não suportado.',
+        success: true,
+        noOp: true,
+        reason: 'unsupported_event',
+      };
     }
 
-    return this.zethoHandler.syncEntry(entry);
+    const replayKey = `${webhookId ?? trigger ?? entry.$id}:${entry.$id}`;
+    const duplicated = await this.replayService.isDuplicate(replayKey);
+
+    if (duplicated) {
+      return {
+        message: 'Evento duplicado ignorado',
+        success: true,
+        noOp: true,
+        reason: 'duplicate_event',
+      };
+    }
+
+    try {
+      return await this.zethoHandler.syncEntry(entry);
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        return {
+          message: error.message,
+          success: true,
+          noOp: true,
+          reason: 'idempotent_conflict',
+        };
+      }
+
+      throw new HttpException(
+        'Falha interna ao processar webhook',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 
   @Post('igdb/games/upsert')

@@ -13,7 +13,7 @@ This roadmap delivers a backend-hardening MVP in five coarse phases: secure and 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Security and Integration Contract Hardening** - Lock down mutation access and make external ingress/processing failure-safe.
+- [x] **Phase 1: Security and Integration Contract Hardening** - Lock down mutation access and make external ingress/processing failure-safe.
 - [ ] **Phase 2: Operational Observability Baseline** - Make runtime health, telemetry, and SLO status reliably visible.
 - [ ] **Phase 3: Boundary Extraction and Transaction Core** - Establish maintainable domain boundaries with deterministic write integrity.
 - [ ] **Phase 4: Performance and Quality Gates** - Raise throughput/read performance while enforcing automated quality controls.
@@ -38,12 +38,12 @@ Decimal phases appear between their surrounding integers in numeric order.
    Plans:
    **Wave 1**
 
-- [ ] 01-01-PLAN.md - Harden user mutation authorization and authenticated actor identity contracts.
-- [ ] 01-02-PLAN.md - Enforce webhook authenticity, replay idempotency, and retry-safe failure semantics.
+- [x] 01-01-PLAN.md - Harden user mutation authorization and authenticated actor identity contracts.
+- [x] 01-02-PLAN.md - Enforce webhook authenticity, replay idempotency, and retry-safe failure semantics.
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 01-03-PLAN.md - Add bounded outbound integration retries/timeouts with structured failure classification.
+- [x] 01-03-PLAN.md - Add bounded outbound integration retries/timeouts with structured failure classification.
 
 ### Phase 2: Operational Observability Baseline
 
@@ -105,7 +105,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
-| 1. Security and Integration Contract Hardening | 0/3            | Not started | -         |
+| 1. Security and Integration Contract Hardening | 3/3            | Completed   | 2026-05-29 |
 | 2. Operational Observability Baseline          | 0/TBD          | Not started | -         |
 | 3. Boundary Extraction and Transaction Core    | 0/TBD          | Not started | -         |
 | 4. Performance and Quality Gates               | 0/TBD          | Not started | -         |

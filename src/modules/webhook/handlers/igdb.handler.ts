@@ -1,4 +1,8 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { GamesCreate } from 'src/common/appwrite/appwrite';
 import { GamesSyncStage } from 'src/common/appwrite/appwrite.enums';
 import { AppwriteException, Models, Query } from 'node-appwrite';
@@ -24,7 +28,12 @@ export class IGDBHandler {
 
     if (this.shouldIgnore(game)) {
       this.logger.log(`O jogo de id: ${game.id} foi ignorado`);
-      throw new HttpException('Jogo ignorado', HttpStatus.OK);
+      return {
+        message: 'Jogo ignorado',
+        success: true,
+        noOp: true,
+        reason: 'ignored_event',
+      };
     }
 
     try {
@@ -50,7 +59,7 @@ export class IGDBHandler {
         durationMs: this.getDurationMs(startedAt),
         error: this.serializeError(e),
       });
-      throw new HttpException('Erro ao processar o jogo', HttpStatus.OK);
+      throw new ServiceUnavailableException('Erro ao processar o jogo');
     }
   }
 
@@ -73,7 +82,7 @@ export class IGDBHandler {
         success: true,
       };
     } catch (e) {
-      throw new HttpException('Erro ao processar o gênero', HttpStatus.OK);
+      throw new ServiceUnavailableException('Erro ao processar o gênero');
     }
   }
 
@@ -91,7 +100,7 @@ export class IGDBHandler {
         success: true,
       };
     } catch (e) {
-      throw new HttpException('Erro ao deletar o gênero', HttpStatus.OK);
+      throw new ServiceUnavailableException('Erro ao deletar o gênero');
     }
   }
 

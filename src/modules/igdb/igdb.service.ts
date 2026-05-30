@@ -9,6 +9,11 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
 import { AppwriteException, ID, Models, Query } from 'node-appwrite';
 import type { GamesCreate } from 'src/common/appwrite/appwrite';
+import {
+  classifyHttpError,
+  executeWithRetry,
+  IntegrationExecutionError,
+} from 'src/common/integration/retry-policy';
 
 @Injectable()
 export class IGDBService {
@@ -118,7 +123,47 @@ export class IGDBService {
       grant_type: 'client_credentials',
     }).toString();
 
-    const response = await fetch(url, { method: 'POST' });
+    const response = await executeWithRetry({
+      provider: 'twitch',
+      operation: 'oauth.token',
+      timeoutMs: 8_000,
+      maxRetries: 2,
+      run: async (signal) => {
+        const res = await fetch(url, { method: 'POST', signal });
+
+        if (!res.ok) {
+          throw { status: res.status, message: await res.text() };
+        }
+
+        return res;
+      },
+      classifyError: (error) => {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return {
+            retryable: true,
+            terminalStatusCode: 504,
+            reason: 'timeout',
+          };
+        }
+
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'status' in error &&
+          typeof (error as { status?: unknown }).status === 'number'
+        ) {
+          const status = (error as { status: number }).status;
+          return {
+            retryable: status === 429 || status >= 500,
+            terminalStatusCode: status,
+            reason:
+              status >= 400 && status < 500 ? 'http_4xx' : 'http_5xx_or_429',
+          };
+        }
+
+        return classifyHttpError(error);
+      },
+    });
 
     if (!response.ok) {
       throw new InternalServerErrorException(
@@ -154,22 +199,74 @@ export class IGDBService {
 
     const token = await this.getToken();
 
-    const response = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Client-ID': process.env.IGDB_CLIENT_ID as string,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'text/plain',
-      },
-      body,
-    });
+    try {
+      const response = await executeWithRetry({
+        provider: 'igdb',
+        operation: endpoint,
+        timeoutMs: 10_000,
+        maxRetries: 2,
+        run: async (signal) => {
+          const res = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
+            method: 'POST',
+            headers: {
+              'Client-ID': process.env.IGDB_CLIENT_ID as string,
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'text/plain',
+            },
+            body,
+            signal,
+          });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new InternalServerErrorException(`IGDB Error: ${text}`);
+          if (!res.ok) {
+            throw { status: res.status, message: await res.text() };
+          }
+
+          return res;
+        },
+        classifyError: (error) => {
+          if (error instanceof Error && error.name === 'AbortError') {
+            return {
+              retryable: true,
+              terminalStatusCode: 504,
+              reason: 'timeout',
+            };
+          }
+
+          if (
+            typeof error === 'object' &&
+            error !== null &&
+            'status' in error &&
+            typeof (error as { status?: unknown }).status === 'number'
+          ) {
+            const status = (error as { status: number }).status;
+            return {
+              retryable: status === 429 || status >= 500,
+              terminalStatusCode: status,
+              reason:
+                status >= 400 && status < 500 ? 'http_4xx' : 'http_5xx_or_429',
+            };
+          }
+
+          return classifyHttpError(error);
+        },
+      });
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof IntegrationExecutionError) {
+        this.logger.error({
+          message: 'Falha em integração IGDB',
+          provider: error.provider,
+          operation: error.operation,
+          retryable: error.retryable,
+          terminalStatusCode: error.terminalStatusCode,
+          attempts: error.attempts,
+          reason: error.reason,
+        });
+      }
+
+      throw new InternalServerErrorException('IGDB Error');
     }
-
-    return await response.json();
   }
 
   private gameFields =
