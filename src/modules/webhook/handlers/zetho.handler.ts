@@ -432,10 +432,9 @@ export class ZethoHandler {
         `✗ Webhook: Falha ao processar entrada ${entry.$id}:`,
         err instanceof Error ? err.message : String(err),
       );
-      return {
-        message: `O registro de id ${entry.$id} não foi processado.`,
-        success: false,
-      };
+      throw new InternalServerErrorException(
+        `O registro de id ${entry.$id} não foi processado.`,
+      );
     }
   }
 

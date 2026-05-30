@@ -16,7 +16,10 @@ export class AppwriteWebhookGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<{
+      headers: Record<string, string | undefined>;
+      rawBody?: Buffer;
+    }>();
 
     const signatureHeader = req.headers['x-appwrite-webhook-signature'];
     const payload = req.rawBody;
@@ -42,8 +45,16 @@ export class AppwriteWebhookGuard implements CanActivate {
       .update(message)
       .digest('base64');
 
-    if (signatureHeader !== generatedSignature)
+    const signatureBuffer = Buffer.from(String(signatureHeader), 'utf8');
+    const generatedBuffer = Buffer.from(generatedSignature, 'utf8');
+
+    const isValid =
+      signatureBuffer.length === generatedBuffer.length &&
+      crypto.timingSafeEqual(signatureBuffer, generatedBuffer);
+
+    if (!isValid) {
       throw new UnauthorizedException('Assinatura do Webook inválida');
+    }
 
     return true;
   }
