@@ -28,10 +28,10 @@ export class WebhookController {
   @Post('entry-sync')
   @UseGuards(new AppwriteWebhookGuard('entry-sync'))
   async syncZEntry(
+    @Body() entry: ZEntries,
     @Headers('x-appwrite-webhook-events') events: string,
     @Headers('x-appwrite-webhook-id') webhookId?: string,
     @Headers('x-appwrite-trigger') trigger?: string,
-    @Body() entry: ZEntries,
   ) {
     const eventArray = String(events ?? '')
       .split(',')
