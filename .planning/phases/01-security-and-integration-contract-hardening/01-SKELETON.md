@@ -9,13 +9,13 @@ An authenticated actor can execute a protected mutation while webhook ingress re
 
 ## Architectural Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Framework | NestJS 11 API modules/controllers/guards | Existing production stack; hardening can ship without migration risk. |
-| Data layer | Appwrite TablesDB via injected provider | Existing transactional persistence and idempotency data already live here. |
-| Auth | Appwrite session guard for user routes + dedicated system/webhook guards for machine routes | Implements D-01 through D-03 boundary split and prevents body-authoritative identity. |
-| Deployment target | Existing Appwrite-hosted function/webhook + Nest API runtime | Keeps compatibility with current integrations while adding contract hardening. |
-| Directory layout | Feature modules in src/modules and shared cross-cutting services under src/common | Matches current repo conventions and minimizes phase-1 integration friction. |
+| Decision          | Choice                                                                                      | Rationale                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Framework         | NestJS 11 API modules/controllers/guards                                                    | Existing production stack; hardening can ship without migration risk.                 |
+| Data layer        | Appwrite TablesDB via injected provider                                                     | Existing transactional persistence and idempotency data already live here.            |
+| Auth              | Appwrite session guard for user routes + dedicated system/webhook guards for machine routes | Implements D-01 through D-03 boundary split and prevents body-authoritative identity. |
+| Deployment target | Existing Appwrite-hosted function/webhook + Nest API runtime                                | Keeps compatibility with current integrations while adding contract hardening.        |
+| Directory layout  | Feature modules in src/modules and shared cross-cutting services under src/common           | Matches current repo conventions and minimizes phase-1 integration friction.          |
 
 ## Stack Touched in Phase 1
 

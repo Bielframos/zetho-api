@@ -6,21 +6,21 @@
 
 ## File Classification
 
-| New/Modified File | Role | Data Flow | Closest Analog | Match Quality |
-|---|---|---|---|---|
-| `src/modules/zcoins/zcoins.controller.ts` | controller | request-response (mutation) | `src/modules/profile/profile.controller.ts` | role-match |
-| `src/modules/zcoins/zcoins.service.ts` | service | CRUD + transactional writes | `src/modules/zcoins/zcoins.service.ts` | exact |
-| `src/common/guards/webhook.guard.ts` | middleware/guard | request-response (ingress auth) | `src/common/guards/webhook.guard.ts` | exact |
-| `src/common/guards/igdb.guard.ts` | middleware/guard | request-response (ingress auth) | `src/common/guards/system-api.guard.ts` | role-match |
-| `src/modules/webhook/webhook.controller.ts` | controller | event-driven ingress | `src/modules/webhook/webhook.controller.ts` | exact |
-| `src/modules/webhook/handlers/igdb.handler.ts` | service/handler | event-driven + idempotent upsert | `src/modules/webhook/handlers/igdb.handler.ts` | exact |
-| `src/modules/webhook/handlers/zetho.handler.ts` | service/handler | event-driven + transactional idempotency | `src/modules/webhook/handlers/zetho.handler.ts` | exact |
-| `src/modules/igdb/igdb.service.ts` | service | outbound integration (request-response) | `src/modules/igdb/igdb.service.ts` | exact |
-| `src/modules/webhook/webhook.module.ts` | module/config | DI composition | `src/modules/webhook/webhook.module.ts` | exact |
-| `src/modules/webhook/replay/replay.service.ts` (new) | service | event-driven dedupe | `src/modules/webhook/handlers/zetho.handler.ts` | flow-match |
-| `src/common/integration/retry-policy.ts` (new) | utility | request-response retry/timeout | `src/modules/igdb/igdb.service.ts` | flow-match |
-| `test/security-integration/webhook-contract.e2e-spec.ts` (new) | test | request-response contract | `test/app.e2e-spec.ts` | role-match |
-| `test/security-integration/zcoins-authz.e2e-spec.ts` (new) | test | request-response authz | `test/app.e2e-spec.ts` | role-match |
+| New/Modified File                                              | Role             | Data Flow                                | Closest Analog                                  | Match Quality |
+| -------------------------------------------------------------- | ---------------- | ---------------------------------------- | ----------------------------------------------- | ------------- |
+| `src/modules/zcoins/zcoins.controller.ts`                      | controller       | request-response (mutation)              | `src/modules/profile/profile.controller.ts`     | role-match    |
+| `src/modules/zcoins/zcoins.service.ts`                         | service          | CRUD + transactional writes              | `src/modules/zcoins/zcoins.service.ts`          | exact         |
+| `src/common/guards/webhook.guard.ts`                           | middleware/guard | request-response (ingress auth)          | `src/common/guards/webhook.guard.ts`            | exact         |
+| `src/common/guards/igdb.guard.ts`                              | middleware/guard | request-response (ingress auth)          | `src/common/guards/system-api.guard.ts`         | role-match    |
+| `src/modules/webhook/webhook.controller.ts`                    | controller       | event-driven ingress                     | `src/modules/webhook/webhook.controller.ts`     | exact         |
+| `src/modules/webhook/handlers/igdb.handler.ts`                 | service/handler  | event-driven + idempotent upsert         | `src/modules/webhook/handlers/igdb.handler.ts`  | exact         |
+| `src/modules/webhook/handlers/zetho.handler.ts`                | service/handler  | event-driven + transactional idempotency | `src/modules/webhook/handlers/zetho.handler.ts` | exact         |
+| `src/modules/igdb/igdb.service.ts`                             | service          | outbound integration (request-response)  | `src/modules/igdb/igdb.service.ts`              | exact         |
+| `src/modules/webhook/webhook.module.ts`                        | module/config    | DI composition                           | `src/modules/webhook/webhook.module.ts`         | exact         |
+| `src/modules/webhook/replay/replay.service.ts` (new)           | service          | event-driven dedupe                      | `src/modules/webhook/handlers/zetho.handler.ts` | flow-match    |
+| `src/common/integration/retry-policy.ts` (new)                 | utility          | request-response retry/timeout           | `src/modules/igdb/igdb.service.ts`              | flow-match    |
+| `test/security-integration/webhook-contract.e2e-spec.ts` (new) | test             | request-response contract                | `test/app.e2e-spec.ts`                          | role-match    |
+| `test/security-integration/zcoins-authz.e2e-spec.ts` (new)     | test             | request-response authz                   | `test/app.e2e-spec.ts`                          | role-match    |
 
 ## Pattern Assignments
 
@@ -29,6 +29,7 @@
 **Primary analog:** `src/modules/profile/profile.controller.ts`
 
 **Guard + actor source pattern** (`profile.controller.ts` lines 20-29, 31-37):
+
 ```typescript
 @Post()
 @UseGuards(AppwriteSessionGuard)
@@ -47,6 +48,7 @@ async getMyInviteBonus(@Req() req: any) {
 ```
 
 **Role policy pattern** (`igdb.controller.ts` lines 25-33):
+
 ```typescript
 @Post('games/:id')
 @UseGuards(AppwriteSessionGuard)
@@ -65,6 +67,7 @@ async addGameById(...) {
 **Primary analog:** `src/common/guards/webhook.guard.ts`
 
 **Canonical signature pattern to preserve** (lines 21-43):
+
 ```typescript
 const signatureHeader = req.headers['x-appwrite-webhook-signature'];
 const payload = req.rawBody;
@@ -81,6 +84,7 @@ const generatedSignature = crypto
 ```
 
 **Guard denial semantics pattern** (`system-api.guard.ts` lines 16-24):
+
 ```typescript
 if (!expected) throw new InternalServerErrorException(...);
 if (typeof headerValue !== 'string' || headerValue !== expected) {
@@ -97,6 +101,7 @@ if (typeof headerValue !== 'string' || headerValue !== expected) {
 **Primary analog:** `src/modules/webhook/webhook.controller.ts`
 
 **Ingress dispatch pattern** (lines 25-37, 40-55):
+
 ```typescript
 @Post('entry-sync')
 @UseGuards(new AppwriteWebhookGuard('entry-sync'))
@@ -124,6 +129,7 @@ IGDBUpsertGame(@Body() game: IGDBGame) {
 **Primary analog:** `src/modules/webhook/handlers/igdb.handler.ts`
 
 **Structured stage logging pattern** (lines 20-53):
+
 ```typescript
 const startedAt = process.hrtime.bigint();
 let stage = 'received';
@@ -140,6 +146,7 @@ try {
 ```
 
 **Idempotent checksum short-circuit pattern** (lines 141-149):
+
 ```typescript
 const existing = await this.findExistingGame(...);
 if (existing.checksum === (game.checksum ?? null)) {
@@ -148,6 +155,7 @@ if (existing.checksum === (game.checksum ?? null)) {
 ```
 
 **Transactional replace pattern** (lines 161-190):
+
 ```typescript
 const tx = await this.tableDB.createTransaction();
 try {
@@ -169,6 +177,7 @@ try {
 **Primary analog:** `src/modules/webhook/handlers/zetho.handler.ts`
 
 **Deterministic dedupe key pattern** (lines 86, 448-453):
+
 ```typescript
 const readId = this.createId(entry.ownerFingerprint, entry.gameId);
 
@@ -182,13 +191,18 @@ private createId(ownerFingerprint: string, gameId: string) {
 ```
 
 **Persist-before-side-effects pattern** (lines 351-361 before bulk ops):
+
 ```typescript
 await this.tablesDB.upsertRow({
   transactionId,
   databaseId: 'app',
   tableId: 'z_entries_read',
   rowId: readId,
-  data: { ...cleanEntry, likedEver: newLikedEver, maxStatusReached: newMaxStatusReached },
+  data: {
+    ...cleanEntry,
+    likedEver: newLikedEver,
+    maxStatusReached: newMaxStatusReached,
+  },
 });
 ```
 
@@ -201,6 +215,7 @@ await this.tablesDB.upsertRow({
 **Primary analog:** `src/modules/igdb/igdb.service.ts`
 
 **Current outbound call seam** (lines 152-170):
+
 ```typescript
 private async fetchIgdb(endpoint: string, body: string) {
   await this.applyRateLimit();
@@ -215,6 +230,7 @@ private async fetchIgdb(endpoint: string, body: string) {
 ```
 
 **Existing throttling pattern to preserve** (lines 35-55):
+
 ```typescript
 private async applyRateLimit(): Promise<void> {
   ...
@@ -247,6 +263,7 @@ return request(app.getHttpServer()).get('/').expect(200);
 ## Shared Patterns
 
 ### Authentication and Authorization
+
 **Sources:** `src/common/guards/session.guard.ts` lines 38-43, 63-79, 82-96; `src/modules/profile/profile.controller.ts` lines 20-37.
 
 ```typescript
@@ -259,6 +276,7 @@ request.user = user;
 ```
 
 ### Ingress Authenticity
+
 **Sources:** `src/common/guards/webhook.guard.ts` lines 21-46; `src/common/guards/igdb.guard.ts` lines 17-21.
 
 ```typescript
@@ -271,6 +289,7 @@ if (signatureHeader !== generatedSignature) {
 ```
 
 ### Idempotency and Replay-First Thinking
+
 **Sources:** `src/modules/webhook/handlers/zetho.handler.ts` lines 86-106, 351-361; `src/modules/webhook/handlers/igdb.handler.ts` lines 141-149.
 
 ```typescript
@@ -281,6 +300,7 @@ if (existing.checksum === (game.checksum ?? null)) return existing.$id;
 ```
 
 ### Transactional Write Safety
+
 **Sources:** `src/modules/webhook/handlers/zetho.handler.ts` lines 345-429; `src/modules/zcoins/zcoins.service.ts` lines 153-193.
 
 ```typescript
@@ -296,8 +316,8 @@ try {
 
 ## No Analog Found
 
-| File | Role | Data Flow | Reason |
-|---|---|---|---|
+| File                                         | Role       | Data Flow    | Reason                                                         |
+| -------------------------------------------- | ---------- | ------------ | -------------------------------------------------------------- |
 | `src/modules/webhook/replay/replay.types.ts` | model/type | event-driven | No standalone replay-key model exists yet in current codebase. |
 
 ## Metadata

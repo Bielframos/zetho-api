@@ -35,13 +35,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Duplicate webhook deliveries do not produce duplicate state changes.
 5. Failed webhook/sync processing and bounded external-call failures return observable error status for retry/alerting.
    **Plans**: 3 plans
-Plans:
-**Wave 1**
+   Plans:
+   **Wave 1**
 
 - [ ] 01-01-PLAN.md - Harden user mutation authorization and authenticated actor identity contracts.
 - [ ] 01-02-PLAN.md - Enforce webhook authenticity, replay idempotency, and retry-safe failure semantics.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** _(blocked on Wave 1 completion)_
 
 - [ ] 01-03-PLAN.md - Add bounded outbound integration retries/timeouts with structured failure classification.
 
