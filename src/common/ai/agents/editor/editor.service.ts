@@ -10,6 +10,8 @@ import { YoutubeService } from 'src/modules/google/youtube.service';
 import { NotificationsService } from 'src/modules/notifications/notifications.service';
 import { Appwrite } from '../../../appwrite/appwrite.provider';
 import { GENKIT } from '../../ai.constants';
+import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 
 type Feed = {
   posts: {
@@ -114,94 +116,101 @@ export class EditorService {
     private readonly appwrite: Appwrite,
     private readonly youtubeService: YoutubeService,
     private readonly notificationsService: NotificationsService,
+    private readonly correlationContext: CorrelationContextService,
+    private readonly loggerContext: LoggerContextService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
 
   @Cron(CronExpression.EVERY_HOUR)
   async handleScheduledExecution() {
-    try {
-      const result = await this.execute();
-
-      if ('skipped' in result && result.skipped) {
-        this.logger.log(`Editor skipped scheduled run: ${result.reason}`);
-        return result;
-      }
-
-      this.logger.log(
-        `Editor published scheduled post: ${result.savedPost.$id}`,
-      );
-      return result;
-    } catch (error) {
-      this.logger.error('Editor scheduled execution failed', error as Error);
-      throw error;
-    }
+    return this.correlationContext.runWithGeneratedCorrelationId(
+      () =>
+        this.loggerContext.trackLifecycle(
+          this.logger,
+          {
+            component: EditorService.name,
+            operation: 'editor.cron',
+          },
+          async () => this.execute(),
+        ),
+      'cron',
+    );
   }
 
   async execute(options: ExecuteEditorOptions = {}) {
-    const { suggestion, captureWindowHours } = options;
-    const { posts, contents } = await this.getNews({ captureWindowHours });
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: EditorService.name,
+        operation: 'editor.execute',
+      },
+      async () => {
+        const { suggestion, captureWindowHours } = options;
+        const { posts, contents } = await this.getNews({ captureWindowHours });
 
-    const recentPosts = await this.getRecentPostsForAi();
-    const postsForAnalysis = posts.slice(0, 60);
-    const analysis = await this.trendAnalysis(
-      postsForAnalysis,
-      recentPosts,
-      suggestion,
+        const recentPosts = await this.getRecentPostsForAi();
+        const postsForAnalysis = posts.slice(0, 60);
+        const analysis = await this.trendAnalysis(
+          postsForAnalysis,
+          recentPosts,
+          suggestion,
+        );
+
+        if (this.shouldSkipPublication(analysis)) {
+          return {
+            skipped: true as const,
+            reason: analysis.why || 'No unpublished topic was found in the feed.',
+          };
+        }
+
+        const postId = analysis.id as string;
+        const post = posts.find((p) => p.id === postId);
+
+        if (post) {
+          let content = contents.find((c) => c.id === postId)?.content || 'N/A';
+
+          if ((!content || content === 'N/A') && !post.description) {
+            throw new Error(`Content not found for post ID: ${postId}`);
+          }
+
+          post.content = content;
+        } else throw new Error('Post not found');
+
+        if (post.link && (await this.sourceUrlAlreadyPublished(post.link))) {
+          return {
+            skipped: true as const,
+            reason: `Source URL already published: ${post.link}`,
+          };
+        }
+
+        const relatedGames = await this.getRelatedGames(analysis.relatedGames);
+
+        const article = await this.writeArticle(post, relatedGames);
+
+        const processedBody = this.postProcessContent(article.post.body);
+        article.post.body = processedBody;
+
+        const mainImage = await this.resolveMainImage(article, relatedGames);
+
+        const savedPost = await this.saveGeneratedPost({
+          article,
+          fallbackMainImage: post.link,
+          pickedMainImage: mainImage,
+        });
+
+        await this.notificationsService.sharePost({
+          title: savedPost.title,
+          subtitle: savedPost.subtitle ?? '',
+          postUrl: this.buildPostUrl(savedPost.slug),
+          mediaUrl: mainImage?.url,
+        });
+
+        this.invalidateFrontendCache();
+
+        return { skipped: false as const, savedPost };
+      },
     );
-
-    if (this.shouldSkipPublication(analysis)) {
-      return {
-        skipped: true as const,
-        reason: analysis.why || 'No unpublished topic was found in the feed.',
-      };
-    }
-
-    const postId = analysis.id as string;
-    const post = posts.find((p) => p.id === postId);
-
-    if (post) {
-      let content = contents.find((c) => c.id === postId)?.content || 'N/A';
-
-      if ((!content || content === 'N/A') && !post.description) {
-        throw new Error(`Content not found for post ID: ${postId}`);
-      }
-
-      post.content = content;
-    } else throw new Error('Post not found');
-
-    if (post.link && (await this.sourceUrlAlreadyPublished(post.link))) {
-      return {
-        skipped: true as const,
-        reason: `Source URL already published: ${post.link}`,
-      };
-    }
-
-    const relatedGames = await this.getRelatedGames(analysis.relatedGames);
-
-    const article = await this.writeArticle(post, relatedGames);
-
-    const processedBody = this.postProcessContent(article.post.body);
-    article.post.body = processedBody;
-
-    const mainImage = await this.resolveMainImage(article, relatedGames);
-
-    const savedPost = await this.saveGeneratedPost({
-      article,
-      fallbackMainImage: post.link,
-      pickedMainImage: mainImage,
-    });
-
-    await this.notificationsService.sharePost({
-      title: savedPost.title,
-      subtitle: savedPost.subtitle ?? '',
-      postUrl: this.buildPostUrl(savedPost.slug),
-      mediaUrl: mainImage?.url,
-    });
-
-    this.invalidateFrontendCache();
-
-    return { skipped: false as const, savedPost };
   }
 
   /**

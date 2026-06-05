@@ -7,6 +7,7 @@ import type { GamesCreate } from 'src/common/appwrite/appwrite';
 import { GamesSyncStage } from 'src/common/appwrite/appwrite.enums';
 import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
 
 @Injectable()
@@ -16,92 +17,119 @@ export class IGDBHandler {
 
   private tableDB: Appwrite['tablesDB'];
 
-  constructor(private appwrite: Appwrite) {
+  constructor(
+    private appwrite: Appwrite,
+    private readonly loggerContext: LoggerContextService,
+  ) {
     this.tableDB = this.appwrite.tablesDB;
   }
 
   /** Método principal para processar o jogo recebido do webhook */
   async upsertGame(game: IGDBGame) {
-    const startedAt = process.hrtime.bigint();
-    let stage = 'received';
-    let appwriteGameId = `igdb_${game.id}`;
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: IGDBHandler.name,
+        operation: 'webhook.igdb.upsert-game',
+        metadata: {
+          receivedGameId: game.id,
+          gameName: game.name ?? null,
+        },
+      },
+      async () => {
+        let appwriteGameId = `igdb_${game.id}`;
 
-    if (this.shouldIgnore(game)) {
-      this.logger.log(`O jogo de id: ${game.id} foi ignorado`);
-      return {
-        message: 'Jogo ignorado',
-        success: true,
-        noOp: true,
-        reason: 'ignored_event',
-      };
-    }
+        if (this.shouldIgnore(game)) {
+          return {
+            message: 'Jogo ignorado',
+            success: true,
+            noOp: true,
+            reason: 'ignored_event',
+          };
+        }
 
-    try {
-      const parsedGame = this.parseBasicGame(game);
-      stage = 'persist_game';
-      appwriteGameId = await this.upsertGameRow(parsedGame);
+        try {
+          const parsedGame = this.parseBasicGame(game);
+          appwriteGameId = await this.upsertGameRow(parsedGame);
 
-      stage = 'persist_zstats';
-      await this.ensureGameZStats(appwriteGameId);
+          await this.ensureGameZStats(appwriteGameId);
 
-      this.logger.log(`O jogo ${game.name} foi registrado com sucesso`);
-
-      return {
-        message: `O jogo ${game.name} foi registrado com sucesso`,
-        success: true,
-      };
-    } catch (e) {
-      this.logger.error({
-        message: `Erro ao processar o jogo ${game.name ?? game.id}`,
-        stage,
-        receivedGameId: game.id,
-        appwriteGameId,
-        durationMs: this.getDurationMs(startedAt),
-        error: this.serializeError(e),
-      });
-      throw new ServiceUnavailableException('Erro ao processar o jogo');
-    }
+          return {
+            message: `O jogo ${game.name} foi registrado com sucesso`,
+            success: true,
+          };
+        } catch {
+          throw new ServiceUnavailableException('Erro ao processar o jogo');
+        }
+      },
+    );
   }
 
   /** Métodos para processar gêneros */
   async upsertGenre(genre: IGDBGenre) {
-    try {
-      await this.tableDB.upsertRow({
-        databaseId: 'app',
-        tableId: 'genres',
-        rowId: `igdb_${genre.id}`,
-        data: {
-          name: genre.name,
-          slug: genre.slug,
-          checksum: genre.checksum,
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: IGDBHandler.name,
+        operation: 'webhook.igdb.upsert-genre',
+        metadata: {
+          genreId: genre.id,
+          genreName: genre.name,
         },
-      });
+      },
+      async () => {
+        try {
+          await this.tableDB.upsertRow({
+            databaseId: 'app',
+            tableId: 'genres',
+            rowId: `igdb_${genre.id}`,
+            data: {
+              name: genre.name,
+              slug: genre.slug,
+              checksum: genre.checksum,
+            },
+          });
 
-      return {
-        message: `Gênero ${genre.name} processado com sucesso`,
-        success: true,
-      };
-    } catch (e) {
-      throw new ServiceUnavailableException('Erro ao processar o gênero');
-    }
+          return {
+            message: `Gênero ${genre.name} processado com sucesso`,
+            success: true,
+          };
+        } catch {
+          throw new ServiceUnavailableException('Erro ao processar o gênero');
+        }
+      },
+    );
   }
 
   /* Método para processar exclusão de gêneros */
   async deleteGenre(genre: IGDBGenre) {
-    try {
-      await this.tableDB.deleteRow({
-        databaseId: 'app',
-        tableId: 'genres',
-        rowId: `igdb_${genre.id}`,
-      });
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: IGDBHandler.name,
+        operation: 'webhook.igdb.delete-genre',
+        metadata: {
+          genreId: genre.id,
+          genreName: genre.name,
+        },
+      },
+      async () => {
+        try {
+          await this.tableDB.deleteRow({
+            databaseId: 'app',
+            tableId: 'genres',
+            rowId: `igdb_${genre.id}`,
+          });
 
-      return {
-        message: `Gênero ${genre.name} deletado com sucesso`,
-        success: true,
-      };
-    } catch (e) {
-      throw new ServiceUnavailableException('Erro ao deletar o gênero');
-    }
+          return {
+            message: `Gênero ${genre.name} deletado com sucesso`,
+            success: true,
+          };
+        } catch {
+          throw new ServiceUnavailableException('Erro ao deletar o gênero');
+        }
+      },
+    );
   }
 
   /** Métodos auxiliares */

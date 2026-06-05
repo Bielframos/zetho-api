@@ -13,7 +13,7 @@ async function bootstrap() {
     logger: new ConsoleLogger({
       prefix: 'ZETHO API',
       json: true,
-      colors: true,
+      colors: false,
     }),
   });
 
@@ -26,6 +26,7 @@ async function bootstrap() {
   });
 
   app.use(cookieParser());
+  app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ?? 3000);
 }

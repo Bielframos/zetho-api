@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import type {
   CreateRaffleDto,
   CreateRaffleWithKeysDto,
@@ -59,86 +61,138 @@ export class RaffleService {
   private static readonly MONTHLY_BONUS_PER_INVITE = 5;
   private static readonly MONTHLY_BONUS_MAX_INVITES = 3;
   private static readonly DB_ID = 'app';
+  private readonly logger = new Logger(RaffleService.name);
 
   private readonly tablesDB: Appwrite['tablesDB'];
 
-  constructor(private readonly appwrite: Appwrite) {
+  constructor(
+    private readonly appwrite: Appwrite,
+    private readonly loggerContext: LoggerContextService,
+  ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
 
   async createRaffle(dto: CreateRaffleDto) {
-    const raffle = await this.tablesDB.createRow<Raffle>({
-      databaseId: RaffleService.DB_ID,
-      tableId: 'raffles',
-      rowId: ID.unique(),
-      data: {
-        game: dto.gameId,
-        rewardPolicy: dto.rewardPolicy,
-        basicProbability: dto.basicProbability,
-        ticketPrice: dto.ticketPrice,
-        active: false,
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: RaffleService.name,
+        operation: 'raffle.create',
+        metadata: {
+          gameId: dto.gameId,
+          rewardPolicy: dto.rewardPolicy,
+        },
       },
-    });
-
-    return raffle;
+      async () =>
+        this.tablesDB.createRow<Raffle>({
+          databaseId: RaffleService.DB_ID,
+          tableId: 'raffles',
+          rowId: ID.unique(),
+          data: {
+            game: dto.gameId,
+            rewardPolicy: dto.rewardPolicy,
+            basicProbability: dto.basicProbability,
+            ticketPrice: dto.ticketPrice,
+            active: false,
+          },
+        }),
+    );
   }
 
   async createRaffleWithKeys(dto: CreateRaffleWithKeysDto) {
-    const raffle = await this.tablesDB.createRow<Raffle>({
-      databaseId: RaffleService.DB_ID,
-      tableId: 'raffles',
-      rowId: ID.unique(),
-      data: {
-        game: dto.gameId,
-        rewardPolicy: dto.rewardPolicy,
-        basicProbability: dto.basicProbability,
-        ticketPrice: dto.ticketPrice,
-        active: false,
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: RaffleService.name,
+        operation: 'raffle.create-with-keys',
+        metadata: {
+          gameId: dto.gameId,
+          keyCount: dto.keys.length,
+        },
       },
-    });
+      async () => {
+        const raffle = await this.tablesDB.createRow<Raffle>({
+          databaseId: RaffleService.DB_ID,
+          tableId: 'raffles',
+          rowId: ID.unique(),
+          data: {
+            game: dto.gameId,
+            rewardPolicy: dto.rewardPolicy,
+            basicProbability: dto.basicProbability,
+            ticketPrice: dto.ticketPrice,
+            active: false,
+          },
+        });
 
-    await this.insertKeys(raffle.$id, dto.gameId, dto.keys);
+        await this.insertKeys(raffle.$id, dto.gameId, dto.keys);
 
-    return {
-      raffle,
-      keysRegistered: dto.keys.length,
-    };
+        return {
+          raffle,
+          keysRegistered: dto.keys.length,
+        };
+      },
+    );
   }
 
   async registerKeys(raffleId: string, dto: RegisterKeysDto) {
-    const raffle = await this.getRaffleOrThrow(raffleId);
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: RaffleService.name,
+        operation: 'raffle.register-keys',
+        metadata: {
+          raffleId,
+          keyCount: dto.keys.length,
+        },
+      },
+      async () => {
+        const raffle = await this.getRaffleOrThrow(raffleId);
 
-    await this.insertKeys(raffle.$id, raffle.game as string, dto.keys);
+        await this.insertKeys(raffle.$id, raffle.game as string, dto.keys);
 
-    return {
-      raffleId,
-      keysRegistered: dto.keys.length,
-    };
+        return {
+          raffleId,
+          keysRegistered: dto.keys.length,
+        };
+      },
+    );
   }
 
   async activateRaffle(raffleId: string) {
-    const raffle = await this.getRaffleOrThrow(raffleId);
-
-    if (raffle.active) {
-      throw new ConflictException('Sorteio já está ativo');
-    }
-
-    const availableKeys = await this.countAvailableKeys(raffleId);
-    if (availableKeys === 0) {
-      throw new UnprocessableEntityException(
-        'Não é possível ativar um sorteio sem chaves disponíveis',
-      );
-    }
-
-    return this.tablesDB.updateRow<Raffle>({
-      databaseId: RaffleService.DB_ID,
-      tableId: 'raffles',
-      rowId: raffleId,
-      data: {
-        active: true,
-        activatedAt: new Date().toISOString(),
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: RaffleService.name,
+        operation: 'raffle.activate',
+        metadata: {
+          raffleId,
+        },
       },
-    });
+      async () => {
+        const raffle = await this.getRaffleOrThrow(raffleId);
+
+        if (raffle.active) {
+          throw new ConflictException('Sorteio já está ativo');
+        }
+
+        const availableKeys = await this.countAvailableKeys(raffleId);
+        if (availableKeys === 0) {
+          throw new UnprocessableEntityException(
+            'Não é possível ativar um sorteio sem chaves disponíveis',
+          );
+        }
+
+        return this.tablesDB.updateRow<Raffle>({
+          databaseId: RaffleService.DB_ID,
+          tableId: 'raffles',
+          rowId: raffleId,
+          data: {
+            active: true,
+            activatedAt: new Date().toISOString(),
+          },
+        });
+      },
+    );
   }
 
   async listRaffles(options: {
@@ -214,132 +268,146 @@ export class RaffleService {
     userId: string,
     dto: PurchaseTicketsDto,
   ) {
-    const raffle = await this.getRaffleOrThrow(raffleId);
-
-    if (!raffle.active) {
-      throw new BadRequestException('Sorteio não está ativo');
-    }
-
-    const basicProbability = raffle.basicProbability ?? 1000;
-    const ticketPrice = raffle.ticketPrice ?? 30;
-    const baseTotalCost = dto.ticketCount * ticketPrice;
-
-    await this.validateDailyTicketLimit(raffleId, userId, dto.ticketCount);
-
-    const profile = await this.getProfileByUserId(userId);
-    const currentBalance = Number(profile.zcoinBalance ?? 0);
-
-    const bonus = await this.getMonthlyInviteBonus(userId);
-    const discountPercent = bonus.bonusPercent;
-    const discountAmount = baseTotalCost * (discountPercent / 100);
-    const totalCost = Math.max(0, Math.floor(baseTotalCost - discountAmount));
-
-    if (currentBalance < totalCost) {
-      throw new BadRequestException(
-        `Saldo insuficiente. Necessário: ${totalCost} ZCoins, disponível: ${currentBalance}`,
-      );
-    }
-
-    const luckyNumbers = Array.from({ length: dto.ticketCount }, () =>
-      String(randomInt(1, basicProbability + 1)),
-    );
-    const drawNumber = String(randomInt(1, basicProbability + 1));
-    const won = luckyNumbers.includes(drawNumber);
-
-    const tx = await this.tablesDB.createTransaction();
-    const entryId = ID.unique();
-    const txId = ID.unique();
-
-    try {
-      await this.tablesDB.createOperations({
-        transactionId: tx.$id,
-        operations: [
-          {
-            action: 'decrement',
-            databaseId: RaffleService.DB_ID,
-            tableId: 'user_profiles',
-            rowId: profile.$id,
-            data: { value: totalCost, column: 'zcoinBalance' },
-          },
-        ],
-      });
-
-      await this.tablesDB.createRow({
-        transactionId: tx.$id,
-        databaseId: RaffleService.DB_ID,
-        tableId: 'zcoin_transactions',
-        rowId: txId,
-        data: {
-          userId,
-          amount: -totalCost,
-          type: 'output',
-          reason: 'raffle_ticket_purchase',
-        },
-      });
-
-      await this.tablesDB.createRow<RaffleEntry>({
-        transactionId: tx.$id,
-        databaseId: RaffleService.DB_ID,
-        tableId: 'raffle_entries',
-        rowId: entryId,
-        data: {
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: RaffleService.name,
+        operation: 'raffle.purchase-tickets',
+        metadata: {
           raffleId,
           userId,
           ticketCount: dto.ticketCount,
+        },
+      },
+      async () => {
+        const raffle = await this.getRaffleOrThrow(raffleId);
+
+        if (!raffle.active) {
+          throw new BadRequestException('Sorteio não está ativo');
+        }
+
+        const basicProbability = raffle.basicProbability ?? 1000;
+        const ticketPrice = raffle.ticketPrice ?? 30;
+        const baseTotalCost = dto.ticketCount * ticketPrice;
+
+        await this.validateDailyTicketLimit(raffleId, userId, dto.ticketCount);
+
+        const profile = await this.getProfileByUserId(userId);
+        const currentBalance = Number(profile.zcoinBalance ?? 0);
+
+        const bonus = await this.getMonthlyInviteBonus(userId);
+        const discountPercent = bonus.bonusPercent;
+        const discountAmount = baseTotalCost * (discountPercent / 100);
+        const totalCost = Math.max(0, Math.floor(baseTotalCost - discountAmount));
+
+        if (currentBalance < totalCost) {
+          throw new BadRequestException(
+            `Saldo insuficiente. Necessário: ${totalCost} ZCoins, disponível: ${currentBalance}`,
+          );
+        }
+
+        const luckyNumbers = Array.from({ length: dto.ticketCount }, () =>
+          String(randomInt(1, basicProbability + 1)),
+        );
+        const drawNumber = String(randomInt(1, basicProbability + 1));
+        const won = luckyNumbers.includes(drawNumber);
+
+        const tx = await this.tablesDB.createTransaction();
+        const entryId = ID.unique();
+        const txId = ID.unique();
+
+        try {
+          await this.tablesDB.createOperations({
+            transactionId: tx.$id,
+            operations: [
+              {
+                action: 'decrement',
+                databaseId: RaffleService.DB_ID,
+                tableId: 'user_profiles',
+                rowId: profile.$id,
+                data: { value: totalCost, column: 'zcoinBalance' },
+              },
+            ],
+          });
+
+          await this.tablesDB.createRow({
+            transactionId: tx.$id,
+            databaseId: RaffleService.DB_ID,
+            tableId: 'zcoin_transactions',
+            rowId: txId,
+            data: {
+              userId,
+              amount: -totalCost,
+              type: 'output',
+              reason: 'raffle_ticket_purchase',
+            },
+          });
+
+          await this.tablesDB.createRow<RaffleEntry>({
+            transactionId: tx.$id,
+            databaseId: RaffleService.DB_ID,
+            tableId: 'raffle_entries',
+            rowId: entryId,
+            data: {
+              raffleId,
+              userId,
+              ticketCount: dto.ticketCount,
+              totalCost,
+              luckyNumbers,
+              won,
+              drawNumber,
+            },
+          });
+
+          await this.tablesDB.updateTransaction({
+            transactionId: tx.$id,
+            commit: true,
+          });
+        } catch (error) {
+          await this.tablesDB.updateTransaction({
+            transactionId: tx.$id,
+            rollback: true,
+          });
+          throw error;
+        }
+
+        let wonKey: GameKey | null = null;
+
+        if (won) {
+          wonKey = await this.deliverKey(raffleId, userId);
+
+          if (wonKey) {
+            await this.handleRaffleClose(raffle);
+          } else {
+            await this.closeRaffle(raffleId);
+          }
+        }
+
+        const updatedProfile = await this.tablesDB.getRow<
+          Models.Row & { zcoinBalance?: number }
+        >({
+          databaseId: RaffleService.DB_ID,
+          tableId: 'user_profiles',
+          rowId: profile.$id,
+        });
+
+        return {
+          entryId,
+          raffleId,
+          userId,
+          ticketCount: dto.ticketCount,
+          baseTotalCost,
+          discountPercent,
+          discountAmount,
           totalCost,
           luckyNumbers,
-          won,
           drawNumber,
-        },
-      });
-
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        commit: true,
-      });
-    } catch (error) {
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        rollback: true,
-      });
-      throw error;
-    }
-
-    let wonKey: GameKey | null = null;
-
-    if (won) {
-      wonKey = await this.deliverKey(raffleId, userId);
-
-      if (wonKey) {
-        await this.handleRaffleClose(raffle);
-      } else {
-        await this.closeRaffle(raffleId);
-      }
-    }
-
-    const updatedProfile = await this.tablesDB.getRow<
-      Models.Row & { zcoinBalance?: number }
-    >({
-      databaseId: RaffleService.DB_ID,
-      tableId: 'user_profiles',
-      rowId: profile.$id,
-    });
-
-    return {
-      entryId,
-      raffleId,
-      userId,
-      ticketCount: dto.ticketCount,
-      baseTotalCost,
-      discountPercent,
-      discountAmount,
-      totalCost,
-      luckyNumbers,
-      drawNumber,
-      won,
-      wonKey: wonKey ? { platform: wonKey.platform, key: wonKey.key } : null,
-      newBalance: Number(updatedProfile.zcoinBalance ?? 0),
-    };
+          won,
+          wonKey: wonKey ? { platform: wonKey.platform, key: wonKey.key } : null,
+          newBalance: Number(updatedProfile.zcoinBalance ?? 0),
+        };
+      },
+    );
   }
 
   async getWonKeys(userId: string) {

@@ -1,4 +1,6 @@
 import { InternalServerErrorException } from '@nestjs/common';
+import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { IGDBService } from './igdb.service';
 
 type TablesDbMock = {
@@ -33,7 +35,13 @@ describe('IGDBService outbound policy', () => {
   });
 
   it('retries transient IGDB failure up to cap and succeeds', async () => {
-    const service = new IGDBService(appwriteMock as never);
+    const correlationContext = new CorrelationContextService();
+    const loggerContext = new LoggerContextService(correlationContext);
+    const service = new IGDBService(
+      appwriteMock as never,
+      correlationContext,
+      loggerContext,
+    );
     (service as any).token = 'token';
     (service as any).tokenExpiry = new Date(Date.now() + 10 * 60_000);
 
@@ -58,7 +66,13 @@ describe('IGDBService outbound policy', () => {
   });
 
   it('fails fast on non-retryable 4xx integration response', async () => {
-    const service = new IGDBService(appwriteMock as never);
+    const correlationContext = new CorrelationContextService();
+    const loggerContext = new LoggerContextService(correlationContext);
+    const service = new IGDBService(
+      appwriteMock as never,
+      correlationContext,
+      loggerContext,
+    );
     (service as any).token = 'token';
     (service as any).tokenExpiry = new Date(Date.now() + 10 * 60_000);
 

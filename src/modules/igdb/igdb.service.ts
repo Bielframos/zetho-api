@@ -14,6 +14,8 @@ import {
   executeWithRetry,
   IntegrationExecutionError,
 } from 'src/common/integration/retry-policy';
+import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 
 @Injectable()
 export class IGDBService {
@@ -33,7 +35,11 @@ export class IGDBService {
 
   private requestTimestamps: number[] = [];
 
-  constructor(private appwrite: Appwrite) {
+  constructor(
+    private appwrite: Appwrite,
+    private readonly correlationContext: CorrelationContextService,
+    private readonly loggerContext: LoggerContextService,
+  ) {
     this.tableDB = this.appwrite.tablesDB;
   }
 
@@ -55,7 +61,14 @@ export class IGDBService {
         (now - this.requestTimestamps[0]) +
         this.SAFETY_BUFFER_MS;
 
-      this.logger.debug(`Rate limit atingido. Aguardando ${timeToWait}ms.`);
+      this.logger.debug(
+        this.loggerContext.buildStructuredLog({
+          component: IGDBService.name,
+          operation: 'igdb.rate-limit',
+          message: 'Rate limit atingido. Aguardando nova janela.',
+          waitMs: timeToWait,
+        }),
+      );
       await new Promise((resolve) => setTimeout(resolve, timeToWait));
     }
   }
@@ -98,14 +111,24 @@ export class IGDBService {
         if (expiry > new Date(Date.now() + 5 * 60 * 1000)) {
           this.token = storedToken.secret;
           this.tokenExpiry = expiry;
-          this.logger.log('Token IGDB recuperado do Appwrite.');
+          this.logger.log(
+            this.loggerContext.buildStructuredLog({
+              component: IGDBService.name,
+              operation: 'igdb.token-cache',
+              message: 'Token IGDB recuperado do Appwrite.',
+            }),
+          );
           return this.token;
         }
       }
     } catch (error) {
       this.logger.warn(
-        'Falha ao ler token do Appwrite, tentando gerar novo.',
-        error,
+        this.loggerContext.buildStructuredLog({
+          component: IGDBService.name,
+          operation: 'igdb.token-cache',
+          message: 'Falha ao ler token do Appwrite, tentando gerar novo.',
+          error: this.loggerContext.serializeError(error),
+        }),
       );
     }
 
@@ -113,7 +136,13 @@ export class IGDBService {
   }
 
   private async authenticate(): Promise<string> {
-    this.logger.log('Gerando novo token IGDB via Twitch...');
+    this.logger.log(
+      this.loggerContext.buildStructuredLog({
+        component: IGDBService.name,
+        operation: 'igdb.authenticate',
+        message: 'Gerando novo token IGDB via Twitch...',
+      }),
+    );
 
     const url = new URL('https://id.twitch.tv/oauth2/token');
 
@@ -188,7 +217,14 @@ export class IGDBService {
         },
       });
     } catch (e) {
-      this.logger.error('Erro ao salvar token no Appwrite', e);
+      this.logger.error(
+        this.loggerContext.buildStructuredLog({
+          component: IGDBService.name,
+          operation: 'igdb.persist-token',
+          message: 'Erro ao salvar token no Appwrite',
+          error: this.loggerContext.serializeError(e),
+        }),
+      );
     }
 
     return this.token as string;
@@ -254,15 +290,20 @@ export class IGDBService {
       return await response.json();
     } catch (error) {
       if (error instanceof IntegrationExecutionError) {
-        this.logger.error({
-          message: 'Falha em integração IGDB',
-          provider: error.provider,
-          operation: error.operation,
-          retryable: error.retryable,
-          terminalStatusCode: error.terminalStatusCode,
-          attempts: error.attempts,
-          reason: error.reason,
-        });
+        this.logger.error(
+          this.loggerContext.buildStructuredLog({
+            component: IGDBService.name,
+            operation: 'igdb.fetch',
+            message: 'Falha em integração IGDB',
+            provider: error.provider,
+            integrationOperation: error.operation,
+            retryable: error.retryable,
+            terminalStatusCode: error.terminalStatusCode,
+            attempts: error.attempts,
+            reason: error.reason,
+            error: this.loggerContext.serializeError(error),
+          }),
+        );
       }
 
       throw new InternalServerErrorException('IGDB Error');
@@ -283,69 +324,83 @@ export class IGDBService {
   }
 
   async syncPopularGames() {
-    const query = `
+    const run = () =>
+      this.loggerContext.trackLifecycle(
+        this.logger,
+        {
+          component: IGDBService.name,
+          operation: 'igdb.sync-popular-games',
+        },
+        async () => {
+        const query = `
       fields ${this.gameFields};
       where first_release_date > 1777030000 & hypes != null & version_parent = null & game_type != (3,5,7,12,13,14);
       sort hypes desc;
       limit 50;
     `;
 
-    const popularGames = (await this.fetchIgdb('games', query)) as IGDBGame[];
-    const eligibleGames = popularGames.filter(
-      (game) => !this.shouldIgnore(game),
-    );
+        const popularGames = (await this.fetchIgdb('games', query)) as IGDBGame[];
+        const eligibleGames = popularGames.filter(
+          (game) => !this.shouldIgnore(game),
+        );
 
-    const existingByExternalReference =
-      await this.getExistingGamesByExternalReference(
-        eligibleGames.map((game) => game.id),
-      );
+        const existingByExternalReference =
+          await this.getExistingGamesByExternalReference(
+            eligibleGames.map((game) => game.id),
+          );
 
-    const processedGames = await this.mapWithConcurrency(
-      eligibleGames,
-      6,
-      async (game) => {
-        const existing = existingByExternalReference.get(game.id);
+        const processedGames = await this.mapWithConcurrency(
+          eligibleGames,
+          6,
+          async (game) => {
+            const existing = existingByExternalReference.get(game.id);
 
-        if (existing && existing.checksum === (game.checksum ?? null)) {
-          return {
-            id: game.id,
-            name: game.name,
-            gameId: existing.$id,
-            skippedByChecksum: true,
-          };
-        }
+            if (existing && existing.checksum === (game.checksum ?? null)) {
+              return {
+                id: game.id,
+                name: game.name,
+                gameId: existing.$id,
+                skippedByChecksum: true,
+              };
+            }
 
-        const developers = await this.getDevs(game);
-        const parsedGame = this.parseGame(game, developers);
-        const gameId = await this.upsertGameRow(parsedGame);
-        await this.ensureGameZStats(gameId);
+            const developers = await this.getDevs(game);
+            const parsedGame = this.parseGame(game, developers);
+            const gameId = await this.upsertGameRow(parsedGame);
+            await this.ensureGameZStats(gameId);
+
+            return {
+              id: game.id,
+              name: game.name,
+              gameId,
+              skippedByChecksum: false,
+            };
+          },
+        );
+
+        const skippedByChecksum = processedGames.filter(
+          (item) => item.skippedByChecksum,
+        ).length;
+
+        const results = processedGames.map(({ id, name, gameId }) => ({
+          id,
+          name,
+          gameId,
+        }));
 
         return {
-          id: game.id,
-          name: game.name,
-          gameId,
-          skippedByChecksum: false,
+          message: 'Jogos populares sincronizados com sucesso',
+          success: true,
+          count: results.length,
+          skippedByChecksum,
+          items: results,
         };
-      },
-    );
+        },
+      );
 
-    const skippedByChecksum = processedGames.filter(
-      (item) => item.skippedByChecksum,
-    ).length;
-
-    const results = processedGames.map(({ id, name, gameId }) => ({
-      id,
-      name,
-      gameId,
-    }));
-
-    return {
-      message: 'Jogos populares sincronizados com sucesso',
-      success: true,
-      count: results.length,
-      skippedByChecksum,
-      items: results,
-    };
+    return this.correlationContext.getCorrelationId()
+      ? run()
+      : this.correlationContext.runWithGeneratedCorrelationId(() => run(), 'cron');
   }
 
   private async getExistingGamesByExternalReference(
