@@ -106,7 +106,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
 | 1. Security and Integration Contract Hardening | 3/3            | Completed   | 2026-05-29 |
-| 2. Operational Observability Baseline          | 0/TBD          | Not started | -         |
+| 2. Operational Observability Baseline          | 0/3 | Planned    |  |
 | 3. Boundary Extraction and Transaction Core    | 0/TBD          | Not started | -         |
 | 4. Performance and Quality Gates               | 0/TBD          | Not started | -         |
 | 5. Segment-Aware Live-Ops MVP                  | 0/TBD          | Not started | -         |
