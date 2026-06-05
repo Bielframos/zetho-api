@@ -1,10 +1,12 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppwriteModule } from './common/appwrite/appwrite.module';
+import { ObservabilityModule } from './common/observability/observability.module';
 import { GameModule } from './modules/game/game.module';
 import { GazethoModule } from './modules/gazetho/gazetho.module';
 import { IGDBModule } from './modules/igdb/igdb.module';
+import { HealthModule } from './modules/health/health.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
@@ -12,6 +14,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { AiModule } from './common/ai/ai.module';
 import { ZCoinsModule } from './modules/zcoins/zcoins.module';
 import { RaffleModule } from './modules/raffle/raffle.module';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 @Module({
   imports: [
@@ -23,6 +26,8 @@ import { RaffleModule } from './modules/raffle/raffle.module';
     ScheduleModule.forRoot(),
     AppwriteModule,
     AiModule,
+    ObservabilityModule,
+    HealthModule,
 
     /** Feature modules */
     IGDBModule,
@@ -42,4 +47,8 @@ import { RaffleModule } from './modules/raffle/raffle.module';
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

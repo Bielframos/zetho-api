@@ -4,12 +4,14 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import type { UserProfiles } from 'src/common/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import SCORE_TABLE from './score-table';
 
 type ZCoinTransactionType = 'input' | 'output';
@@ -18,12 +20,14 @@ type ZCoinTransactionType = 'input' | 'output';
 export class ZCoinsService {
   private static readonly WEEKLY_LEADERBOARD_CACHE_TTL_MS = 15 * 60 * 1000;
   private static readonly DB_ID = 'app';
+  private readonly logger = new Logger(ZCoinsService.name);
 
   private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly appwrite: Appwrite,
+    private readonly loggerContext: LoggerContextService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -117,97 +121,111 @@ export class ZCoinsService {
     reason: string,
     bonusId?: string | null,
   ) {
-    const safeUserId = userId?.trim();
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: ZCoinsService.name,
+        operation: `zcoins.${type}`,
+        metadata: {
+          userId,
+          reason,
+          bonusId: bonusId ?? null,
+        },
+      },
+      async () => {
+        const safeUserId = userId?.trim();
 
-    if (!safeUserId) {
-      throw new BadRequestException('userId é obrigatório');
-    }
+        if (!safeUserId) {
+          throw new BadRequestException('userId é obrigatório');
+        }
 
-    if (type === 'input' && reason === 'daily_login') {
-      const alreadyReceived =
-        await this.hasReceivedDailyLoginBonusToday(safeUserId);
+        if (type === 'input' && reason === 'daily_login') {
+          const alreadyReceived =
+            await this.hasReceivedDailyLoginBonusToday(safeUserId);
 
-      if (alreadyReceived) {
-        throw new ConflictException('Bônus de login diário já concedido hoje');
-      }
-    }
+          if (alreadyReceived) {
+            throw new ConflictException('Bônus de login diário já concedido hoje');
+          }
+        }
 
-    const amount = this.resolveAmount(type, reason, bonusId);
-    const profile = await this.getProfileByUserId(safeUserId);
+        const amount = this.resolveAmount(type, reason, bonusId);
+        const profile = await this.getProfileByUserId(safeUserId);
 
-    if (type === 'output') {
-      const current = await this.tablesDB.getRow<
-        Models.Row & { zcoinBalance?: number }
-      >({
-        databaseId: ZCoinsService.DB_ID,
-        tableId: 'user_profiles',
-        rowId: profile.$id,
-      });
-
-      const currentBalance = Number(current.zcoinBalance ?? 0);
-      if (currentBalance < amount) {
-        throw new BadRequestException('Saldo insuficiente para essa ação');
-      }
-    }
-
-    const tx = await this.tablesDB.createTransaction();
-    const transactionId = ID.unique();
-
-    try {
-      await this.tablesDB.createOperations({
-        transactionId: tx.$id,
-        operations: [
-          {
-            action: type === 'input' ? 'increment' : 'decrement',
+        if (type === 'output') {
+          const current = await this.tablesDB.getRow<
+            Models.Row & { zcoinBalance?: number }
+          >({
             databaseId: ZCoinsService.DB_ID,
             tableId: 'user_profiles',
             rowId: profile.$id,
-            data: { value: amount, column: 'zcoinBalance' },
-          },
-        ],
-      });
+          });
 
-      await this.tablesDB.createRow({
-        transactionId: tx.$id,
-        databaseId: ZCoinsService.DB_ID,
-        tableId: 'zcoin_transactions',
-        rowId: transactionId,
-        data: {
+          const currentBalance = Number(current.zcoinBalance ?? 0);
+          if (currentBalance < amount) {
+            throw new BadRequestException('Saldo insuficiente para essa ação');
+          }
+        }
+
+        const tx = await this.tablesDB.createTransaction();
+        const transactionId = ID.unique();
+
+        try {
+          await this.tablesDB.createOperations({
+            transactionId: tx.$id,
+            operations: [
+              {
+                action: type === 'input' ? 'increment' : 'decrement',
+                databaseId: ZCoinsService.DB_ID,
+                tableId: 'user_profiles',
+                rowId: profile.$id,
+                data: { value: amount, column: 'zcoinBalance' },
+              },
+            ],
+          });
+
+          await this.tablesDB.createRow({
+            transactionId: tx.$id,
+            databaseId: ZCoinsService.DB_ID,
+            tableId: 'zcoin_transactions',
+            rowId: transactionId,
+            data: {
+              userId: safeUserId,
+              amount: type === 'input' ? amount : -amount,
+              type,
+              reason,
+            },
+          });
+
+          await this.tablesDB.updateTransaction({
+            transactionId: tx.$id,
+            commit: true,
+          });
+        } catch (error) {
+          await this.tablesDB.updateTransaction({
+            transactionId: tx.$id,
+            rollback: true,
+          });
+
+          throw error;
+        }
+
+        const updated = await this.tablesDB.getRow<
+          Models.Row & { zcoinBalance?: number }
+        >({
+          databaseId: ZCoinsService.DB_ID,
+          tableId: 'user_profiles',
+          rowId: profile.$id,
+        });
+
+        return {
           userId: safeUserId,
-          amount: type === 'input' ? amount : -amount,
           type,
           reason,
-        },
-      });
-
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        commit: true,
-      });
-    } catch (error) {
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        rollback: true,
-      });
-
-      throw error;
-    }
-
-    const updated = await this.tablesDB.getRow<
-      Models.Row & { zcoinBalance?: number }
-    >({
-      databaseId: ZCoinsService.DB_ID,
-      tableId: 'user_profiles',
-      rowId: profile.$id,
-    });
-
-    return {
-      userId: safeUserId,
-      type,
-      reason,
-      amount: type === 'input' ? amount : -amount,
-      balance: Number(updated.zcoinBalance ?? 0),
-    };
+          amount: type === 'input' ? amount : -amount,
+          balance: Number(updated.zcoinBalance ?? 0),
+        };
+      },
+    );
   }
 
   private resolveAmount(

@@ -16,10 +16,10 @@ Deliver a reliable and secure gaming backend that continuously provides fresh, u
 - ✓ Content and editorial pipeline with AI-assisted generation and publication paths — existing
 - ✓ User-facing core domains are operational: profiles, raffles, zcoins scoring, and notifications — existing
 - ✓ Appwrite-based persistence, auth/session guard rails, and scheduled function execution are in production use — existing
+- ✓ Reliability and observability baseline for critical flows, health, correlation IDs, and SLI/SLO visibility — Phase 2
 
 ### Active
 
-- [ ] Improve reliability and observability across critical flows (sync, webhooks, editorial pipeline, and external integrations).
 - [ ] Strengthen security and authorization boundaries, especially for mutation endpoints and secret/config handling.
 - [ ] Raise engineering quality with meaningful automated tests for core business modules and integration behavior.
 - [ ] Improve performance and scalability in known bottlenecks (leaderboards, sync throughput, and pipeline orchestration).
@@ -84,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-29 after initialization_
+_Last updated: 2026-06-05 after Phase 2 completion_
