@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../../ai.module';
 import { EditorService } from './editor.service';
+import { ContentExtractorService } from './content-extractor.service';
 import { GameModule } from 'src/modules/game/game.module';
 import { GoogleModule } from 'src/modules/google/google.module';
 import { NotificationsModule } from 'src/modules/notifications/notifications.module';
 
 @Module({
   imports: [AiModule, GameModule, GoogleModule, NotificationsModule],
-  providers: [EditorService],
+  providers: [EditorService, ContentExtractorService],
   exports: [EditorService],
 })
 export class EditorModule {}

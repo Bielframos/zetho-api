@@ -18,7 +18,6 @@ output:
   schema:
     id: string
     title: string
-    relatedGames: string
     publisher: string
     why: string
 ---
@@ -42,7 +41,7 @@ only if the candidate covers an objectively different event for that same game
 game). When in doubt, DISQUALIFY. 6. FALLBACK: If the strongest candidate is
 disqualified, continue evaluating until a UNIQUE topic is found. 6.1. If ALL
 candidates are disqualified because they are already covered by recentPosts, you
-MUST return id: "N/A", title: "N/A", relatedGames: "N/A", publisher: "N/A" and a
+MUST return id: "N/A", title: "N/A", publisher: "N/A" and a
 why field explicitly stating that nothing new should be published. HUMAN
 SUGGESTION PRIORITY: 7. If humanSuggestion is provided, you MUST actively search
 for posts aligned with the suggestion. 8. Any post reasonably matching the
@@ -58,8 +57,7 @@ minor patches - repetitive coverage - generic interviews - weak rumors -
 low-impact updates OUTPUT RULES: 15. Select EXACTLY ONE post, or return the N/A
 fallback if every viable topic is already covered. 16. Return ONLY the output
 schema. No explanations, markdown, or conversational text. FIELD RULES: -
-relatedGames: Return explicit game titles as URL slugs (example: "starfield",
-"grand-theft-auto-vi"). If none, return "N/A". - publisher: Infer the source
+publisher: Infer the source
 domain (example: "IGN", "VGC", "PlayStation Blog"). - why: One objective
 sentence explaining: - why the topic has trend potential - and why it is
 fresh/non-duplicated. If returning the N/A fallback, why must say that all
