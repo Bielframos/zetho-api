@@ -96,6 +96,36 @@ export class GameService {
     return game;
   }
 
+  /**
+   * Busca um jogo pelo $id. Usado para resolver dados leves (nome/slug) de
+   * jogos já vinculados por id, sem enriquecimento pesado.
+   */
+  async findById(id: string, select?: string): Promise<Game> {
+    const requestedFields = select
+      ? (select
+          .split(',')
+          .map((f) => f.trim())
+          .filter(Boolean) as any[])
+      : undefined;
+
+    const result = await this.tablesDB.listRows<Game>({
+      databaseId: GameService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('$id', id),
+        Query.limit(1),
+        ...(requestedFields?.length ? [Query.select(requestedFields)] : []),
+      ],
+    });
+
+    const game = result.rows[0];
+    if (!game) {
+      throw new NotFoundException(`Jogo com id "${id}" não encontrado`);
+    }
+
+    return game;
+  }
+
   async search(dto: SearchGamesDto) {
     const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 12;
