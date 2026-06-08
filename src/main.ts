@@ -8,12 +8,16 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const logJson = process.env.LOG_JSON === 'true' || isProduction;
+  const logColors = process.env.LOG_COLORS !== 'false' && !logJson;
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: new ConsoleLogger({
       prefix: 'ZETHO API',
-      json: true,
-      colors: false,
+      json: logJson,
+      colors: logColors,
     }),
   });
 
