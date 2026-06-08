@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NestMiddleware,
-} from '@nestjs/common';
+import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { CorrelationContextService } from '../observability/correlation-context.service';
 
@@ -28,7 +25,9 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     );
   }
 
-  private extractCorrelationId(value: string | string[] | undefined): string | null {
+  private extractCorrelationId(
+    value: string | string[] | undefined,
+  ): string | null {
     const candidate = Array.isArray(value) ? value[0] : value;
 
     if (!candidate) {

@@ -234,7 +234,7 @@ export class RaffleService {
 
     const raffles = await Promise.all(
       result.rows.map(async (raffle) => ({
-        ...(raffle as Raffle),
+        ...raffle,
         ...(await this.getAvailableKeysSummary(raffle.$id)),
       })),
     );
@@ -298,7 +298,10 @@ export class RaffleService {
         const bonus = await this.getMonthlyInviteBonus(userId);
         const discountPercent = bonus.bonusPercent;
         const discountAmount = baseTotalCost * (discountPercent / 100);
-        const totalCost = Math.max(0, Math.floor(baseTotalCost - discountAmount));
+        const totalCost = Math.max(
+          0,
+          Math.floor(baseTotalCost - discountAmount),
+        );
 
         if (currentBalance < totalCost) {
           throw new BadRequestException(
@@ -403,7 +406,9 @@ export class RaffleService {
           luckyNumbers,
           drawNumber,
           won,
-          wonKey: wonKey ? { platform: wonKey.platform, key: wonKey.key } : null,
+          wonKey: wonKey
+            ? { platform: wonKey.platform, key: wonKey.key }
+            : null,
           newBalance: Number(updatedProfile.zcoinBalance ?? 0),
         };
       },

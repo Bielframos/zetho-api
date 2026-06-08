@@ -332,75 +332,81 @@ export class IGDBService {
           operation: 'igdb.sync-popular-games',
         },
         async () => {
-        const query = `
+          const query = `
       fields ${this.gameFields};
       where first_release_date > 1777030000 & hypes != null & version_parent = null & game_type != (3,5,7,12,13,14);
       sort hypes desc;
       limit 50;
     `;
 
-        const popularGames = (await this.fetchIgdb('games', query)) as IGDBGame[];
-        const eligibleGames = popularGames.filter(
-          (game) => !this.shouldIgnore(game),
-        );
-
-        const existingByExternalReference =
-          await this.getExistingGamesByExternalReference(
-            eligibleGames.map((game) => game.id),
+          const popularGames = (await this.fetchIgdb(
+            'games',
+            query,
+          )) as IGDBGame[];
+          const eligibleGames = popularGames.filter(
+            (game) => !this.shouldIgnore(game),
           );
 
-        const processedGames = await this.mapWithConcurrency(
-          eligibleGames,
-          6,
-          async (game) => {
-            const existing = existingByExternalReference.get(game.id);
+          const existingByExternalReference =
+            await this.getExistingGamesByExternalReference(
+              eligibleGames.map((game) => game.id),
+            );
 
-            if (existing && existing.checksum === (game.checksum ?? null)) {
+          const processedGames = await this.mapWithConcurrency(
+            eligibleGames,
+            6,
+            async (game) => {
+              const existing = existingByExternalReference.get(game.id);
+
+              if (existing && existing.checksum === (game.checksum ?? null)) {
+                return {
+                  id: game.id,
+                  name: game.name,
+                  gameId: existing.$id,
+                  skippedByChecksum: true,
+                };
+              }
+
+              const developers = await this.getDevs(game);
+              const parsedGame = this.parseGame(game, developers);
+              const gameId = await this.upsertGameRow(parsedGame);
+              await this.ensureGameZStats(gameId);
+
               return {
                 id: game.id,
                 name: game.name,
-                gameId: existing.$id,
-                skippedByChecksum: true,
+                gameId,
+                skippedByChecksum: false,
               };
-            }
+            },
+          );
 
-            const developers = await this.getDevs(game);
-            const parsedGame = this.parseGame(game, developers);
-            const gameId = await this.upsertGameRow(parsedGame);
-            await this.ensureGameZStats(gameId);
+          const skippedByChecksum = processedGames.filter(
+            (item) => item.skippedByChecksum,
+          ).length;
 
-            return {
-              id: game.id,
-              name: game.name,
-              gameId,
-              skippedByChecksum: false,
-            };
-          },
-        );
+          const results = processedGames.map(({ id, name, gameId }) => ({
+            id,
+            name,
+            gameId,
+          }));
 
-        const skippedByChecksum = processedGames.filter(
-          (item) => item.skippedByChecksum,
-        ).length;
-
-        const results = processedGames.map(({ id, name, gameId }) => ({
-          id,
-          name,
-          gameId,
-        }));
-
-        return {
-          message: 'Jogos populares sincronizados com sucesso',
-          success: true,
-          count: results.length,
-          skippedByChecksum,
-          items: results,
-        };
+          return {
+            message: 'Jogos populares sincronizados com sucesso',
+            success: true,
+            count: results.length,
+            skippedByChecksum,
+            items: results,
+          };
         },
       );
 
     return this.correlationContext.getCorrelationId()
       ? run()
-      : this.correlationContext.runWithGeneratedCorrelationId(() => run(), 'cron');
+      : this.correlationContext.runWithGeneratedCorrelationId(
+          () => run(),
+          'cron',
+        );
   }
 
   private async getExistingGamesByExternalReference(

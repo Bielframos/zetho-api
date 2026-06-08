@@ -145,19 +145,20 @@ export class ZethoHandler {
           let offset = 0;
 
           while (true) {
-            const legacyPage = await this.tablesDB.listRows<LegacyEntrySnapshot>({
-              databaseId: ZethoHandler.DB_ID,
-              tableId: 'z_entries',
-              queries: [
-                Query.equal('ownerFingerprint', entry.ownerFingerprint),
-                Query.notEqual('$id', entry.$id),
-                Query.equal('gameId', entry.gameId),
-                Query.orderDesc('$createdAt'),
-                Query.limit(pageLimit),
-                Query.offset(offset),
-                Query.select(['status', 'liked', 'hyped']),
-              ],
-            });
+            const legacyPage =
+              await this.tablesDB.listRows<LegacyEntrySnapshot>({
+                databaseId: ZethoHandler.DB_ID,
+                tableId: 'z_entries',
+                queries: [
+                  Query.equal('ownerFingerprint', entry.ownerFingerprint),
+                  Query.notEqual('$id', entry.$id),
+                  Query.equal('gameId', entry.gameId),
+                  Query.orderDesc('$createdAt'),
+                  Query.limit(pageLimit),
+                  Query.offset(offset),
+                  Query.select(['status', 'liked', 'hyped']),
+                ],
+              });
 
             if (!fallbackPreviousEntry) {
               fallbackPreviousEntry = legacyPage.rows[0] ?? null;
@@ -244,7 +245,11 @@ export class ZethoHandler {
 
         const statusOps = this.statuses
           .map((status) => {
-            const action = this.getStatusAction(status, prevStatus, currentStatus);
+            const action = this.getStatusAction(
+              status,
+              prevStatus,
+              currentStatus,
+            );
             if (!action) return null;
 
             return [
@@ -357,7 +362,9 @@ export class ZethoHandler {
         try {
           tx = await this.tablesDB.createTransaction();
           if (!tx) {
-            throw new InternalServerErrorException('Falha ao iniciar transação');
+            throw new InternalServerErrorException(
+              'Falha ao iniciar transação',
+            );
           }
           const transactionId = tx.$id;
 

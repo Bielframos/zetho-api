@@ -36,8 +36,12 @@ describe('HTTP observability contract (e2e)', () => {
 
     ({ AppController } = require('../../src/app.controller'));
     ({ AppService } = require('../../src/app.service'));
-    ({ ObservabilityModule } = require('../../src/common/observability/observability.module'));
-    ({ CorrelationIdMiddleware } = require('../../src/common/middleware/correlation-id.middleware'));
+    ({
+      ObservabilityModule,
+    } = require('../../src/common/observability/observability.module'));
+    ({
+      CorrelationIdMiddleware,
+    } = require('../../src/common/middleware/correlation-id.middleware'));
   });
 
   beforeEach(async () => {
@@ -50,7 +54,11 @@ describe('HTTP observability contract (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication({ rawBody: true });
-    app.use(moduleRef.get(CorrelationIdMiddleware).use.bind(moduleRef.get(CorrelationIdMiddleware)));
+    app.use(
+      moduleRef
+        .get(CorrelationIdMiddleware)
+        .use.bind(moduleRef.get(CorrelationIdMiddleware)),
+    );
     await app.init();
     logSpy.mockClear();
   });

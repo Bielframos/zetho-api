@@ -6,9 +6,7 @@ import { ZETHO_WPP_CHANNEL } from './notifications.constants';
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(
-    private readonly evolutionService: EvolutionService,
-  ) {}
+  constructor(private readonly evolutionService: EvolutionService) {}
 
   async sharePost({
     title,

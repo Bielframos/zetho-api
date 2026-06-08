@@ -158,10 +158,15 @@ export class LoggerContextService {
     originalUrl?: string;
     url?: string;
   }): string {
-    return request.route?.path ?? request.originalUrl ?? request.url ?? 'unknown';
+    return (
+      request.route?.path ?? request.originalUrl ?? request.url ?? 'unknown'
+    );
   }
 
-  private readPrimitive(source: object, key: string): string | number | boolean | undefined {
+  private readPrimitive(
+    source: object,
+    key: string,
+  ): string | number | boolean | undefined {
     const value = Reflect.get(source, key);
     if (
       typeof value === 'string' ||

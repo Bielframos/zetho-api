@@ -99,13 +99,13 @@ describe('Pipeline observability contract', () => {
   });
 
   it('emits a full lifecycle envelope for IGDB sync success', async () => {
-    jest.spyOn(igdbService as any, 'fetchIgdb').mockResolvedValue([
-      { id: 1, name: 'Game One', checksum: 'abc' },
-    ]);
+    jest
+      .spyOn(igdbService as any, 'fetchIgdb')
+      .mockResolvedValue([{ id: 1, name: 'Game One', checksum: 'abc' }]);
     jest.spyOn(igdbService as any, 'shouldIgnore').mockReturnValue(false);
-    jest.spyOn(igdbService as any, 'getExistingGamesByExternalReference').mockResolvedValue(
-      new Map(),
-    );
+    jest
+      .spyOn(igdbService as any, 'getExistingGamesByExternalReference')
+      .mockResolvedValue(new Map());
     jest.spyOn(igdbService as any, 'mapWithConcurrency').mockResolvedValue([
       {
         id: 1,
@@ -222,9 +222,9 @@ describe('Pipeline observability contract', () => {
 
   it('emits structured error logs for failed zcoin mutations', async () => {
     await correlationContext.runWithGeneratedCorrelationId(async () => {
-      await expect(zCoinsService.applyOutput('user-1', 'raffle')).rejects.toThrow(
-        'reason inválido',
-      );
+      await expect(
+        zCoinsService.applyOutput('user-1', 'raffle'),
+      ).rejects.toThrow('reason inválido');
     });
 
     const logs = errorsFrom(errorSpy);
