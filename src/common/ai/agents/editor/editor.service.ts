@@ -12,6 +12,7 @@ import { Appwrite } from '../../../appwrite/appwrite.provider';
 import { GENKIT } from '../../ai.constants';
 import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
+import { ContentExtractorService } from './content-extractor.service';
 
 type Feed = {
   posts: {
@@ -31,7 +32,6 @@ type Feed = {
 type TrendAnalysis = {
   id: string;
   title: string;
-  relatedGames: string;
   publisher: string;
   why: string;
 };
@@ -88,9 +88,17 @@ type ExecuteEditorOptions = NewsCaptureOptions & {
   suggestion?: string;
 };
 
+type GenerateGuidedArticleOptions = {
+  url: string;
+  instructions?: string;
+};
+
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
 const DEFAULT_CAPTURE_WINDOW_HOURS = 24;
 const GAZETHO_SITE_BASE_URL = 'https://ga.zetho.app';
+// Limita o conteúdo extraído enviado à IA no fluxo guiado, evitando estourar
+// o limite de tokens do provedor com páginas muito longas.
+const GUIDED_CONTENT_MAX_CHARS = 12000;
 
 const feedUrls = [
   'https://feeds.feedburner.com/ign/games-all',
@@ -118,6 +126,7 @@ export class EditorService {
     private readonly notificationsService: NotificationsService,
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
+    private readonly contentExtractor: ContentExtractorService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -184,18 +193,72 @@ export class EditorService {
           };
         }
 
-        const relatedGames = await this.getRelatedGames(analysis.relatedGames);
-
-        const article = await this.writeArticle(post, relatedGames);
+        const article = await this.writeArticle(post);
 
         const processedBody = this.postProcessContent(article.post.body);
         article.post.body = processedBody;
 
-        const mainImage = await this.resolveMainImage(article, relatedGames);
+        const mainImage = await this.resolveMainImage(article);
 
         const savedPost = await this.saveGeneratedPost({
           article,
           fallbackMainImage: post.link,
+          pickedMainImage: mainImage,
+        });
+
+        await this.notificationsService.sharePost({
+          title: savedPost.title,
+          subtitle: savedPost.subtitle ?? '',
+          postUrl: this.buildPostUrl(savedPost.slug),
+          mediaUrl: mainImage?.url,
+        });
+
+        this.invalidateFrontendCache();
+
+        return { skipped: false as const, savedPost };
+      },
+    );
+  }
+
+  async generateGuidedArticle(options: GenerateGuidedArticleOptions) {
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: EditorService.name,
+        operation: 'editor.generateGuided',
+      },
+      async () => {
+        const { url, instructions } = options;
+
+        if (await this.sourceUrlAlreadyPublished(url)) {
+          return {
+            skipped: true as const,
+            reason: `Source URL already published: ${url}`,
+          };
+        }
+
+        const { title, text } = await this.contentExtractor.extract(url);
+
+        const post: Feed['posts'][number] = {
+          id: ID.unique(),
+          title,
+          description: text.slice(0, 500),
+          link: url,
+          pubDate: new Date().toISOString(),
+          content: text.slice(0, GUIDED_CONTENT_MAX_CHARS),
+        };
+
+        const article = await this.writeArticle(post, {
+          humanInstructions: instructions,
+        });
+
+        article.post.body = this.postProcessContent(article.post.body);
+
+        const mainImage = await this.resolveMainImage(article);
+
+        const savedPost = await this.saveGeneratedPost({
+          article,
+          fallbackMainImage: url,
           pickedMainImage: mainImage,
         });
 
@@ -227,7 +290,6 @@ export class EditorService {
       return {
         id: 'N/A',
         title: 'N/A',
-        relatedGames: 'N/A',
         publisher: 'N/A',
         why: 'No posts were provided for analysis.',
       } satisfies TrendAnalysis;
@@ -241,16 +303,16 @@ export class EditorService {
   /**
    * Realiza a redação de uma matéria com base na análise de tendências e no conteúdo do post.
    * @param post - Post para redação.
-   * @param games - Jogos relacionados à matéria.
+   * @param options - Opções adicionais para redação.
    */
   private async writeArticle(
     post: Feed['posts'][number],
-    games: Games[],
+    options: { humanInstructions?: string } = {},
   ): Promise<AiArticle> {
     const prompt = this.ai.prompt('editor/write_article');
     const { output } = await prompt(
-      { post, games },
-      { tools: [this.youtubeTool] },
+      { post, humanInstructions: options.humanInstructions },
+      { tools: [this.youtubeTool, this.gameSearchTool] },
     );
     return output;
   }
@@ -299,6 +361,41 @@ export class EditorService {
         const { query } = input;
         const results = await this.youtubeService.searchVideos(query);
         return results || [];
+      },
+    );
+  }
+
+  /**
+   * Tool que permite ao agente de redação buscar jogos no catálogo Zetho
+   * para vinculá-los ao artigo. O agente deve conferir name/slug antes de
+   * usar o $id retornado.
+   */
+  private get gameSearchTool() {
+    return this.ai.defineTool(
+      {
+        name: 'gameSearchTool',
+        description:
+          'Busca jogos no catálogo Zetho por nome para vincular ao artigo. Retorna $id, name e slug.',
+        inputSchema: z.object({ query: z.string() }),
+        outputSchema: z.array(
+          z.object({
+            $id: z.string(),
+            name: z.string(),
+            slug: z.string(),
+          }),
+        ),
+      },
+      async (input) => {
+        const { query } = input;
+        const { results } = await this.gameService.search({
+          q: query,
+          pageSize: 5,
+        });
+        return results.map((game) => ({
+          $id: game.$id,
+          name: game.name,
+          slug: game.slug,
+        }));
       },
     );
   }
@@ -390,26 +487,39 @@ export class EditorService {
   }
 
   /**
-   * Resolve a imagem principal do artigo com base na estratégia definida e nos jogos relacionados.
+   * Resolve a imagem principal do artigo com base na estratégia definida.
    * @param article - Artigo gerado pela IA.
-   * @param relatedGames - Jogos relacionados ao artigo.
    * @returns A imagem principal selecionada ou null se não houver necessidade.
    */
   private async resolveMainImage(
     article: AiArticle,
-    relatedGames: Games[],
   ): Promise<PickedImage | null> {
     if (!article.imageStrategy.needsImage) {
       return null;
     }
 
-    if (article.imageStrategy.type === 'game' && relatedGames.length > 0) {
-      return this.pickGameScreenshot(relatedGames[0]);
+    if (article.imageStrategy.type === 'game') {
+      const gameId = article.post.relatedGameIds[0];
+      if (gameId) {
+        try {
+          const game = await this.gameService.findById(gameId, 'name,slug');
+          return await this.pickGameScreenshot(game);
+        } catch (error) {
+          this.logger.warn(
+            `Falha ao resolver imagem do jogo ${gameId}; usando fallback. ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          'imageStrategy.type=game mas relatedGameIds está vazio; usando fallback.',
+        );
+      }
     }
 
     if (article.imageStrategy.query) {
       const images = await this.searchUnsplash(article.imageStrategy.query);
-
       return images.length > 0 ? this.pickImage(images) : null;
     }
 
@@ -618,24 +728,6 @@ export class EditorService {
 
   private buildPostUrl(slug: string) {
     return new URL(`/posts/${slug}`, GAZETHO_SITE_BASE_URL).toString();
-  }
-
-  /**
-   * Obtém os jogos relacionados a matéria.
-   */
-  private async getRelatedGames(relatedGames: string) {
-    const slugs = relatedGames
-      .split(',')
-      .map((slug) => slug.trim())
-      .filter((slug) => slug.length > 0);
-
-    const results = await Promise.allSettled(
-      slugs.map((slug) => this.gameService.findBySlug(slug, 'name, slug')),
-    );
-
-    return results
-      .filter((result) => result.status === 'fulfilled')
-      .map((result) => (result as PromiseFulfilledResult<Games>).value);
   }
 
   /**

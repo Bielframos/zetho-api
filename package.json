@@ -26,6 +26,7 @@
   "dependencies": {
     "@genkit-ai/compat-oai": "^1.33.0",
     "@genkit-ai/google-genai": "^1.33.0",
+    "@mozilla/readability": "^0.6.0",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
@@ -39,6 +40,7 @@
     "cookie-parser": "^1.4.7",
     "genkit": "^1.28.0",
     "googleapis": "^171.4.0",
+    "jsdom": "^26.1.0",
     "node-appwrite": "^22.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -53,6 +55,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
     "dotenv": "^17.3.1",

@@ -13,6 +13,7 @@ import { EditorService } from 'src/common/ai/agents/editor/editor.service';
 import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 import {
   CreatePostDto,
+  GenerateGuidedPostDto,
   GeneratePostDto,
   GetEditorNewsDto,
   PopularTagsDto,
@@ -41,6 +42,14 @@ export class GazethoController {
     return this.editorService.execute({
       suggestion: dto.suggestion,
       captureWindowHours: dto.captureWindowHours,
+    });
+  }
+
+  @Post('editor/generate-guided-article')
+  generateGuidedArticle(@Body() dto: GenerateGuidedPostDto) {
+    return this.editorService.generateGuidedArticle({
+      url: dto.url,
+      instructions: dto.instructions,
     });
   }
 
