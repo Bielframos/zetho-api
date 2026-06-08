@@ -169,7 +169,8 @@ export class EditorService {
         if (this.shouldSkipPublication(analysis)) {
           return {
             skipped: true as const,
-            reason: analysis.why || 'No unpublished topic was found in the feed.',
+            reason:
+              analysis.why || 'No unpublished topic was found in the feed.',
           };
         }
 
@@ -177,7 +178,8 @@ export class EditorService {
         const post = posts.find((p) => p.id === postId);
 
         if (post) {
-          let content = contents.find((c) => c.id === postId)?.content || 'N/A';
+          const content =
+            contents.find((c) => c.id === postId)?.content || 'N/A';
 
           if ((!content || content === 'N/A') && !post.description) {
             throw new Error(`Content not found for post ID: ${postId}`);
@@ -634,7 +636,7 @@ export class EditorService {
     ];
 
     let posts: Feed['posts'] = [];
-    let contents: Feed['contents'] = [];
+    const contents: Feed['contents'] = [];
 
     for (const el of items) {
       const pubDate =

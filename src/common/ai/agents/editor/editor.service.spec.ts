@@ -15,11 +15,19 @@ const buildAi = () => {
 const buildService = (overrides: Partial<Record<string, any>> = {}) => {
   const ai = overrides.ai ?? buildAi();
   const gameService = overrides.gameService ?? { search: jest.fn() };
-  const appwrite = overrides.appwrite ?? { tablesDB: { listRows: jest.fn(), createRow: jest.fn() } };
-  const youtubeService = overrides.youtubeService ?? { searchVideos: jest.fn() };
-  const notificationsService = overrides.notificationsService ?? { sharePost: jest.fn() };
+  const appwrite = overrides.appwrite ?? {
+    tablesDB: { listRows: jest.fn(), createRow: jest.fn() },
+  };
+  const youtubeService = overrides.youtubeService ?? {
+    searchVideos: jest.fn(),
+  };
+  const notificationsService = overrides.notificationsService ?? {
+    sharePost: jest.fn(),
+  };
   const contentExtractor = overrides.contentExtractor ?? { extract: jest.fn() };
-  const correlationContext = { runWithGeneratedCorrelationId: (fn: any) => fn() };
+  const correlationContext = {
+    runWithGeneratedCorrelationId: (fn: any) => fn(),
+  };
   const loggerContext = { trackLifecycle: (_l: any, _m: any, fn: any) => fn() };
 
   const service = new EditorService(
@@ -32,7 +40,14 @@ const buildService = (overrides: Partial<Record<string, any>> = {}) => {
     loggerContext as never,
     contentExtractor as never,
   );
-  return { service, ai, gameService, appwrite, notificationsService, contentExtractor };
+  return {
+    service,
+    ai,
+    gameService,
+    appwrite,
+    notificationsService,
+    contentExtractor,
+  };
 };
 
 describe('EditorService gameSearchTool', () => {
@@ -49,7 +64,7 @@ describe('EditorService gameSearchTool', () => {
 
     void (service as any).gameSearchTool;
 
-    const handler = (ai as any).definedTools['gameSearchTool'];
+    const handler = ai.definedTools['gameSearchTool'];
     expect(handler).toBeDefined();
     const out = await handler({ query: 'Hades' });
 
@@ -120,21 +135,33 @@ describe('EditorService.generateGuidedArticle', () => {
         }),
       },
     };
-    const notificationsService = { sharePost: jest.fn().mockResolvedValue(undefined) };
-    global.fetch = jest.fn(async () => new Response('{}', { status: 200 })) as any;
+    const notificationsService = {
+      sharePost: jest.fn().mockResolvedValue(undefined),
+    };
+    global.fetch = jest.fn(
+      async () => new Response('{}', { status: 200 }),
+    ) as any;
 
-    return buildService({ ai, contentExtractor, appwrite, notificationsService });
+    return buildService({
+      ai,
+      contentExtractor,
+      appwrite,
+      notificationsService,
+    });
   };
 
   it('extrai a URL, repassa humanInstructions e publica o post', async () => {
-    const { service, contentExtractor, ai, appwrite, notificationsService } = setup();
+    const { service, contentExtractor, ai, appwrite, notificationsService } =
+      setup();
 
     const result = await service.generateGuidedArticle({
       url: 'https://fonte.com/post',
       instructions: 'Foque no modo cooperativo.',
     });
 
-    expect(contentExtractor.extract).toHaveBeenCalledWith('https://fonte.com/post');
+    expect(contentExtractor.extract).toHaveBeenCalledWith(
+      'https://fonte.com/post',
+    );
 
     const promptFn = ai.prompt.mock.results[0].value;
     expect(promptFn).toHaveBeenCalledWith(
@@ -156,7 +183,9 @@ describe('EditorService.generateGuidedArticle', () => {
   it('pula quando a URL de origem já foi publicada', async () => {
     const { service, appwrite, notificationsService, contentExtractor } =
       setup();
-    appwrite.tablesDB.listRows.mockResolvedValue({ rows: [{ $id: 'existente' }] });
+    appwrite.tablesDB.listRows.mockResolvedValue({
+      rows: [{ $id: 'existente' }],
+    });
 
     const result = await service.generateGuidedArticle({
       url: 'https://fonte.com/post',

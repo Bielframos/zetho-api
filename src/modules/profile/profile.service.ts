@@ -331,7 +331,7 @@ export class ProfileService {
         ],
       });
 
-      for (const entry of page.rows as ZEntriesReadOnly[]) {
+      for (const entry of page.rows) {
         const status = entry.status as string | null;
 
         if (entry.hyped === true || status === 'hyped') {

@@ -66,7 +66,7 @@ export class AppwriteSessionGuard implements CanActivate {
       ]);
 
       if (requiredRoles?.length) {
-        let userLabels: string[] = [...user.labels, 'user'];
+        const userLabels: string[] = [...user.labels, 'user'];
 
         const hasRequiredRoles = requiredRoles.every((role) =>
           userLabels.includes(role),

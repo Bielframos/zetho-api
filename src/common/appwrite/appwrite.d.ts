@@ -4,326 +4,326 @@ import type { Models } from 'node-appwrite';
 // You can regenerate it by running `appwrite types src/common/appwrite`.
 
 export enum GamesSyncStage {
-    BASIC = "basic",
-    FULL = "full"
+  BASIC = 'basic',
+  FULL = 'full',
 }
 
 export enum UserProfilesStatus {
-    ACTIVE = "active",
-    PENDING_DELETION = "pending_deletion"
+  ACTIVE = 'active',
+  PENDING_DELETION = 'pending_deletion',
 }
 
 export enum ZEntriesStatus {
-    COMPLETED = "completed",
-    BACKLOG = "backlog",
-    DROPPED = "dropped",
-    PLAYING = "playing",
-    WISHLIST = "wishlist"
+  COMPLETED = 'completed',
+  BACKLOG = 'backlog',
+  DROPPED = 'dropped',
+  PLAYING = 'playing',
+  WISHLIST = 'wishlist',
 }
 
 export enum GameCommentVotesType {
-    UP = "up",
-    DOWN = "down"
+  UP = 'up',
+  DOWN = 'down',
 }
 
 export enum ZEntriesReadOnlyStatus {
-    COMPLETED = "completed",
-    BACKLOG = "backlog",
-    DROPPED = "dropped",
-    PLAYING = "playing",
-    WISHLIST = "wishlist"
+  COMPLETED = 'completed',
+  BACKLOG = 'backlog',
+  DROPPED = 'dropped',
+  PLAYING = 'playing',
+  WISHLIST = 'wishlist',
 }
 
 export enum ZEntriesReadOnlyMaxStatusReached {
-    COMPLETED = "completed",
-    BACKLOG = "backlog",
-    DROPPED = "dropped",
-    PLAYING = "playing",
-    WISHLIST = "wishlist"
+  COMPLETED = 'completed',
+  BACKLOG = 'backlog',
+  DROPPED = 'dropped',
+  PLAYING = 'playing',
+  WISHLIST = 'wishlist',
 }
 
 export enum GamePlatformsType {
-    CONSOLE = "console",
-    PC = "pc",
-    MOBILE = "mobile"
+  CONSOLE = 'console',
+  PC = 'pc',
+  MOBILE = 'mobile',
 }
 
 export enum GameMediasType {
-    KEY_ART = "key_art",
-    SCREENSHOT = "screenshot",
-    VIDEO = "video"
+  KEY_ART = 'key_art',
+  SCREENSHOT = 'screenshot',
+  VIDEO = 'video',
 }
 
 export enum PostsStatus {
-    DRAFT = "draft",
-    PUBLISHED = "published"
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
 }
 
 export enum PostsPostType {
-    ARTICLE = "article",
-    REVIEW = "review"
+  ARTICLE = 'article',
+  REVIEW = 'review',
 }
 
 export enum SorteiosRewardPolicy {
-    ONE_KEY = "one_key",
-    ALL_KEYS = "all_keys"
+  ONE_KEY = 'one_key',
+  ALL_KEYS = 'all_keys',
 }
 
 export enum ChavesDeJogosStatus {
-    AVAILABLE = "available",
-    DELIVERED = "delivered"
+  AVAILABLE = 'available',
+  DELIVERED = 'delivered',
 }
 
 export enum ChavesDeJogosPlatform {
-    STEAM = "steam",
-    XBOX = "xbox"
+  STEAM = 'steam',
+  XBOX = 'xbox',
 }
 
 export type IgdbTokens = Models.Row & {
-    secret: string;
-    expiresAt: string;
-}
+  secret: string;
+  expiresAt: string;
+};
 
 export type GamesCreate = {
-    name: string;
-    slug: string;
-    coverUrl?: string | null;
-    releaseYear?: string | null;
-    summary?: string | null;
-    externalReference: number;
-    gameType?: string | null;
-    similarGames?: string[] | null;
-    checksum?: string | null;
-    releaseDate?: string | null;
-    involvedCompanies?: string[];
-    zStats?: string;
-    ratingAvg?: number;
-    ratingCount?: number;
-    ratingSum?: number;
-    genres?: string[] | null;
-    hypes?: number | null;
-    zethoVersion?: number;
-    syncStage?: GamesSyncStage | null;
-    summaryPt?: string | null;
-}
+  name: string;
+  slug: string;
+  coverUrl?: string | null;
+  releaseYear?: string | null;
+  summary?: string | null;
+  externalReference: number;
+  gameType?: string | null;
+  similarGames?: string[] | null;
+  checksum?: string | null;
+  releaseDate?: string | null;
+  involvedCompanies?: string[];
+  zStats?: string;
+  ratingAvg?: number;
+  ratingCount?: number;
+  ratingSum?: number;
+  genres?: string[] | null;
+  hypes?: number | null;
+  zethoVersion?: number;
+  syncStage?: GamesSyncStage | null;
+  summaryPt?: string | null;
+};
 
 export type Games = Models.Row & {
-    name: string;
-    slug: string;
-    coverUrl: string | null;
-    releaseYear: string | null;
-    summary: string | null;
-    externalReference: number;
-    gameType: GameTypes;
-    similarGames: string[] | null;
-    checksum: string | null;
-    releaseDate: string | null;
-    involvedCompanies: Companies[];
-    zStats: ZEntryCount;
-    ratingAvg: number;
-    ratingCount: number;
-    ratingSum: number;
-    genres: string[] | null;
-    hypes: number | null;
-    zethoVersion: number;
-    syncStage: GamesSyncStage | null;
-    summaryPt: string | null;
-}
+  name: string;
+  slug: string;
+  coverUrl: string | null;
+  releaseYear: string | null;
+  summary: string | null;
+  externalReference: number;
+  gameType: GameTypes;
+  similarGames: string[] | null;
+  checksum: string | null;
+  releaseDate: string | null;
+  involvedCompanies: Companies[];
+  zStats: ZEntryCount;
+  ratingAvg: number;
+  ratingCount: number;
+  ratingSum: number;
+  genres: string[] | null;
+  hypes: number | null;
+  zethoVersion: number;
+  syncStage: GamesSyncStage | null;
+  summaryPt: string | null;
+};
 
 export type GameTypes = Models.Row & {
-    type: string;
-    checksum: string | null;
-}
+  type: string;
+  checksum: string | null;
+};
 
 export type UserProfiles = Models.Row & {
-    userId: string;
-    gamertag: string;
-    avatarUrl: string | null;
-    bio: string | null;
-    totalsCompleted: number;
-    totalsBacklog: number;
-    totalsDropped: number;
-    totalsPlaying: number;
-    totalsWishlist: number;
-    fingerprint: string;
-    status: UserProfilesStatus;
-    deletedAt: string | null;
-    socialXbox: string | null;
-    socialSteam: string | null;
-    socialPsn: string | null;
-    totalsHyped: number;
-    zcoinBalance: number;
-    inviteCode: string | null;
-}
+  userId: string;
+  gamertag: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  totalsCompleted: number;
+  totalsBacklog: number;
+  totalsDropped: number;
+  totalsPlaying: number;
+  totalsWishlist: number;
+  fingerprint: string;
+  status: UserProfilesStatus;
+  deletedAt: string | null;
+  socialXbox: string | null;
+  socialSteam: string | null;
+  socialPsn: string | null;
+  totalsHyped: number;
+  zcoinBalance: number;
+  inviteCode: string | null;
+};
 
 export type ZEntries = Models.Row & {
-    status: ZEntriesStatus | null;
-    liked: boolean | null;
-    gameId: string;
-    ownerFingerprint: string;
-    processedAt: string | null;
-    hyped: boolean | null;
-}
+  status: ZEntriesStatus | null;
+  liked: boolean | null;
+  gameId: string;
+  ownerFingerprint: string;
+  processedAt: string | null;
+  hyped: boolean | null;
+};
 
 export type Companies = Models.Row & {
-    name: string;
-    checksum: string | null;
-    slug: string;
-}
+  name: string;
+  checksum: string | null;
+  slug: string;
+};
 
 export type ZEntryCount = Models.Row & {
-    completedCount: number;
-    backlogCount: number;
-    droppedCount: number;
-    playingCount: number;
-    wishlistCount: number;
-    game: Games;
-    likes: number;
-    hypedCount: number;
-}
+  completedCount: number;
+  backlogCount: number;
+  droppedCount: number;
+  playingCount: number;
+  wishlistCount: number;
+  game: Games;
+  likes: number;
+  hypedCount: number;
+};
 
 export type GameComments = Models.Row & {
-    gameId: string;
-    userProfile: UserProfiles;
-    content: string;
-    parentId: string | null;
-    voteCount: number;
-    replyCount: number;
-    depth: number;
-    votes: GameCommentVotes[];
-}
+  gameId: string;
+  userProfile: UserProfiles;
+  content: string;
+  parentId: string | null;
+  voteCount: number;
+  replyCount: number;
+  depth: number;
+  votes: GameCommentVotes[];
+};
 
 export type GameCommentVotes = Models.Row & {
-    type: GameCommentVotesType;
-    comment: GameComments;
-    userId: string;
-}
+  type: GameCommentVotesType;
+  comment: GameComments;
+  userId: string;
+};
 
 export type Lists = Models.Row & {
-    ownerFingerprint: string;
-    title: string;
-    description: string | null;
-    isPublic: boolean;
-    slug: string;
-    itemCount: number;
-    latestAdditions: string[] | null;
-    lastOrderKey: string | null;
-}
+  ownerFingerprint: string;
+  title: string;
+  description: string | null;
+  isPublic: boolean;
+  slug: string;
+  itemCount: number;
+  latestAdditions: string[] | null;
+  lastOrderKey: string | null;
+};
 
 export type ListItems = Models.Row & {
-    list: Lists;
-    game: Games;
-    orderKey: string;
-}
+  list: Lists;
+  game: Games;
+  orderKey: string;
+};
 
 export type ZEntriesReadOnly = Models.Row & {
-    status: ZEntriesReadOnlyStatus | null;
-    liked: boolean | null;
-    gameId: string;
-    ownerFingerprint: string;
-    hyped: boolean | null;
-    likedEver: boolean | null;
-    maxStatusReached: ZEntriesReadOnlyMaxStatusReached | null;
-}
+  status: ZEntriesReadOnlyStatus | null;
+  liked: boolean | null;
+  gameId: string;
+  ownerFingerprint: string;
+  hyped: boolean | null;
+  likedEver: boolean | null;
+  maxStatusReached: ZEntriesReadOnlyMaxStatusReached | null;
+};
 
 export type GamePlatforms = Models.Row & {
-    slug: string;
-    name: string;
-    shortName: string | null;
-    manufacturer: string | null;
-    type: GamePlatformsType | null;
-    generation: number | null;
-    releasedAt: string | null;
-}
+  slug: string;
+  name: string;
+  shortName: string | null;
+  manufacturer: string | null;
+  type: GamePlatformsType | null;
+  generation: number | null;
+  releasedAt: string | null;
+};
 
 export type Avaliaes = Models.Row & {
-    ownerFingerprint: string;
-    gameId: string;
-    rating: number;
-    comment: string | null;
-}
+  ownerFingerprint: string;
+  gameId: string;
+  rating: number;
+  comment: string | null;
+};
 
 export type Conexes = Models.Row & {
-    requesterProfileId: string;
-    targetProfileId: string;
-}
+  requesterProfileId: string;
+  targetProfileId: string;
+};
 
 export type Genres = Models.Row & {
-    name: string;
-    slug: string;
-    checksum: string;
-    namePt: string | null;
-}
+  name: string;
+  slug: string;
+  checksum: string;
+  namePt: string | null;
+};
 
 export type GameMedias = Models.Row & {
-    game: Games;
-    type: GameMediasType;
-    mediaId: string;
-    name: string | null;
-}
+  game: Games;
+  type: GameMediasType;
+  mediaId: string;
+  name: string | null;
+};
 
 export type Autores = Models.Row & {
-    name: string;
-    slug: string;
-    bio: string | null;
-    avatarUrl: string | null;
-    websiteUrl: string | null;
-}
+  name: string;
+  slug: string;
+  bio: string | null;
+  avatarUrl: string | null;
+  websiteUrl: string | null;
+};
 
 export type Posts = Models.Row & {
-    title: string;
-    subtitle: string | null;
-    slug: string;
-    body: string;
-    mainImage: string | null;
-    status: PostsStatus;
-    tags: string[] | null;
-    relatedGameIds: string[] | null;
-    seo: string | null;
-    originalSourceUrl: string | null;
-    author: Autores;
-    postType: PostsPostType;
-    reviewMeta: string | null;
-}
+  title: string;
+  subtitle: string | null;
+  slug: string;
+  body: string;
+  mainImage: string | null;
+  status: PostsStatus;
+  tags: string[] | null;
+  relatedGameIds: string[] | null;
+  seo: string | null;
+  originalSourceUrl: string | null;
+  author: Autores;
+  postType: PostsPostType;
+  reviewMeta: string | null;
+};
 
 export type ZCoinTransactions = Models.Row & {
-    userId: string;
-    amount: number;
-    type: string;
-    reason: string;
-}
+  userId: string;
+  amount: number;
+  type: string;
+  reason: string;
+};
 
 export type Sorteios = Models.Row & {
-    game: Games;
-    rewardPolicy: SorteiosRewardPolicy;
-    basicProbability: number;
-    ticketPrice: number;
-    active: boolean;
-    activatedAt: string | null;
-    closedAt: string | null;
-}
+  game: Games;
+  rewardPolicy: SorteiosRewardPolicy;
+  basicProbability: number;
+  ticketPrice: number;
+  active: boolean;
+  activatedAt: string | null;
+  closedAt: string | null;
+};
 
 export type EntradasDeSorteio = Models.Row & {
-    raffleId: string;
-    userId: string;
-    ticketCount: number;
-    totalCost: number;
-    luckyNumbers: string[] | null;
-    won: boolean;
-    drawNumber: string;
-}
+  raffleId: string;
+  userId: string;
+  ticketCount: number;
+  totalCost: number;
+  luckyNumbers: string[] | null;
+  won: boolean;
+  drawNumber: string;
+};
 
 export type ChavesDeJogos = Models.Row & {
-    gameId: string;
-    raffleId: string;
-    key: string;
-    status: ChavesDeJogosStatus;
-    platform: ChavesDeJogosPlatform;
-    userWinnerId: string | null;
-}
+  gameId: string;
+  raffleId: string;
+  key: string;
+  status: ChavesDeJogosStatus;
+  platform: ChavesDeJogosPlatform;
+  userWinnerId: string | null;
+};
 
 export type LogsDoAplicativo = Models.Row & {
-    type: string;
-    relatedUserId: string | null;
-    metadata: string;
-}
+  type: string;
+  relatedUserId: string | null;
+  metadata: string;
+};

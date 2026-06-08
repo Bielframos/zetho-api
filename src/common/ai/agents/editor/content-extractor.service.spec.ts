@@ -19,11 +19,12 @@ describe('ContentExtractorService', () => {
         <p>Primeiro parágrafo com conteúdo relevante e suficiente para o Readability identificar o corpo principal do texto sem problemas.</p>
         <p>Segundo parágrafo reforçando o conteúdo principal com mais frases densas para passar no heurístico de extração.</p>
       </article>`;
-    global.fetch = jest.fn(async () =>
-      new Response(buildHtml(article), {
-        status: 200,
-        headers: { 'content-type': 'text/html' },
-      }),
+    global.fetch = jest.fn(
+      async () =>
+        new Response(buildHtml(article), {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
     ) as unknown as typeof fetch;
 
     const result = await service.extract('https://exemplo.com/post');
@@ -35,11 +36,17 @@ describe('ContentExtractorService', () => {
   });
 
   it('envia User-Agent de browser no fetch', async () => {
-    const fetchMock = jest.fn(async () =>
-      new Response(buildHtml('<article><p>Conteúdo denso o suficiente para o Readability extrair o corpo principal da página de teste.</p></article>'), {
-        status: 200,
-        headers: { 'content-type': 'text/html' },
-      }),
+    const fetchMock = jest.fn(
+      async () =>
+        new Response(
+          buildHtml(
+            '<article><p>Conteúdo denso o suficiente para o Readability extrair o corpo principal da página de teste.</p></article>',
+          ),
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -52,8 +59,8 @@ describe('ContentExtractorService', () => {
   });
 
   it('lança erro quando a resposta não é ok', async () => {
-    global.fetch = jest.fn(async () =>
-      new Response('not found', { status: 404 }),
+    global.fetch = jest.fn(
+      async () => new Response('not found', { status: 404 }),
     ) as unknown as typeof fetch;
 
     await expect(service.extract('https://exemplo.com/x')).rejects.toThrow(
@@ -62,11 +69,12 @@ describe('ContentExtractorService', () => {
   });
 
   it('lança erro quando o Readability não encontra conteúdo principal', async () => {
-    global.fetch = jest.fn(async () =>
-      new Response('<html><body></body></html>', {
-        status: 200,
-        headers: { 'content-type': 'text/html' },
-      }),
+    global.fetch = jest.fn(
+      async () =>
+        new Response('<html><body></body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
     ) as unknown as typeof fetch;
 
     await expect(service.extract('https://exemplo.com/vazio')).rejects.toThrow(

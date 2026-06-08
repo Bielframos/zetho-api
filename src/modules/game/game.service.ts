@@ -43,10 +43,10 @@ export class GameService {
     if (cached) return cached;
 
     const requestedFields = select
-      ? (select
+      ? select
           .split(',')
           .map((f) => f.trim())
-          .filter(Boolean) as string[])
+          .filter(Boolean)
       : null;
 
     // Sempre inclui campos internos necessários para enriquecimento e migração
@@ -486,7 +486,7 @@ export class GameService {
     const startVersion = game.zethoVersion ?? 0;
 
     for (let v = startVersion + 1; v <= this.currentVersion; v++) {
-      const migration = this.migrations[v as keyof typeof this.migrations];
+      const migration = this.migrations[v];
       if (migration) {
         this.logger.log(`Aplicando migração v${v} para jogo ${game.$id}`);
         await migration(game);

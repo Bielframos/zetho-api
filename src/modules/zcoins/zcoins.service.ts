@@ -144,7 +144,9 @@ export class ZCoinsService {
             await this.hasReceivedDailyLoginBonusToday(safeUserId);
 
           if (alreadyReceived) {
-            throw new ConflictException('Bônus de login diário já concedido hoje');
+            throw new ConflictException(
+              'Bônus de login diário já concedido hoje',
+            );
           }
         }
 
@@ -244,7 +246,7 @@ export class ZCoinsService {
         ? (SCORE_TABLE.input as Record<string, number>)
         : (SCORE_TABLE.output as Record<string, number>);
 
-    let amount = reasonValues[safeReason];
+    const amount = reasonValues[safeReason];
 
     if (!amount) {
       throw new BadRequestException('reason inválido para o tipo informado');

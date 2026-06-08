@@ -21,7 +21,9 @@ describe('Health readiness contract (e2e)', () => {
     process.env.APPWRITE_API_KEY = 'test-key';
 
     ({ HealthModule } = require('../../src/modules/health/health.module'));
-    ({ AppwriteHealthIndicator } = require('../../src/modules/health/indicators/appwrite-health.indicator'));
+    ({
+      AppwriteHealthIndicator,
+    } = require('../../src/modules/health/indicators/appwrite-health.indicator'));
   });
 
   beforeEach(async () => {
@@ -45,7 +47,9 @@ describe('Health readiness contract (e2e)', () => {
   });
 
   it('returns a lightweight liveness payload', async () => {
-    const response = await request(app.getHttpServer()).get('/health').expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/health')
+      .expect(200);
 
     expect(response.body).toEqual({ status: 'ok' });
   });
