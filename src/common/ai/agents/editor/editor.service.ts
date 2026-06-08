@@ -88,9 +88,17 @@ type ExecuteEditorOptions = NewsCaptureOptions & {
   suggestion?: string;
 };
 
+type GenerateGuidedArticleOptions = {
+  url: string;
+  instructions?: string;
+};
+
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
 const DEFAULT_CAPTURE_WINDOW_HOURS = 24;
 const GAZETHO_SITE_BASE_URL = 'https://ga.zetho.app';
+// Limita o conteúdo extraído enviado à IA no fluxo guiado, evitando estourar
+// o limite de tokens do provedor com páginas muito longas.
+const GUIDED_CONTENT_MAX_CHARS = 12000;
 
 const feedUrls = [
   'https://feeds.feedburner.com/ign/games-all',
@@ -195,6 +203,62 @@ export class EditorService {
         const savedPost = await this.saveGeneratedPost({
           article,
           fallbackMainImage: post.link,
+          pickedMainImage: mainImage,
+        });
+
+        await this.notificationsService.sharePost({
+          title: savedPost.title,
+          subtitle: savedPost.subtitle ?? '',
+          postUrl: this.buildPostUrl(savedPost.slug),
+          mediaUrl: mainImage?.url,
+        });
+
+        this.invalidateFrontendCache();
+
+        return { skipped: false as const, savedPost };
+      },
+    );
+  }
+
+  async generateGuidedArticle(options: GenerateGuidedArticleOptions) {
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: EditorService.name,
+        operation: 'editor.generateGuided',
+      },
+      async () => {
+        const { url, instructions } = options;
+
+        if (await this.sourceUrlAlreadyPublished(url)) {
+          return {
+            skipped: true as const,
+            reason: `Source URL already published: ${url}`,
+          };
+        }
+
+        const { title, text } = await this.contentExtractor.extract(url);
+
+        const post: Feed['posts'][number] = {
+          id: ID.unique(),
+          title,
+          description: text.slice(0, 500),
+          link: url,
+          pubDate: new Date().toISOString(),
+          content: text.slice(0, GUIDED_CONTENT_MAX_CHARS),
+        };
+
+        const article = await this.writeArticle(post, {
+          humanInstructions: instructions,
+        });
+
+        article.post.body = this.postProcessContent(article.post.body);
+
+        const mainImage = await this.resolveMainImage(article);
+
+        const savedPost = await this.saveGeneratedPost({
+          article,
+          fallbackMainImage: url,
           pickedMainImage: mainImage,
         });
 

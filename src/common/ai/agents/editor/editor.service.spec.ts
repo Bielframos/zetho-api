@@ -82,3 +82,88 @@ describe('EditorService.resolveMainImage', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('EditorService.generateGuidedArticle', () => {
+  const buildArticleOutput = () => ({
+    post: {
+      title: 'Título Final',
+      subtitle: 'sub',
+      slug: 'titulo-final',
+      body: '<p>corpo</p>',
+      status: 'published',
+      tags: ['hades-ii'],
+      relatedGameIds: [],
+      seo: { title: 't', description: 'd' },
+      originalSourceUrl: 'https://fonte.com/post',
+    },
+    imageStrategy: { needsImage: false, type: 'generic' as const },
+  });
+
+  const setup = () => {
+    const ai = buildAi();
+    ai.prompt.mockReturnValue(
+      jest.fn().mockResolvedValue({ output: buildArticleOutput() }),
+    );
+    const contentExtractor = {
+      extract: jest.fn().mockResolvedValue({
+        title: 'Manchete',
+        text: 'Texto longo extraído da página de contexto fornecida.',
+      }),
+    };
+    const appwrite = {
+      tablesDB: {
+        listRows: jest.fn().mockResolvedValue({ rows: [] }),
+        createRow: jest.fn().mockResolvedValue({
+          title: 'Título Final',
+          subtitle: 'sub',
+          slug: 'titulo-final',
+        }),
+      },
+    };
+    const notificationsService = { sharePost: jest.fn().mockResolvedValue(undefined) };
+    global.fetch = jest.fn(async () => new Response('{}', { status: 200 })) as any;
+
+    return buildService({ ai, contentExtractor, appwrite, notificationsService });
+  };
+
+  it('extrai a URL, repassa humanInstructions e publica o post', async () => {
+    const { service, contentExtractor, ai, appwrite, notificationsService } = setup();
+
+    const result = await service.generateGuidedArticle({
+      url: 'https://fonte.com/post',
+      instructions: 'Foque no modo cooperativo.',
+    });
+
+    expect(contentExtractor.extract).toHaveBeenCalledWith('https://fonte.com/post');
+
+    const promptFn = ai.prompt.mock.results[0].value;
+    expect(promptFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        humanInstructions: 'Foque no modo cooperativo.',
+        post: expect.objectContaining({
+          content: 'Texto longo extraído da página de contexto fornecida.',
+          link: 'https://fonte.com/post',
+        }),
+      }),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    );
+
+    expect(appwrite.tablesDB.createRow).toHaveBeenCalledTimes(1);
+    expect(notificationsService.sharePost).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ skipped: false });
+  });
+
+  it('pula quando a URL de origem já foi publicada', async () => {
+    const { service, appwrite, notificationsService, contentExtractor } =
+      setup();
+    appwrite.tablesDB.listRows.mockResolvedValue({ rows: [{ $id: 'existente' }] });
+
+    const result = await service.generateGuidedArticle({
+      url: 'https://fonte.com/post',
+    });
+
+    expect(result).toMatchObject({ skipped: true });
+    expect(contentExtractor.extract).not.toHaveBeenCalled();
+    expect(notificationsService.sharePost).not.toHaveBeenCalled();
+  });
+});

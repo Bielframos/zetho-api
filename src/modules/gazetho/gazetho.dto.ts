@@ -26,6 +26,16 @@ export class GeneratePostDto {
   captureWindowHours?: number;
 }
 
+export class GenerateGuidedPostDto {
+  @IsUrl({ require_protocol: true, protocols: ['http', 'https'] })
+  url!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  instructions?: string;
+}
+
 export class GetEditorNewsDto {
   @IsOptional()
   @Type(() => Number)
