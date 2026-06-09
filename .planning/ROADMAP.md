@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Security and Integration Contract Hardening** - Lock down mutation access and make external ingress/processing failure-safe.
 - [x] **Phase 2: Operational Observability Baseline** - Make runtime health, telemetry, and SLO status reliably visible.
-- [ ] **Phase 3: Boundary Extraction and Transaction Core** - Establish maintainable domain boundaries with deterministic write integrity.
+- [x] **Phase 3: Boundary Extraction and Transaction Core** - Establish maintainable domain boundaries with deterministic write integrity.
 - [ ] **Phase 4: Performance and Quality Gates** - Raise throughput/read performance while enforcing automated quality controls.
 - [ ] **Phase 5: Segment-Aware Live-Ops MVP** - Deliver one safe, toggleable targeted campaign/reward experience.
 
@@ -107,6 +107,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 | ---------------------------------------------- | -------------- | ----------- | --------- |
 | 1. Security and Integration Contract Hardening | 3/3            | Completed   | 2026-05-29 |
 | 2. Operational Observability Baseline          | 3/3            | Completed   | 2026-06-05 |
-| 3. Boundary Extraction and Transaction Core    | 0/TBD          | Not started | -         |
+| 3. Boundary Extraction and Transaction Core    | 1/1            | Completed   | 2026-06-09 |
 | 4. Performance and Quality Gates               | 0/TBD          | Not started | -         |
 | 5. Segment-Aware Live-Ops MVP                  | 0/TBD          | Not started | -         |
