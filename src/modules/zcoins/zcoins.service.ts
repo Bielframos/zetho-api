@@ -11,6 +11,7 @@ import type { Cache } from 'cache-manager';
 import type { UserProfiles } from 'src/common/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { TransactionService } from 'src/common/appwrite/transaction.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import SCORE_TABLE from './score-table';
 
@@ -28,6 +29,7 @@ export class ZCoinsService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
+    private readonly transactionService: TransactionService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -168,12 +170,11 @@ export class ZCoinsService {
           }
         }
 
-        const tx = await this.tablesDB.createTransaction();
         const transactionId = ID.unique();
 
-        try {
+        await this.transactionService.runInTransaction(async (ctx) => {
           await this.tablesDB.createOperations({
-            transactionId: tx.$id,
+            transactionId: ctx.txId,
             operations: [
               {
                 action: type === 'input' ? 'increment' : 'decrement',
@@ -186,7 +187,7 @@ export class ZCoinsService {
           });
 
           await this.tablesDB.createRow({
-            transactionId: tx.$id,
+            transactionId: ctx.txId,
             databaseId: ZCoinsService.DB_ID,
             tableId: 'zcoin_transactions',
             rowId: transactionId,
@@ -197,19 +198,7 @@ export class ZCoinsService {
               reason,
             },
           });
-
-          await this.tablesDB.updateTransaction({
-            transactionId: tx.$id,
-            commit: true,
-          });
-        } catch (error) {
-          await this.tablesDB.updateTransaction({
-            transactionId: tx.$id,
-            rollback: true,
-          });
-
-          throw error;
-        }
+        });
 
         const updated = await this.tablesDB.getRow<
           Models.Row & { zcoinBalance?: number }

@@ -159,8 +159,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "gameType",
@@ -267,7 +267,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "zethoVersion",
@@ -276,7 +276,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "syncStage",
@@ -434,8 +434,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "totalsBacklog",
@@ -443,8 +443,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "totalsDropped",
@@ -452,8 +452,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "totalsPlaying",
@@ -461,8 +461,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "totalsWishlist",
@@ -471,7 +471,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "fingerprint",
@@ -536,7 +536,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "zcoinBalance",
@@ -545,7 +545,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "inviteCode",
@@ -723,7 +723,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "backlogCount",
@@ -732,7 +732,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "droppedCount",
@@ -741,7 +741,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "playingCount",
@@ -750,7 +750,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "wishlistCount",
@@ -759,7 +759,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "game",
@@ -780,7 +780,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "hypedCount",
@@ -789,7 +789,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 }
             ],
             "indexes": []
@@ -853,7 +853,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "replyCount",
@@ -862,7 +862,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "depth",
@@ -871,7 +871,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "votes",
@@ -995,7 +995,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "latestAdditions",
@@ -1232,7 +1232,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "releasedAt",
@@ -1772,8 +1772,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "type",
@@ -1844,8 +1844,8 @@
                     "required": false,
                     "array": false,
                     "default": 10000,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "ticketPrice",
@@ -1853,8 +1853,8 @@
                     "required": false,
                     "array": false,
                     "default": 30,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "active",
@@ -1927,7 +1927,7 @@
                     "array": false,
                     "default": null,
                     "min": 1,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "totalCost",
@@ -1936,7 +1936,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854775807
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "luckyNumbers",
@@ -2125,6 +2125,69 @@
                     "status": "available",
                     "columns": [
                         "relatedUserId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "outbox_events",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Outbox Events",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 128,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "payload",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 1000000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "default": "PENDING",
+                    "format": "enum",
+                    "elements": [
+                        "PENDING",
+                        "COMPLETED",
+                        "FAILED"
+                    ]
+                },
+                {
+                    "key": "retries",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 100
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "status_index",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
                     ],
                     "orders": [
                         "ASC"

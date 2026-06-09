@@ -16,6 +16,8 @@ import {
 } from 'src/common/integration/retry-policy';
 import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
+import { IGDBCoordinationService } from './igdb-coordination.service';
+import { IGDBUpsertService } from './igdb-upsert.service';
 
 @Injectable()
 export class IGDBService {
@@ -23,54 +25,16 @@ export class IGDBService {
   private static readonly DB_ID = 'app';
   private tableDB: Appwrite['tablesDB'];
 
-  private token: string | null = null;
-  private tokenExpiry: Date | null = null;
-
   private authPromise: Promise<string> | null = null;
-
-  // Rate limiting: máximo 4 requisições por segundo
-  private readonly MAX_REQUESTS_PER_SECOND = 4;
-  private readonly WINDOW_SIZE_MS = 1000;
-  private readonly SAFETY_BUFFER_MS = 10;
-
-  private requestTimestamps: number[] = [];
 
   constructor(
     private appwrite: Appwrite,
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
+    private readonly coordinationService: IGDBCoordinationService,
+    private readonly upsertService: IGDBUpsertService,
   ) {
     this.tableDB = this.appwrite.tablesDB;
-  }
-
-  private async applyRateLimit(): Promise<void> {
-    while (true) {
-      const now = Date.now();
-
-      this.requestTimestamps = this.requestTimestamps.filter(
-        (ts) => now - ts < this.WINDOW_SIZE_MS,
-      );
-
-      if (this.requestTimestamps.length < this.MAX_REQUESTS_PER_SECOND) {
-        this.requestTimestamps.push(now);
-        return;
-      }
-
-      const timeToWait =
-        this.WINDOW_SIZE_MS -
-        (now - this.requestTimestamps[0]) +
-        this.SAFETY_BUFFER_MS;
-
-      this.logger.debug(
-        this.loggerContext.buildStructuredLog({
-          component: IGDBService.name,
-          operation: 'igdb.rate-limit',
-          message: 'Rate limit atingido. Aguardando nova janela.',
-          waitMs: timeToWait,
-        }),
-      );
-      await new Promise((resolve) => setTimeout(resolve, timeToWait));
-    }
   }
 
   private async getToken(): Promise<string> {
@@ -78,13 +42,12 @@ export class IGDBService {
       return this.authPromise;
     }
 
-    const nowWithBuffer = new Date(Date.now() + 5 * 60 * 1000);
-
-    if (this.token && this.tokenExpiry && this.tokenExpiry > nowWithBuffer) {
-      return this.token;
+    const cachedToken = await this.coordinationService.getCachedToken();
+    if (cachedToken) {
+      return cachedToken;
     }
 
-    this.authPromise = this.resolveToken();
+    this.authPromise = this.authenticate();
 
     try {
       const token = await this.authPromise;
@@ -92,47 +55,6 @@ export class IGDBService {
     } finally {
       this.authPromise = null;
     }
-  }
-
-  private async resolveToken(): Promise<string> {
-    try {
-      const existing = await this.tableDB.listRows<
-        Models.Row & { secret: string; expiresAt: string }
-      >({
-        databaseId: IGDBService.DB_ID,
-        tableId: 'igdb_tokens',
-        queries: [Query.orderDesc('$createdAt'), Query.limit(1)],
-      });
-
-      if (existing.rows.length > 0) {
-        const storedToken = existing.rows[0];
-        const expiry = new Date(storedToken.expiresAt);
-
-        if (expiry > new Date(Date.now() + 5 * 60 * 1000)) {
-          this.token = storedToken.secret;
-          this.tokenExpiry = expiry;
-          this.logger.log(
-            this.loggerContext.buildStructuredLog({
-              component: IGDBService.name,
-              operation: 'igdb.token-cache',
-              message: 'Token IGDB recuperado do Appwrite.',
-            }),
-          );
-          return this.token;
-        }
-      }
-    } catch (error) {
-      this.logger.warn(
-        this.loggerContext.buildStructuredLog({
-          component: IGDBService.name,
-          operation: 'igdb.token-cache',
-          message: 'Falha ao ler token do Appwrite, tentando gerar novo.',
-          error: this.loggerContext.serializeError(error),
-        }),
-      );
-    }
-
-    return await this.authenticate();
   }
 
   private async authenticate(): Promise<string> {
@@ -201,37 +123,14 @@ export class IGDBService {
     }
 
     const data = await response.json();
-    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
 
-    this.token = data.access_token;
-    this.tokenExpiry = expiresAt;
+    await this.coordinationService.cacheToken(data.access_token, data.expires_in);
 
-    try {
-      await this.tableDB.createRow({
-        databaseId: IGDBService.DB_ID,
-        tableId: 'igdb_tokens',
-        rowId: ID.unique(),
-        data: {
-          secret: data.access_token,
-          expiresAt: expiresAt.toISOString(),
-        },
-      });
-    } catch (e) {
-      this.logger.error(
-        this.loggerContext.buildStructuredLog({
-          component: IGDBService.name,
-          operation: 'igdb.persist-token',
-          message: 'Erro ao salvar token no Appwrite',
-          error: this.loggerContext.serializeError(e),
-        }),
-      );
-    }
-
-    return this.token as string;
+    return data.access_token;
   }
 
   private async fetchIgdb(endpoint: string, body: string) {
-    await this.applyRateLimit();
+    await this.coordinationService.applyRateLimit();
 
     const token = await this.getToken();
 
@@ -369,8 +268,8 @@ export class IGDBService {
 
               const developers = await this.getDevs(game);
               const parsedGame = this.parseGame(game, developers);
-              const gameId = await this.upsertGameRow(parsedGame);
-              await this.ensureGameZStats(gameId);
+              const gameId = await this.upsertService.upsertGameRow(parsedGame);
+              await this.upsertService.ensureGameZStats(gameId);
 
               return {
                 id: game.id,
@@ -561,7 +460,7 @@ export class IGDBService {
       existingGame.exists &&
       existingGame.checksum === (igdbGame.checksum ?? null)
     ) {
-      await this.ensureGameZStats(existingGame.$id);
+      await this.upsertService.ensureGameZStats(existingGame.$id);
 
       return {
         message: `Jogo ${igdbGame.name} já está atualizado`,
@@ -572,88 +471,15 @@ export class IGDBService {
 
     const developers = await this.getDevs(igdbGame);
     const parsedGame = this.parseGame(igdbGame, developers);
-    const gameId = await this.upsertGameRow(parsedGame);
+    const gameId = await this.upsertService.upsertGameRow(parsedGame);
 
-    await this.ensureGameZStats(gameId);
+    await this.upsertService.ensureGameZStats(gameId);
 
     return {
       message: `Jogo ${igdbGame.name} adicionado ou atualizado com sucesso`,
       success: true,
       gameId,
     };
-  }
-
-  private async upsertGameRow(parsedGame: GamesCreate) {
-    const preferredGameId = `igdb_${parsedGame.externalReference}`;
-
-    try {
-      await this.tableDB.createRow({
-        databaseId: IGDBService.DB_ID,
-        tableId: 'games',
-        rowId: preferredGameId,
-        data: parsedGame,
-      });
-      return preferredGameId;
-    } catch (error) {
-      const appwriteError = error as AppwriteException;
-
-      if (appwriteError.code !== 409) {
-        throw error;
-      }
-    }
-
-    const existingGame = await this.findExistingGameForUpdate(
-      parsedGame.externalReference,
-      preferredGameId,
-    );
-
-    if (existingGame.checksum === (parsedGame.checksum ?? null)) {
-      return existingGame.$id;
-    }
-
-    const { updatePayload, companiesChanged, nextCompanies } =
-      this.buildSafeGameUpdatePayload(parsedGame, existingGame);
-
-    await this.tableDB.updateRow({
-      databaseId: IGDBService.DB_ID,
-      tableId: 'games',
-      rowId: existingGame.$id,
-      data: updatePayload,
-    });
-
-    if (companiesChanged) {
-      // Appwrite faz append em campos de relacionamento via updateRow.
-      // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
-      const tx = await this.tableDB.createTransaction();
-      try {
-        await this.tableDB.updateRow({
-          databaseId: IGDBService.DB_ID,
-          tableId: 'games',
-          rowId: existingGame.$id,
-          data: { involvedCompanies: [] } as unknown as GamesCreate,
-          transactionId: tx.$id,
-        });
-        await this.tableDB.updateRow({
-          databaseId: IGDBService.DB_ID,
-          tableId: 'games',
-          rowId: existingGame.$id,
-          data: { involvedCompanies: nextCompanies } as GamesCreate,
-          transactionId: tx.$id,
-        });
-        await this.tableDB.updateTransaction({
-          transactionId: tx.$id,
-          commit: true,
-        });
-      } catch (err) {
-        await this.tableDB.updateTransaction({
-          transactionId: tx.$id,
-          rollback: true,
-        });
-        throw err;
-      }
-    }
-
-    return existingGame.$id;
   }
 
   private async findExistingGameForUpdate(
@@ -703,30 +529,7 @@ export class IGDBService {
     };
   }
 
-  private buildSafeGameUpdatePayload(
-    parsedGame: GamesCreate,
-    existingGame: { involvedCompaniesIds: string[] },
-  ): {
-    updatePayload: GamesCreate;
-    companiesChanged: boolean;
-    nextCompanies: string[];
-  } {
-    const nextCompanies = (parsedGame.involvedCompanies ?? []).filter(
-      (company): company is string => typeof company === 'string',
-    );
 
-    const currentIds = existingGame.involvedCompaniesIds;
-    const currentSet = new Set(currentIds);
-    const hasDuplicates = currentIds.length !== currentSet.size;
-    const companiesChanged =
-      hasDuplicates ||
-      currentSet.size !== nextCompanies.length ||
-      !nextCompanies.every((id) => currentSet.has(id));
-
-    const { involvedCompanies: _, ...updatePayload } = parsedGame;
-
-    return { updatePayload, companiesChanged, nextCompanies };
-  }
 
   private parseGame(game: IGDBGame, developers: string[] = []) {
     const { releaseDate, releaseYear } = this.resolveReleaseData(game);
@@ -790,24 +593,7 @@ export class IGDBService {
     };
   }
 
-  private async ensureGameZStats(gameId: string) {
-    const zstatsId = `zstats_${gameId}`;
 
-    try {
-      await this.tableDB.createRow({
-        databaseId: IGDBService.DB_ID,
-        tableId: 'z_entry_count',
-        rowId: zstatsId,
-        data: { game: gameId },
-      });
-    } catch (error) {
-      const appwriteError = error as AppwriteException;
-
-      if (appwriteError.code !== 409) {
-        throw error;
-      }
-    }
-  }
 
   private async getDevs(game: IGDBGame) {
     const developers = (game.involved_companies ?? []).filter(

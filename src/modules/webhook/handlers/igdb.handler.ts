@@ -9,6 +9,7 @@ import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
+import { IGDBUpsertService } from '../../igdb/igdb-upsert.service';
 
 @Injectable()
 export class IGDBHandler {
@@ -20,6 +21,7 @@ export class IGDBHandler {
   constructor(
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
+    private readonly upsertService: IGDBUpsertService,
   ) {
     this.tableDB = this.appwrite.tablesDB;
   }
@@ -50,9 +52,9 @@ export class IGDBHandler {
 
         try {
           const parsedGame = this.parseBasicGame(game);
-          appwriteGameId = await this.upsertGameRow(parsedGame);
+          appwriteGameId = await this.upsertService.upsertGameRow(parsedGame);
 
-          await this.ensureGameZStats(appwriteGameId);
+          await this.upsertService.ensureGameZStats(appwriteGameId);
 
           return {
             message: `O jogo ${game.name} foi registrado com sucesso`,
@@ -79,16 +81,7 @@ export class IGDBHandler {
       },
       async () => {
         try {
-          await this.tableDB.upsertRow({
-            databaseId: 'app',
-            tableId: 'genres',
-            rowId: `igdb_${genre.id}`,
-            data: {
-              name: genre.name,
-              slug: genre.slug,
-              checksum: genre.checksum,
-            },
-          });
+          await this.upsertService.upsertGenre(genre);
 
           return {
             message: `Gênero ${genre.name} processado com sucesso`,
@@ -115,11 +108,7 @@ export class IGDBHandler {
       },
       async () => {
         try {
-          await this.tableDB.deleteRow({
-            databaseId: 'app',
-            tableId: 'genres',
-            rowId: `igdb_${genre.id}`,
-          });
+          await this.upsertService.deleteGenre(genre);
 
           return {
             message: `Gênero ${genre.name} deletado com sucesso`,
@@ -156,164 +145,6 @@ export class IGDBHandler {
     return Array.from(new Set(ids));
   }
 
-  private async upsertGameRow(game: GamesCreate) {
-    const preferredGameId = `igdb_${game.externalReference}`;
-
-    try {
-      await this.tableDB.createRow({
-        databaseId: IGDBHandler.DB_ID,
-        tableId: 'games',
-        rowId: preferredGameId,
-        data: game,
-      });
-      return preferredGameId;
-    } catch (error) {
-      const appwriteError = error as AppwriteException;
-
-      if (appwriteError.code !== 409) {
-        throw error;
-      }
-    }
-
-    // Jogo já existe: compara checksum antes de atualizar
-    const existing = await this.findExistingGame(
-      game.externalReference,
-      preferredGameId,
-    );
-
-    if (existing.checksum === (game.checksum ?? null)) {
-      return existing.$id;
-    }
-
-    const { updatePayload, companiesChanged, nextCompanies } =
-      this.buildSafeGameUpdatePayload(game, existing);
-
-    await this.tableDB.updateRow({
-      databaseId: IGDBHandler.DB_ID,
-      tableId: 'games',
-      rowId: existing.$id,
-      data: updatePayload,
-    });
-
-    if (companiesChanged) {
-      // Appwrite faz append em campos de relacionamento via updateRow.
-      // Usamos transação para garantir replace atômico e evitar duplicação por requisições concorrentes.
-      const tx = await this.tableDB.createTransaction();
-      try {
-        await this.tableDB.updateRow({
-          databaseId: IGDBHandler.DB_ID,
-          tableId: 'games',
-          rowId: existing.$id,
-          data: { involvedCompanies: [] } as unknown as GamesCreate,
-          transactionId: tx.$id,
-        });
-        await this.tableDB.updateRow({
-          databaseId: IGDBHandler.DB_ID,
-          tableId: 'games',
-          rowId: existing.$id,
-          data: { involvedCompanies: nextCompanies } as GamesCreate,
-          transactionId: tx.$id,
-        });
-        await this.tableDB.updateTransaction({
-          transactionId: tx.$id,
-          commit: true,
-        });
-      } catch (err) {
-        await this.tableDB.updateTransaction({
-          transactionId: tx.$id,
-          rollback: true,
-        });
-        throw err;
-      }
-    }
-
-    return existing.$id;
-  }
-
-  private async ensureGameZStats(gameId: string) {
-    const zstatsId = `zstats_${gameId}`;
-
-    try {
-      await this.tableDB.createRow({
-        databaseId: IGDBHandler.DB_ID,
-        tableId: 'z_entry_count',
-        rowId: zstatsId,
-        data: { game: gameId },
-      });
-      return;
-    } catch (error) {
-      const appwriteError = error as AppwriteException;
-
-      if (appwriteError.code !== 409) {
-        throw error;
-      }
-    }
-  }
-
-  private async findExistingGame(
-    externalReference: number,
-    fallbackId: string,
-  ): Promise<{
-    $id: string;
-    checksum: string | null;
-    involvedCompaniesIds: string[];
-  }> {
-    const response = await this.tableDB.listRows<
-      Models.Row & {
-        checksum?: string | null;
-        involvedCompanies?: Array<{ $id?: string }>;
-      }
-    >({
-      databaseId: IGDBHandler.DB_ID,
-      tableId: 'games',
-      queries: [
-        Query.equal('externalReference', externalReference),
-        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
-        Query.limit(1),
-      ],
-    });
-
-    const existing = response.rows[0];
-
-    if (!existing) {
-      return { $id: fallbackId, checksum: null, involvedCompaniesIds: [] };
-    }
-
-    const involvedCompaniesIds = (existing.involvedCompanies ?? [])
-      .map((company) => company?.$id)
-      .filter((companyId): companyId is string => !!companyId);
-
-    return {
-      $id: existing.$id,
-      checksum: existing.checksum ?? null,
-      involvedCompaniesIds,
-    };
-  }
-
-  private buildSafeGameUpdatePayload(
-    parsedGame: GamesCreate,
-    existingGame: { involvedCompaniesIds: string[] },
-  ): {
-    updatePayload: GamesCreate;
-    companiesChanged: boolean;
-    nextCompanies: string[];
-  } {
-    const nextCompanies = (parsedGame.involvedCompanies ?? []).filter(
-      (company): company is string => typeof company === 'string',
-    );
-
-    const currentIds = existingGame.involvedCompaniesIds;
-    const currentSet = new Set(currentIds);
-    const hasDuplicates = currentIds.length !== currentSet.size;
-    const companiesChanged =
-      hasDuplicates ||
-      currentSet.size !== nextCompanies.length ||
-      !nextCompanies.every((id) => currentSet.has(id));
-
-    const { involvedCompanies: _, ...updatePayload } = parsedGame;
-
-    return { updatePayload, companiesChanged, nextCompanies };
-  }
 
   private getDurationMs(startedAt: bigint) {
     return Number((process.hrtime.bigint() - startedAt) / BigInt(1e6));

@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { OutboxService } from 'src/common/events/outbox.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
@@ -109,7 +110,7 @@ const feedUrls = [
 ];
 
 @Injectable()
-export class EditorService {
+export class EditorService implements OnModuleInit {
   private readonly logger = new Logger(EditorService.name);
   private static readonly DB_ID = 'app';
   private readonly tablesDB: Appwrite['tablesDB'];
@@ -127,8 +128,24 @@ export class EditorService {
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
     private readonly contentExtractor: ContentExtractorService,
+    private readonly outboxService: OutboxService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
+  }
+
+  onModuleInit() {
+    this.outboxService.registerHandler(
+      'editorial.post.published',
+      async (payload) => {
+        await this.notificationsService.sharePost({
+          title: payload.title,
+          subtitle: payload.subtitle,
+          postUrl: this.buildPostUrl(payload.slug),
+          mediaUrl: payload.mediaUrl,
+        });
+        await this.invalidateFrontendCache();
+      },
+    );
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -208,14 +225,15 @@ export class EditorService {
           pickedMainImage: mainImage,
         });
 
-        await this.notificationsService.sharePost({
-          title: savedPost.title,
-          subtitle: savedPost.subtitle ?? '',
-          postUrl: this.buildPostUrl(savedPost.slug),
-          mediaUrl: mainImage?.url,
+        await this.outboxService.enqueueImmediate({
+          type: 'editorial.post.published',
+          payload: {
+            title: savedPost.title,
+            subtitle: savedPost.subtitle ?? '',
+            slug: savedPost.slug,
+            mediaUrl: mainImage?.url,
+          },
         });
-
-        this.invalidateFrontendCache();
 
         return { skipped: false as const, savedPost };
       },
@@ -264,14 +282,15 @@ export class EditorService {
           pickedMainImage: mainImage,
         });
 
-        await this.notificationsService.sharePost({
-          title: savedPost.title,
-          subtitle: savedPost.subtitle ?? '',
-          postUrl: this.buildPostUrl(savedPost.slug),
-          mediaUrl: mainImage?.url,
+        await this.outboxService.enqueueImmediate({
+          type: 'editorial.post.published',
+          payload: {
+            title: savedPost.title,
+            subtitle: savedPost.subtitle ?? '',
+            slug: savedPost.slug,
+            mediaUrl: mainImage?.url,
+          },
         });
-
-        this.invalidateFrontendCache();
 
         return { skipped: false as const, savedPost };
       },

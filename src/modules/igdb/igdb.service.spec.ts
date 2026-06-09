@@ -37,10 +37,14 @@ describe('IGDBService outbound policy', () => {
   it('retries transient IGDB failure up to cap and succeeds', async () => {
     const correlationContext = new CorrelationContextService();
     const loggerContext = new LoggerContextService(correlationContext);
+    const coordinationService = { applyRateLimit: jest.fn(), getCachedToken: jest.fn().mockResolvedValue('token'), cacheToken: jest.fn() };
+    const upsertService = { upsertGameRow: jest.fn(), ensureGameZStats: jest.fn() };
     const service = new IGDBService(
       appwriteMock as never,
       correlationContext,
       loggerContext,
+      coordinationService as never,
+      upsertService as never,
     );
     (service as any).token = 'token';
     (service as any).tokenExpiry = new Date(Date.now() + 10 * 60_000);
@@ -68,10 +72,14 @@ describe('IGDBService outbound policy', () => {
   it('fails fast on non-retryable 4xx integration response', async () => {
     const correlationContext = new CorrelationContextService();
     const loggerContext = new LoggerContextService(correlationContext);
+    const coordinationService = { applyRateLimit: jest.fn(), getCachedToken: jest.fn().mockResolvedValue('token'), cacheToken: jest.fn() };
+    const upsertService = { upsertGameRow: jest.fn(), ensureGameZStats: jest.fn() };
     const service = new IGDBService(
       appwriteMock as never,
       correlationContext,
       loggerContext,
+      coordinationService as never,
+      upsertService as never,
     );
     (service as any).token = 'token';
     (service as any).tokenExpiry = new Date(Date.now() + 10 * 60_000);

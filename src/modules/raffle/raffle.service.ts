@@ -9,6 +9,7 @@ import {
 import { randomInt } from 'node:crypto';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { TransactionService } from 'src/common/appwrite/transaction.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import type {
   CreateRaffleDto,
@@ -68,6 +69,7 @@ export class RaffleService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
+    private readonly transactionService: TransactionService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -315,13 +317,12 @@ export class RaffleService {
         const drawNumber = String(randomInt(1, basicProbability + 1));
         const won = luckyNumbers.includes(drawNumber);
 
-        const tx = await this.tablesDB.createTransaction();
         const entryId = ID.unique();
         const txId = ID.unique();
 
-        try {
+        await this.transactionService.runInTransaction(async (ctx) => {
           await this.tablesDB.createOperations({
-            transactionId: tx.$id,
+            transactionId: ctx.txId,
             operations: [
               {
                 action: 'decrement',
@@ -334,7 +335,7 @@ export class RaffleService {
           });
 
           await this.tablesDB.createRow({
-            transactionId: tx.$id,
+            transactionId: ctx.txId,
             databaseId: RaffleService.DB_ID,
             tableId: 'zcoin_transactions',
             rowId: txId,
@@ -347,7 +348,7 @@ export class RaffleService {
           });
 
           await this.tablesDB.createRow<RaffleEntry>({
-            transactionId: tx.$id,
+            transactionId: ctx.txId,
             databaseId: RaffleService.DB_ID,
             tableId: 'raffle_entries',
             rowId: entryId,
@@ -361,18 +362,7 @@ export class RaffleService {
               drawNumber,
             },
           });
-
-          await this.tablesDB.updateTransaction({
-            transactionId: tx.$id,
-            commit: true,
-          });
-        } catch (error) {
-          await this.tablesDB.updateTransaction({
-            transactionId: tx.$id,
-            rollback: true,
-          });
-          throw error;
-        }
+        });
 
         let wonKey: GameKey | null = null;
 

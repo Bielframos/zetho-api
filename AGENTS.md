@@ -23,7 +23,8 @@
   - plan ids,
   - what changed,
   - what was validated.
-- Add the `Co-authored-by` trailer required by this repository.
+- Add the `Co-authored-by` trailer required by this repository:
+  `Co-authored-by: AI Agent <agent@zetho.app>`
 
 ## Pull request standards
 
