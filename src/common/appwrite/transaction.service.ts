@@ -59,7 +59,7 @@ export class TransactionService {
         // We log the rollback error but still throw the original error
       }
 
-      throw new InternalServerErrorException('Transaction failed');
+      throw error;
     }
   }
 }

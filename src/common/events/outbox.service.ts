@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Appwrite } from '../appwrite/appwrite.provider';
 import { ID, Query, Models } from 'node-appwrite';
+import Redis from 'ioredis';
 
 export interface OutboxEvent {
   type: string;
@@ -13,6 +14,10 @@ export class OutboxService {
   private readonly logger = new Logger(OutboxService.name);
   private static readonly DB_ID = 'app';
   private static readonly TABLE_ID = 'outbox_events';
+
+  private readonly redis = new Redis(
+    process.env.REDIS_URL || 'redis://localhost:6379',
+  );
 
   // Map of event types to handlers
   private handlers = new Map<string, (payload: any) => Promise<void>>();
@@ -91,6 +96,15 @@ export class OutboxService {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async processOutbox() {
+    const lockKey = 'outbox:processing:lock';
+    // Try to acquire lock for 55 seconds (so it expires before the next cron run)
+    const acquired = await this.redis.set(lockKey, 'locked', 'EX', 55, 'NX');
+
+    if (!acquired) {
+      this.logger.debug('Another instance is currently processing the outbox. Skipping.');
+      return;
+    }
+
     this.logger.debug('Polling for pending outbox events...');
     try {
       const response = await this.appwrite.tablesDB.listRows<

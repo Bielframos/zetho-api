@@ -60,10 +60,15 @@ describe('Pipeline observability contract', () => {
       set: jest.fn(),
     } as any;
 
+    const coordinationService = { applyRateLimit: jest.fn(), getCachedToken: jest.fn(), cacheToken: jest.fn() };
+    const upsertService = { upsertGameRow: jest.fn(), ensureGameZStats: jest.fn() };
+
     igdbService = new IGDBService(
       mockAppwrite,
       correlationContext,
       loggerContext,
+      coordinationService as any,
+      upsertService as any,
     );
     editorService = new EditorService(
       { prompt: jest.fn(), defineTool: jest.fn() } as any,
@@ -73,6 +78,8 @@ describe('Pipeline observability contract', () => {
       { sharePost: jest.fn() } as any,
       correlationContext,
       loggerContext,
+      {} as any,
+      { enqueueImmediate: jest.fn() } as any,
     );
     raffleService = new RaffleService(mockAppwrite, loggerContext);
     zCoinsService = new ZCoinsService(cache, mockAppwrite, loggerContext);

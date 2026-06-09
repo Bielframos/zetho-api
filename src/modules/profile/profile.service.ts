@@ -46,6 +46,7 @@ export class ProfileService {
   constructor(
     private appwrite: Appwrite,
     private readonly zCoinsService: ZCoinsService,
+    private readonly transactionService: TransactionService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -444,11 +445,10 @@ export class ProfileService {
     }
 
     const rewardAmount = SCORE_TABLE.input.friend_joined;
-    const tx = await this.tablesDB.createTransaction();
 
-    try {
+    await this.transactionService.runInTransaction(async (ctx) => {
       await this.tablesDB.createOperations({
-        transactionId: tx.$id,
+        transactionId: ctx.txId,
         operations: [
           {
             action: 'increment',
@@ -461,7 +461,7 @@ export class ProfileService {
       });
 
       await this.tablesDB.createRow({
-        transactionId: tx.$id,
+        transactionId: ctx.txId,
         databaseId: 'app',
         tableId: 'zcoin_transactions',
         rowId: crypto.randomUUID(),
@@ -474,7 +474,7 @@ export class ProfileService {
       });
 
       await this.tablesDB.createRow({
-        transactionId: tx.$id,
+        transactionId: ctx.txId,
         databaseId: 'app',
         tableId: 'app_logs',
         rowId: logRowId,
@@ -490,18 +490,7 @@ export class ProfileService {
           }),
         },
       });
-
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        commit: true,
-      });
-    } catch (error) {
-      await this.tablesDB.updateTransaction({
-        transactionId: tx.$id,
-        rollback: true,
-      });
-      throw error;
-    }
+    });
   }
 
   private generateInviteLogRowId(inviterUserId: string, invitedUserId: string) {
