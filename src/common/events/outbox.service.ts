@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Appwrite } from '../appwrite/appwrite.provider';
 import { ID, Query, Models } from 'node-appwrite';
@@ -10,7 +10,7 @@ export interface OutboxEvent {
 }
 
 @Injectable()
-export class OutboxService {
+export class OutboxService implements OnModuleDestroy {
   private readonly logger = new Logger(OutboxService.name);
   private static readonly DB_ID = 'app';
   private static readonly TABLE_ID = 'outbox_events';
@@ -29,6 +29,15 @@ export class OutboxService {
    */
   registerHandler(type: string, handler: (payload: any) => Promise<void>) {
     this.handlers.set(type, handler);
+  }
+
+  async onModuleDestroy() {
+    try {
+      await this.redis.quit();
+      this.logger.debug('Redis client disconnected successfully.');
+    } catch (error) {
+      this.logger.error('Error disconnecting Redis client', error);
+    }
   }
 
   /**
@@ -140,6 +149,8 @@ export class OutboxService {
         'Failed to list outbox events',
         error instanceof Error ? error.stack : String(error),
       );
+    } finally {
+      await this.redis.del(lockKey);
     }
   }
 
@@ -153,7 +164,24 @@ export class OutboxService {
   ) {
     const handler = this.handlers.get(row.type);
     if (!handler) {
-      this.logger.warn(`No handler registered for event type: ${row.type}`);
+      this.logger.warn(
+        `No handler registered for event type: ${row.type}. Marking as FAILED.`,
+      );
+      try {
+        await this.appwrite.tablesDB.updateRow({
+          databaseId: OutboxService.DB_ID,
+          tableId: OutboxService.TABLE_ID,
+          rowId: row.$id,
+          data: { status: 'FAILED', retries: (row.retries || 0) + 1 },
+        });
+      } catch (updateError) {
+        this.logger.error(
+          `Failed to update status for unhandled event ${row.$id}`,
+          updateError instanceof Error
+            ? updateError.stack
+            : String(updateError),
+        );
+      }
       return;
     }
 

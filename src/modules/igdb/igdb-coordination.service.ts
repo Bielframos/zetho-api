@@ -1,14 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 
 @Injectable()
-export class IGDBCoordinationService {
+export class IGDBCoordinationService implements OnModuleDestroy {
   private readonly logger = new Logger(IGDBCoordinationService.name);
 
   // Assuming REDIS_URL is provided in env, else fallback to localhost
   private readonly redis = new Redis(
     process.env.REDIS_URL || 'redis://localhost:6379',
   );
+
+  async onModuleDestroy() {
+    try {
+      await this.redis.quit();
+      this.logger.debug('Redis client disconnected successfully.');
+    } catch (error) {
+      this.logger.error('Error disconnecting Redis client', error);
+    }
+  }
 
   private readonly RATE_LIMIT_KEY = 'igdb:rate_limit:count';
   private readonly MAX_REQUESTS_PER_SECOND = 4;

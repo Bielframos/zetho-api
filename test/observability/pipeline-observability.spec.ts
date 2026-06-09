@@ -81,8 +81,20 @@ describe('Pipeline observability contract', () => {
       {} as any,
       { enqueueImmediate: jest.fn() } as any,
     );
-    raffleService = new RaffleService(mockAppwrite, loggerContext);
-    zCoinsService = new ZCoinsService(cache, mockAppwrite, loggerContext);
+    const mockTransactionService = {
+      runInTransaction: jest.fn(async (work) => work({ txId: 'mock-tx-id' })),
+    };
+    raffleService = new RaffleService(
+      mockAppwrite,
+      loggerContext,
+      mockTransactionService as any,
+    );
+    zCoinsService = new ZCoinsService(
+      cache,
+      mockAppwrite,
+      loggerContext,
+      mockTransactionService as any,
+    );
 
     logSpy = jest
       .spyOn(Logger.prototype, 'log')

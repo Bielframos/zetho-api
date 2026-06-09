@@ -482,6 +482,53 @@ export class IGDBService {
     };
   }
 
+  private async findExistingGameForUpdate(
+    externalReference: number,
+    fallbackGameId: string,
+  ): Promise<{
+    exists: boolean;
+    $id: string;
+    checksum: string | null;
+    involvedCompaniesIds: string[];
+  }> {
+    const response = await this.tableDB.listRows<
+      Models.Row & {
+        checksum?: string | null;
+        involvedCompanies?: Array<{ $id?: string }>;
+      }
+    >({
+      databaseId: IGDBService.DB_ID,
+      tableId: 'games',
+      queries: [
+        Query.equal('externalReference', externalReference),
+        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
+        Query.limit(1),
+      ],
+    });
+
+    const game = response.rows[0];
+
+    if (!game) {
+      return {
+        exists: false,
+        $id: fallbackGameId,
+        checksum: null,
+        involvedCompaniesIds: [],
+      };
+    }
+
+    const involvedCompaniesIds = (game.involvedCompanies ?? [])
+      .map((company) => company?.$id)
+      .filter((id): id is string => !!id);
+
+    return {
+      exists: true,
+      $id: game.$id,
+      checksum: game.checksum ?? null,
+      involvedCompaniesIds,
+    };
+  }
+
 
 
   private parseGame(game: IGDBGame, developers: string[] = []) {
