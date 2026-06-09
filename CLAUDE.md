@@ -22,7 +22,7 @@ This repository uses explicit phase-based delivery. Every commit and pull reques
   - the behavioral change,
   - validation commands run.
 - Always include the required trailer:
-  `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+  `Co-authored-by: AI Agent <agent@zetho.app>`
 
 ## Pull request rules
 
