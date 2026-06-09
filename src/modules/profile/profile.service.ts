@@ -16,6 +16,7 @@ import {
   Role,
 } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { TransactionService } from 'src/common/appwrite/transaction.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 

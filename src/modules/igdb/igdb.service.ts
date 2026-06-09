@@ -16,6 +16,8 @@ import {
 } from 'src/common/integration/retry-policy';
 import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
+import { IGDBCoordinationService } from './igdb-coordination.service';
+import { IGDBUpsertService } from './igdb-upsert.service';
 
 @Injectable()
 export class IGDBService {
@@ -39,6 +41,8 @@ export class IGDBService {
     private appwrite: Appwrite,
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
+    private readonly coordinationService: IGDBCoordinationService,
+    private readonly upsertService: IGDBUpsertService,
   ) {
     this.tableDB = this.appwrite.tablesDB;
   }
@@ -369,8 +373,8 @@ export class IGDBService {
 
               const developers = await this.getDevs(game);
               const parsedGame = this.parseGame(game, developers);
-              const gameId = await this.upsertGameRow(parsedGame);
-              await this.ensureGameZStats(gameId);
+              const gameId = await this.upsertService.upsertGameRow(parsedGame);
+              await this.upsertService.ensureGameZStats(gameId);
 
               return {
                 id: game.id,
@@ -561,7 +565,7 @@ export class IGDBService {
       existingGame.exists &&
       existingGame.checksum === (igdbGame.checksum ?? null)
     ) {
-      await this.ensureGameZStats(existingGame.$id);
+      await this.upsertService.ensureGameZStats(existingGame.$id);
 
       return {
         message: `Jogo ${igdbGame.name} já está atualizado`,

@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { OutboxService } from 'src/common/events/outbox.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
@@ -109,7 +110,7 @@ const feedUrls = [
 ];
 
 @Injectable()
-export class EditorService {
+export class EditorService implements OnModuleInit {
   private readonly logger = new Logger(EditorService.name);
   private static readonly DB_ID = 'app';
   private readonly tablesDB: Appwrite['tablesDB'];
@@ -127,8 +128,24 @@ export class EditorService {
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
     private readonly contentExtractor: ContentExtractorService,
+    private readonly outboxService: OutboxService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
+  }
+
+  onModuleInit() {
+    this.outboxService.registerHandler(
+      'editorial.post.published',
+      async (payload) => {
+        await this.notificationsService.sharePost({
+          title: payload.title,
+          subtitle: payload.subtitle,
+          postUrl: this.buildPostUrl(payload.slug),
+          mediaUrl: payload.mediaUrl,
+        });
+        await this.invalidateFrontendCache();
+      },
+    );
   }
 
   @Cron(CronExpression.EVERY_HOUR)

@@ -9,6 +9,7 @@ import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
+import { IGDBUpsertService } from '../../igdb/igdb-upsert.service';
 
 @Injectable()
 export class IGDBHandler {

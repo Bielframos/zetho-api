@@ -2,6 +2,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppwriteModule } from './common/appwrite/appwrite.module';
+import { EventsModule } from './common/events/events.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { GameModule } from './modules/game/game.module';
 import { GazethoModule } from './modules/gazetho/gazetho.module';
@@ -25,6 +26,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     }),
     ScheduleModule.forRoot(),
     AppwriteModule,
+    EventsModule,
     AiModule,
     ObservabilityModule,
     HealthModule,
