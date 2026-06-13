@@ -15,6 +15,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { AiModule } from './common/ai/ai.module';
 import { ZCoinsModule } from './modules/zcoins/zcoins.module';
 import { RaffleModule } from './modules/raffle/raffle.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 @Module({
@@ -39,6 +40,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     SitemapModule,
     ZCoinsModule,
     RaffleModule,
+    RatingsModule,
 
     /** Modulos do sístema */
     WebhookModule,
