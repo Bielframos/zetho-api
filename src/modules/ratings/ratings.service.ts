@@ -35,6 +35,20 @@ export class RatingsService {
   }
 
   async upsertRating(userId: string, gameId: string, dto: CreateRatingDto) {
+    const gameResult = await this.tablesDB.listRows<any>({
+      databaseId: RatingsService.DB_ID,
+      tableId: 'games',
+      queries: [Query.equal('$id', gameId), Query.limit(1)],
+    });
+    const game = gameResult.rows[0];
+    if (!game) {
+      throw new NotFoundException('Jogo não encontrado');
+    }
+
+    if (game.releaseDate && new Date(game.releaseDate) > new Date()) {
+      throw new BadRequestException('Jogos não lançados não podem ser avaliados');
+    }
+
     const profile = await this.getProfileByUserId(userId);
     const fingerprint = profile.fingerprint;
 
@@ -263,5 +277,72 @@ export class RatingsService {
     await this.updateGameRatingStats(gameId, -rating.rating, false, true);
 
     return { success: true };
+  }
+
+  async voteRating(userId: string, ratingId: string, operation: 'up' | 'down') {
+    const ratingResult = await this.tablesDB.listRows<any>({
+      databaseId: RatingsService.DB_ID,
+      tableId: RatingsService.TABLE_ID,
+      queries: [Query.equal('$id', ratingId), Query.limit(1)],
+    });
+    const rating = ratingResult.rows[0];
+    if (!rating) {
+      throw new NotFoundException('Avaliação não encontrada');
+    }
+
+    const existingVoteResult = await this.tablesDB.listRows<any>({
+      databaseId: RatingsService.DB_ID,
+      tableId: 'rating_votes',
+      queries: [
+        Query.equal('rating', ratingId),
+        Query.equal('userId', userId),
+        Query.limit(1),
+      ],
+    });
+    const existingVote = existingVoteResult.rows[0];
+
+    let delta = 0;
+    if (!existingVote) {
+      delta = operation === 'up' ? 1 : -1;
+      await this.tablesDB.createRow({
+        databaseId: RatingsService.DB_ID,
+        tableId: 'rating_votes',
+        rowId: ID.unique(),
+        data: {
+          type: operation,
+          rating: ratingId,
+          userId,
+        },
+      });
+    } else if (existingVote.type === operation) {
+      delta = operation === 'up' ? -1 : 1;
+      await this.tablesDB.deleteRow({
+        databaseId: RatingsService.DB_ID,
+        tableId: 'rating_votes',
+        rowId: existingVote.$id,
+      });
+    } else {
+      delta = operation === 'up' ? 2 : -2;
+      await this.tablesDB.updateRow({
+        databaseId: RatingsService.DB_ID,
+        tableId: 'rating_votes',
+        rowId: existingVote.$id,
+        data: {
+          type: operation,
+        },
+      });
+    }
+
+    const newVoteCount = (rating.voteCount || 0) + delta;
+    await this.tablesDB.updateRow({
+      databaseId: RatingsService.DB_ID,
+      tableId: RatingsService.TABLE_ID,
+      rowId: ratingId,
+      data: {
+        voteCount: newVoteCount,
+      },
+    });
+
+    return { success: true, delta, operation, newVoteCount };
   }
 }

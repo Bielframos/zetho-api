@@ -159,8 +159,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "gameType",
@@ -267,7 +267,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "zethoVersion",
@@ -276,7 +276,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "syncStage",
@@ -434,8 +434,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "totalsBacklog",
@@ -443,8 +443,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "totalsDropped",
@@ -452,8 +452,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "totalsPlaying",
@@ -461,8 +461,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "totalsWishlist",
@@ -471,7 +471,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "fingerprint",
@@ -536,7 +536,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "zcoinBalance",
@@ -545,7 +545,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "inviteCode",
@@ -723,7 +723,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "backlogCount",
@@ -732,7 +732,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "droppedCount",
@@ -741,7 +741,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "playingCount",
@@ -750,7 +750,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "wishlistCount",
@@ -759,7 +759,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "game",
@@ -780,7 +780,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "hypedCount",
@@ -789,7 +789,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 }
             ],
             "indexes": []
@@ -853,7 +853,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "replyCount",
@@ -862,7 +862,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "depth",
@@ -871,7 +871,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "votes",
@@ -995,7 +995,7 @@
                     "array": false,
                     "default": 0,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "latestAdditions",
@@ -1232,7 +1232,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "releasedAt",
@@ -1297,6 +1297,76 @@
                     "required": false,
                     "array": false,
                     "size": 8000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "voteCount",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": -2147483647,
+                    "max": 2147483647
+                },
+                {
+                    "key": "votes",
+                    "type": "relationship",
+                    "required": false,
+                    "array": false,
+                    "relatedTable": "rating_votes",
+                    "relationType": "manyToOne",
+                    "twoWay": true,
+                    "twoWayKey": "rating",
+                    "onDelete": "cascade",
+                    "side": "child"
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "rating_votes",
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"any\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "databaseId": "app",
+            "name": "Rating Votes",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": "enum",
+                    "elements": [
+                        "up",
+                        "down"
+                    ]
+                },
+                {
+                    "key": "rating",
+                    "type": "relationship",
+                    "required": false,
+                    "array": false,
+                    "relatedTable": "ratings",
+                    "relationType": "manyToOne",
+                    "twoWay": true,
+                    "twoWayKey": "votes",
+                    "onDelete": "cascade",
+                    "side": "parent"
+                },
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
                     "default": null,
                     "encrypt": false
                 }
@@ -1781,8 +1851,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "type",
@@ -1853,8 +1923,8 @@
                     "required": false,
                     "array": false,
                     "default": 10000,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "ticketPrice",
@@ -1862,8 +1932,8 @@
                     "required": false,
                     "array": false,
                     "default": 30,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -2147483647,
+                    "max": 2147483647
                 },
                 {
                     "key": "active",
@@ -1936,7 +2006,7 @@
                     "array": false,
                     "default": null,
                     "min": 1,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "totalCost",
@@ -1945,7 +2015,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 2147483647
                 },
                 {
                     "key": "luckyNumbers",

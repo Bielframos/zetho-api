@@ -14,12 +14,26 @@ import {
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { Roles } from 'src/common/guards/roles.decorator';
-import { CreateRatingDto } from './ratings.dto';
+import { CreateRatingDto, VoteRatingDto } from './ratings.dto';
 import { RatingsService } from './ratings.service';
 
 @Controller('ratings')
 export class RatingsController {
   constructor(private readonly ratingsService: RatingsService) {}
+
+  @Post('vote/:ratingId')
+  @UseGuards(AppwriteSessionGuard)
+  @Roles(['user'])
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async voteRating(
+    @Param('ratingId') ratingId: string,
+    @Req() req: any,
+    @Body() dto: VoteRatingDto,
+  ) {
+    const user = req.user as Models.User;
+    return await this.ratingsService.voteRating(user.$id, ratingId, dto.operation);
+  }
+
 
   @Get(':gameId')
   async getRatings(
