@@ -336,4 +336,124 @@ export class GazethoService {
     const parsed = this.toPositiveInt(value, fallback);
     return Math.min(parsed, max);
   }
+
+  async getCommunityHighlights(page: number = 1, pageSize: number = 12) {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    const safePage = Math.max(1, page);
+    const safePageSize = Math.max(1, Math.min(pageSize, 50));
+
+    const ratingsResponse = await this.tablesDB.listRows<any>({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'ratings',
+      queries: [
+        Query.greaterThanEqual('$createdAt', fourteenDaysAgo.toISOString()),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ],
+    });
+
+    const commentsResponse = await this.tablesDB.listRows<any>({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'game_comments',
+      queries: [
+        Query.greaterThanEqual('$createdAt', fourteenDaysAgo.toISOString()),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ],
+    });
+
+    const allItems = [
+      ...ratingsResponse.rows.map(r => ({ ...r, _highlightType: 'rating' })),
+      ...commentsResponse.rows.map(c => ({ ...c, _highlightType: 'comment' })),
+    ].sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
+
+    const total = allItems.length;
+    const start = (safePage - 1) * safePageSize;
+    const paginatedItems = allItems.slice(start, start + safePageSize);
+
+    const fingerprints = Array.from(new Set(
+      paginatedItems
+        .filter(i => i._highlightType === 'rating')
+        .map(r => r.ownerFingerprint)
+        .filter(Boolean)
+    ));
+    
+    const profileMap = new Map<string, any>();
+    if (fingerprints.length > 0) {
+      const profilesResult = await this.tablesDB.listRows<any>({
+        databaseId: GazethoService.DB_ID,
+        tableId: 'user_profiles',
+        queries: [
+          Query.equal('fingerprint', fingerprints),
+          Query.limit(fingerprints.length),
+        ],
+      });
+      for (const p of profilesResult.rows) {
+        profileMap.set(p.fingerprint, p);
+      }
+    }
+
+    const profileIds = Array.from(new Set(
+      paginatedItems
+        .filter(i => i._highlightType === 'comment')
+        .map(c => typeof c.userProfile === 'string' ? c.userProfile : c.userProfile?.$id)
+        .filter(Boolean)
+    ));
+    
+    const profileIdMap = new Map<string, any>();
+    if (profileIds.length > 0) {
+      const profilesByIdResult = await this.tablesDB.listRows<any>({
+        databaseId: GazethoService.DB_ID,
+        tableId: 'user_profiles',
+        queries: [
+          Query.equal('$id', profileIds),
+          Query.limit(profileIds.length),
+        ],
+      });
+      for (const p of profilesByIdResult.rows) {
+        profileIdMap.set(p.$id, p);
+      }
+    }
+
+    const gameIds = Array.from(new Set(paginatedItems.map(h => h.gameId).filter(Boolean)));
+    const gameMap = new Map<string, any>();
+    if (gameIds.length > 0) {
+      const gamesResult = await this.tablesDB.listRows<any>({
+        databaseId: GazethoService.DB_ID,
+        tableId: 'games',
+        queries: [
+          Query.equal('$id', gameIds as string[]),
+          Query.limit(gameIds.length),
+        ],
+      });
+      for (const g of gamesResult.rows) {
+        gameMap.set(g.$id, { name: g.name, slug: g.slug, coverUrl: g.coverUrl });
+      }
+    }
+
+    const assembledItems = paginatedItems.map(item => {
+      let userProfile: any = null;
+      if (item._highlightType === 'rating') {
+        const p = profileMap.get(item.ownerFingerprint);
+        userProfile = p ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl } : null;
+      } else {
+        const pId = typeof item.userProfile === 'string' ? item.userProfile : item.userProfile?.$id;
+        const p = pId ? profileIdMap.get(pId) : null;
+        userProfile = p ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl } : null;
+      }
+
+      return {
+        ...item,
+        userProfile,
+        game: item.gameId ? gameMap.get(item.gameId) || null : null,
+      };
+    });
+
+    return {
+      items: assembledItems,
+      hasMore: start + safePageSize < total,
+    };
+  }
 }
