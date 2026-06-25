@@ -21,3 +21,8 @@ export enum PostsStatus {
   DRAFT = 'draft',
   PUBLISHED = 'published',
 }
+
+export enum ProfileThemeType {
+  COLOR = 'color',
+  GAME = 'game',
+}
