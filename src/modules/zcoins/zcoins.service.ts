@@ -42,6 +42,14 @@ export class ZCoinsService {
     return this.applyTransaction(userId, 'output', reason);
   }
 
+  async applyCustomOutput(userId: string, reason: string, amount: number) {
+    return this.applyTransaction(userId, 'output', reason, null, amount);
+  }
+
+  async applyCustomInput(userId: string, reason: string, amount: number) {
+    return this.applyTransaction(userId, 'input', reason, null, amount);
+  }
+
   async getWeeklyLeaderboard(limit = 30) {
     const safeLimit = this.parseLimit(limit);
     const cacheKey = `zcoins:leaderboard:weekly:${safeLimit}`;
@@ -122,6 +130,7 @@ export class ZCoinsService {
     type: ZCoinTransactionType,
     reason: string,
     bonusId?: string | null,
+    customAmount?: number,
   ) {
     return this.loggerContext.trackLifecycle(
       this.logger,
@@ -152,7 +161,7 @@ export class ZCoinsService {
           }
         }
 
-        const amount = this.resolveAmount(type, reason, bonusId);
+        const amount = customAmount ?? this.resolveAmount(type, reason, bonusId);
         const profile = await this.getProfileByUserId(safeUserId);
 
         if (type === 'output') {

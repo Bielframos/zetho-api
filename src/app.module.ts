@@ -17,6 +17,8 @@ import { ZCoinsModule } from './modules/zcoins/zcoins.module';
 import { RaffleModule } from './modules/raffle/raffle.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ThemesModule } from './modules/themes/themes.module';
 
 @Module({
   imports: [
@@ -41,12 +43,15 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ZCoinsModule,
     RaffleModule,
     RatingsModule,
+    DashboardModule,
 
     /** Modulos do sístema */
     WebhookModule,
 
     /** Sandbox module */
     SandboxModule.register(process.env.NODE_ENV ?? 'production'),
+
+    ThemesModule,
   ],
   controllers: [],
   providers: [],

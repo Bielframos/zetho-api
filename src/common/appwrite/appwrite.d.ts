@@ -154,6 +154,8 @@ export type UserProfiles = Models.Row & {
   totalsHyped: number;
   zcoinBalance: number;
   inviteCode: string | null;
+  activeThemeId: string | null;
+  unlockedThemes: string[] | null;
 };
 
 export type ZEntries = Models.Row & {
@@ -326,4 +328,21 @@ export type LogsDoAplicativo = Models.Row & {
   type: string;
   relatedUserId: string | null;
   metadata: string;
+};
+
+export enum ProfileThemeType {
+  COLOR = 'color',
+  GAME = 'game',
+}
+
+export type ProfileThemes = Models.Row & {
+  name: string;
+  type: ProfileThemeType;
+  price: number;
+  backgroundImageId: string | null;
+  backgroundColor: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  tertiaryColor: string | null;
+  gameId: string | null;
 };
