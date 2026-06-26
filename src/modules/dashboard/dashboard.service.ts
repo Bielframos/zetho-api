@@ -4,9 +4,19 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 type ProfileSummary = {
   $id: string;
+  userId?: string;
   fingerprint: string;
   gamertag: string;
   avatarUrl: string | null;
+};
+
+type VoteType = 'up' | 'down';
+
+type ParentCommentSummary = {
+  $id: string;
+  content: string;
+  $createdAt: string;
+  userProfile: Pick<ProfileSummary, '$id' | 'gamertag' | 'avatarUrl'> | null;
 };
 
 @Injectable()
@@ -62,6 +72,12 @@ export class DashboardService {
           Query.equal('userProfile', followedProfileIds),
           Query.orderDesc('$createdAt'),
           Query.limit(100),
+          Query.select([
+            '*',
+            'userProfile.$id',
+            'userProfile.gamertag',
+            'userProfile.avatarUrl',
+          ]),
         ],
       }),
       this.appwrite.tablesDB.listRows<any>({
@@ -89,6 +105,17 @@ export class DashboardService {
       ),
     );
     const gameMap = await this.getGameMap(gameIds);
+    const [parentCommentMap, commentVoteMap] = await Promise.all([
+      this.getParentCommentMap(comments.rows),
+      this.getCommentVoteMap(
+        userId,
+        comments.rows.map((comment) => comment.$id).filter(Boolean),
+      ),
+    ]);
+    const parentProfileById = await this.getParentCommentProfileMap(
+      parentCommentMap,
+      profileById,
+    );
 
     const items = [
       ...ratings.rows.map((rating) => ({
@@ -108,6 +135,11 @@ export class DashboardService {
           type: 'comment' as const,
           userProfile: profileId ? (profileById.get(profileId) ?? null) : null,
           game: comment.gameId ? (gameMap.get(comment.gameId) ?? null) : null,
+          parentComment: this.toParentCommentSummary(
+            parentCommentMap.get(comment.$id),
+            parentProfileById,
+          ),
+          viewerVote: commentVoteMap.get(comment.$id) ?? null,
         };
       }),
       ...lists.rows.map((list) => ({
@@ -186,6 +218,68 @@ export class DashboardService {
 
   async toggleListSave(userId: string, listId: string) {
     return this.toggleListRelation(userId, listId, 'saved_lists', 'saveCount');
+  }
+
+  async voteComment(userId: string, commentId: string, operation: VoteType) {
+    const comment = await this.getCommentById(commentId);
+    const existingVoteResult = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'game_comment_votes',
+      queries: [
+        Query.equal('comment', commentId),
+        Query.equal('userId', userId),
+        Query.limit(1),
+      ],
+    });
+    const existingVote = existingVoteResult.rows[0];
+
+    let viewerVote: VoteType | null = operation;
+
+    if (!existingVote) {
+      await this.appwrite.tablesDB.createRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'game_comment_votes',
+        rowId: ID.unique(),
+        data: {
+          type: operation,
+          comment: commentId,
+          userId,
+        },
+      });
+    } else if (existingVote.type === operation) {
+      viewerVote = null;
+      await this.appwrite.tablesDB.deleteRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'game_comment_votes',
+        rowId: existingVote.$id,
+      });
+    } else {
+      await this.appwrite.tablesDB.updateRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'game_comment_votes',
+        rowId: existingVote.$id,
+        data: {
+          type: operation,
+        },
+      });
+    }
+
+    const previousVoteCount = comment.voteCount ?? 0;
+    const newVoteCount = await this.getComputedCommentVoteCount(commentId);
+    const delta = newVoteCount - previousVoteCount;
+
+    if (newVoteCount !== previousVoteCount) {
+      await this.appwrite.tablesDB.updateRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'game_comments',
+        rowId: commentId,
+        data: {
+          voteCount: newVoteCount,
+        },
+      });
+    }
+
+    return { success: true, delta, operation, newVoteCount, viewerVote };
   }
 
   private async toggleListRelation(
@@ -274,24 +368,23 @@ export class DashboardService {
     }
 
     const listIds = saves.rows.map((s) => s.listId);
-    
+
     const listsResult = await this.appwrite.tablesDB.listRows<any>({
       databaseId: DashboardService.DB_ID,
       tableId: 'lists',
-      queries: [
-        Query.equal('$id', listIds),
-        Query.limit(listIds.length)
-      ],
+      queries: [Query.equal('$id', listIds), Query.limit(listIds.length)],
     });
 
     const listsById = new Map(listsResult.rows.map((l) => [l.$id, l]));
-    
+
     const orderedLists = saves.rows
-        .map(s => listsById.get(s.listId))
-        .filter(Boolean);
+      .map((s) => listsById.get(s.listId))
+      .filter(Boolean);
 
     const fingerprints = Array.from(
-      new Set(orderedLists.map((list) => list.ownerFingerprint).filter(Boolean)),
+      new Set(
+        orderedLists.map((list) => list.ownerFingerprint).filter(Boolean),
+      ),
     );
     const profiles = await this.getProfilesByFingerprints(fingerprints);
     const profileByFingerprint = new Map(
@@ -390,6 +483,177 @@ export class DashboardService {
     const list = result.rows[0];
     if (!list) throw new NotFoundException('Lista não encontrada');
     return list;
+  }
+
+  private async getCommentById(commentId: string) {
+    const result = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'game_comments',
+      queries: [Query.equal('$id', commentId), Query.limit(1)],
+    });
+
+    const comment = result.rows[0];
+    if (!comment) throw new NotFoundException('Comentário não encontrado');
+    return comment;
+  }
+
+  private async getCommentsByIds(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return [];
+
+    const result = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'game_comments',
+      queries: [
+        Query.equal('$id', uniqueIds),
+        Query.limit(uniqueIds.length),
+        Query.select([
+          '$id',
+          '$createdAt',
+          'content',
+          'parentId',
+          'userProfile.$id',
+          'userProfile.gamertag',
+          'userProfile.avatarUrl',
+        ]),
+      ],
+    });
+
+    return result.rows;
+  }
+
+  private async getParentCommentMap(comments: any[]) {
+    const parentCommentIds = Array.from(
+      new Set(comments.map((comment) => comment.parentId).filter(Boolean)),
+    );
+    const existingCommentsById = new Map<string, any>(
+      comments
+        .filter((comment) => comment.$id)
+        .map((comment) => [comment.$id, comment]),
+    );
+    const missingParentIds = parentCommentIds.filter(
+      (parentId) => !existingCommentsById.has(parentId),
+    );
+    const fetchedParents = await this.getCommentsByIds(missingParentIds);
+    const parentById = new Map<string, any>([
+      ...existingCommentsById,
+      ...fetchedParents.map((parent) => [parent.$id, parent] as const),
+    ]);
+
+    return new Map<string, any>(
+      comments
+        .filter(
+          (comment) => comment.parentId && parentById.has(comment.parentId),
+        )
+        .map((comment) => [comment.$id, parentById.get(comment.parentId)]),
+    );
+  }
+
+  private async getCommentVoteMap(userId: string, commentIds: string[]) {
+    const uniqueIds = Array.from(new Set(commentIds));
+    if (uniqueIds.length === 0) return new Map<string, VoteType>();
+
+    const votes = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'game_comment_votes',
+      queries: [
+        Query.equal('comment', uniqueIds),
+        Query.equal('userId', userId),
+        Query.limit(uniqueIds.length),
+      ],
+    });
+
+    const entries: [string, VoteType][] = votes.rows
+      .map((vote) => [this.getRelationId(vote.comment), vote.type])
+      .filter(
+        (entry): entry is [string, VoteType] =>
+          Boolean(entry[0]) && (entry[1] === 'up' || entry[1] === 'down'),
+      );
+
+    return new Map<string, VoteType>(entries);
+  }
+
+  private async getComputedCommentVoteCount(commentId: string) {
+    const pageSize = 100;
+    let offset = 0;
+    let upvotes = 0;
+    let downvotes = 0;
+
+    while (true) {
+      const result = await this.appwrite.tablesDB.listRows<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'game_comment_votes',
+        queries: [
+          Query.equal('comment', commentId),
+          Query.limit(pageSize),
+          Query.offset(offset),
+          Query.select(['type']),
+        ],
+      });
+
+      for (const vote of result.rows) {
+        if (vote.type === 'up') upvotes += 1;
+        if (vote.type === 'down') downvotes += 1;
+      }
+
+      offset += result.rows.length;
+      if (result.rows.length < pageSize) break;
+    }
+
+    return Math.max(0, upvotes - downvotes);
+  }
+
+  private async getParentCommentProfileMap(
+    parentCommentMap: Map<string, any>,
+    knownProfiles: Map<string, ProfileSummary>,
+  ) {
+    const parentProfileIds = Array.from(
+      new Set(
+        Array.from(parentCommentMap.values())
+          .map((comment) => this.getRelationId(comment.userProfile))
+          .filter((profileId) => profileId && !knownProfiles.has(profileId)),
+      ),
+    );
+    const parentProfiles = await this.getProfilesByIds(parentProfileIds);
+
+    return new Map<string, ProfileSummary>([
+      ...knownProfiles,
+      ...parentProfiles.map((profile) => [profile.$id, profile] as const),
+    ]);
+  }
+
+  private toParentCommentSummary(
+    comment: any,
+    profileById: Map<string, ProfileSummary>,
+  ): ParentCommentSummary | null {
+    if (!comment) return null;
+
+    const profileId = this.getRelationId(comment.userProfile);
+    const userProfile =
+      typeof comment.userProfile === 'object' && comment.userProfile
+        ? {
+            $id: comment.userProfile.$id,
+            gamertag: comment.userProfile.gamertag,
+            avatarUrl: comment.userProfile.avatarUrl ?? null,
+          }
+        : profileId && profileById.has(profileId)
+          ? {
+              $id: profileById.get(profileId)!.$id,
+              gamertag: profileById.get(profileId)!.gamertag,
+              avatarUrl: profileById.get(profileId)!.avatarUrl ?? null,
+            }
+          : null;
+
+    return {
+      $id: comment.$id,
+      content: comment.content,
+      $createdAt: comment.$createdAt,
+      userProfile,
+    };
+  }
+
+  private getRelationId(value: any) {
+    return typeof value === 'string' ? value : value?.$id;
   }
 
   private async getListState(userId: string, listIds: string[]) {
