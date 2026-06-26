@@ -22,6 +22,149 @@ describe('DashboardService', () => {
     });
   });
 
+  it('adds direct parent comment context and viewer vote to reply feed items', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ targetProfileId: 'profile-2' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-2',
+              userId: 'user-2',
+              fingerprint: 'friend',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'comment-3',
+              $createdAt: '2026-01-02T00:00:00.000Z',
+              gameId: null,
+              userProfile: 'profile-2',
+              content: 'Resposta final',
+              parentId: 'comment-2',
+              voteCount: 3,
+            },
+          ],
+          total: 1,
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'comment-2',
+              $createdAt: '2026-01-01T00:00:00.000Z',
+              content: 'Pai direto',
+              parentId: 'comment-1',
+              userProfile: 'profile-2',
+            },
+          ],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'vote-1',
+              comment: 'comment-3',
+              userId: 'user-1',
+              type: 'up',
+            },
+          ],
+          total: 1,
+        }),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(service.getPersonalFeed('user-1')).resolves.toMatchObject({
+      items: [
+        {
+          $id: 'comment-3',
+          type: 'comment',
+          content: 'Resposta final',
+          viewerVote: 'up',
+          parentComment: {
+            $id: 'comment-2',
+            content: 'Pai direto',
+            userProfile: {
+              $id: 'profile-2',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          },
+        },
+      ],
+      hasMore: false,
+    });
+  });
+
+  it('keeps parent comment null for root feed comments without viewer vote', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ targetProfileId: 'profile-2' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-2',
+              userId: 'user-2',
+              fingerprint: 'friend',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'comment-1',
+              $createdAt: '2026-01-01T00:00:00.000Z',
+              gameId: null,
+              userProfile: 'profile-2',
+              content: 'Comentário original',
+              parentId: null,
+              voteCount: 0,
+            },
+          ],
+          total: 1,
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(service.getPersonalFeed('user-1')).resolves.toMatchObject({
+      items: [
+        {
+          $id: 'comment-1',
+          type: 'comment',
+          parentComment: null,
+          viewerVote: null,
+        },
+      ],
+      hasMore: false,
+    });
+  });
+
   it('creates a like relation and increments list like count', async () => {
     const tablesDB = {
       listRows: jest
@@ -112,5 +255,204 @@ describe('DashboardService', () => {
         rowId: 'like-1',
       }),
     );
+  });
+
+  it('creates a comment downvote without making vote count negative', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'comment-1', voteCount: 0 }],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [{ type: 'down' }], total: 1 }),
+      createRow: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.voteComment('user-1', 'comment-1', 'down'),
+    ).resolves.toEqual({
+      success: true,
+      delta: 0,
+      operation: 'down',
+      newVoteCount: 0,
+      viewerVote: 'down',
+    });
+    expect(tablesDB.createRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comment_votes',
+        data: {
+          type: 'down',
+          comment: 'comment-1',
+          userId: 'user-1',
+        },
+      }),
+    );
+    expect(tablesDB.updateRow).not.toHaveBeenCalled();
+  });
+
+  it('removes an existing comment upvote when the same operation is repeated', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'comment-1', voteCount: 4 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'vote-1', type: 'up' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ type: 'up' }, { type: 'up' }, { type: 'up' }],
+          total: 3,
+        }),
+      deleteRow: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.voteComment('user-1', 'comment-1', 'up'),
+    ).resolves.toEqual({
+      success: true,
+      delta: -1,
+      operation: 'up',
+      newVoteCount: 3,
+      viewerVote: null,
+    });
+    expect(tablesDB.deleteRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comment_votes',
+        rowId: 'vote-1',
+      }),
+    );
+  });
+
+  it('switches an existing comment vote between directions', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'comment-1', voteCount: 2 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'vote-1', type: 'down' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { type: 'up' },
+            { type: 'up' },
+            { type: 'up' },
+            { type: 'up' },
+          ],
+          total: 4,
+        }),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.voteComment('user-1', 'comment-1', 'up'),
+    ).resolves.toEqual({
+      success: true,
+      delta: 2,
+      operation: 'up',
+      newVoteCount: 4,
+      viewerVote: 'up',
+    });
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comment_votes',
+        rowId: 'vote-1',
+        data: { type: 'up' },
+      }),
+    );
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comments',
+        rowId: 'comment-1',
+        data: { voteCount: 4 },
+      }),
+    );
+  });
+
+  it('switches a zero-count downvote to upvote by one point', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'comment-1', voteCount: 0 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'vote-1', type: 'down' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ type: 'up' }],
+          total: 1,
+        }),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.voteComment('user-1', 'comment-1', 'up'),
+    ).resolves.toEqual({
+      success: true,
+      delta: 1,
+      operation: 'up',
+      newVoteCount: 1,
+      viewerVote: 'up',
+    });
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comments',
+        rowId: 'comment-1',
+        data: { voteCount: 1 },
+      }),
+    );
+  });
+
+  it('removes an existing zero-count comment downvote without incrementing', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'comment-1', voteCount: 0 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'vote-1', type: 'down' }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
+      deleteRow: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.voteComment('user-1', 'comment-1', 'down'),
+    ).resolves.toEqual({
+      success: true,
+      delta: 0,
+      operation: 'down',
+      newVoteCount: 0,
+      viewerVote: null,
+    });
+    expect(tablesDB.deleteRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'game_comment_votes',
+        rowId: 'vote-1',
+      }),
+    );
+    expect(tablesDB.updateRow).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -6,11 +7,14 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { DashboardService } from './dashboard.service';
+import { VoteCommentDto } from './dashboard.dto';
 
 @Controller()
 export class DashboardController {
@@ -75,5 +79,21 @@ export class DashboardController {
   toggleListSave(@Req() req: any, @Param('listId') listId: string) {
     const user = req.user as Models.User;
     return this.dashboardService.toggleListSave(user.$id, listId);
+  }
+
+  @Post('dashboard/comments/:commentId/vote')
+  @UseGuards(AppwriteSessionGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  voteComment(
+    @Req() req: any,
+    @Param('commentId') commentId: string,
+    @Body() dto: VoteCommentDto,
+  ) {
+    const user = req.user as Models.User;
+    return this.dashboardService.voteComment(
+      user.$id,
+      commentId,
+      dto.operation,
+    );
   }
 }
