@@ -84,7 +84,6 @@ export class GazethoController {
   getPopularTags(@Query() dto: PopularTagsDto) {
     return this.gazethoService.getPopularTags(dto);
   }
-
 }
 
 @Controller('gazetho-public')
@@ -92,7 +91,10 @@ export class GazethoPublicController {
   constructor(private readonly gazethoService: GazethoService) {}
 
   @Get('community-highlights')
-  getCommunityHighlights(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+  getCommunityHighlights(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     return this.gazethoService.getCommunityHighlights(
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,

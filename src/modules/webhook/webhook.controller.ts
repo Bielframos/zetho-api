@@ -78,6 +78,12 @@ export class WebhookController {
     }
   }
 
+  @Post('comments/on-create')
+  @UseGuards(new AppwriteWebhookGuard('comments/on-create'))
+  handleCommentCreate(@Body() comment: any) {
+    return this.zethoHandler.handleCommentCreate(comment);
+  }
+
   @Post('igdb/games/upsert')
   @UseGuards(IGDBGuard)
   IGDBUpsertGame(@Body() game: IGDBGame) {

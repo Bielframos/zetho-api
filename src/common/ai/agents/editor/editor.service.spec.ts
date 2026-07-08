@@ -29,7 +29,9 @@ const buildService = (overrides: Partial<Record<string, any>> = {}) => {
     runWithGeneratedCorrelationId: (fn: any) => fn(),
   };
   const loggerContext = { trackLifecycle: (_l: any, _m: any, fn: any) => fn() };
-  const outboxService = overrides.outboxService ?? { enqueueImmediate: jest.fn() };
+  const outboxService = overrides.outboxService ?? {
+    enqueueImmediate: jest.fn(),
+  };
 
   const service = new EditorService(
     ai as never,
@@ -154,8 +156,7 @@ describe('EditorService.generateGuidedArticle', () => {
   };
 
   it('extrai a URL, repassa humanInstructions e publica o post', async () => {
-    const { service, contentExtractor, ai, appwrite, outboxService } =
-      setup();
+    const { service, contentExtractor, ai, appwrite, outboxService } = setup();
 
     const result = await service.generateGuidedArticle({
       url: 'https://fonte.com/post',
@@ -184,8 +185,7 @@ describe('EditorService.generateGuidedArticle', () => {
   });
 
   it('pula quando a URL de origem já foi publicada', async () => {
-    const { service, appwrite, outboxService, contentExtractor } =
-      setup();
+    const { service, appwrite, outboxService, contentExtractor } = setup();
     appwrite.tablesDB.listRows.mockResolvedValue({
       rows: [{ $id: 'existente' }],
     });

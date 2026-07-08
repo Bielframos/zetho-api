@@ -110,7 +110,9 @@ export class OutboxService implements OnModuleDestroy {
     const acquired = await this.redis.set(lockKey, 'locked', 'EX', 55, 'NX');
 
     if (!acquired) {
-      this.logger.debug('Another instance is currently processing the outbox. Skipping.');
+      this.logger.debug(
+        'Another instance is currently processing the outbox. Skipping.',
+      );
       return;
     }
 

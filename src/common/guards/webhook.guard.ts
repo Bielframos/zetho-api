@@ -37,7 +37,17 @@ export class AppwriteWebhookGuard implements CanActivate {
     const baseUrl = process.env.APP_URL?.replace(/\/$/, '');
     const webhookUrl = `${baseUrl}/webhook/${this.endpoint}`;
 
-    const signatureKey = process.env.APPWRITE_WEBHOOK_SIGNATURE as string;
+    const envSuffix = this.endpoint.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const signatureKey =
+      process.env[`APPWRITE_WEBHOOK_SIGNATURE_${envSuffix}`] ||
+      process.env.APPWRITE_WEBHOOK_SIGNATURE;
+
+    if (!signatureKey) {
+      throw new UnauthorizedException(
+        'Configuração de assinatura do webhook ausente',
+      );
+    }
+
     const message = webhookUrl + payload.toString();
 
     const generatedSignature = crypto

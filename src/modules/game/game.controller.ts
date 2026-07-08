@@ -1,4 +1,15 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Models } from 'node-appwrite';
+import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { GameService } from './game.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
 
@@ -14,6 +25,17 @@ export class GameController {
   @Get('hyped-upcoming')
   findHypedUpcoming(@Query() dto: HypedUpcomingDto) {
     return this.gameService.findHypedUpcoming(dto);
+  }
+
+  @Post(':gameId/notifications/toggle')
+  @UseGuards(AppwriteSessionGuard)
+  toggleNotifications(
+    @Req() req: any,
+    @Param('gameId') gameId: string,
+    @Body('active') active: boolean,
+  ) {
+    const user = req.user as Models.User;
+    return this.gameService.toggleNotifications(user.$id, gameId, active);
   }
 
   @Get(':slug')

@@ -4,9 +4,10 @@ import { ZethoHandler } from './handlers/zetho.handler';
 import { WebhookController } from './webhook.controller';
 import { IGDBHandler } from './handlers/igdb.handler';
 import { WebhookReplayModule } from './replay/replay.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [IGDBModule, WebhookReplayModule],
+  imports: [IGDBModule, WebhookReplayModule, NotificationsModule],
   controllers: [WebhookController],
   providers: [ZethoHandler, IGDBHandler],
 })

@@ -137,12 +137,48 @@ export class EditorService implements OnModuleInit {
     this.outboxService.registerHandler(
       'editorial.post.published',
       async (payload) => {
+        const typedPayload = payload as {
+          id?: string;
+          title: string;
+          subtitle: string;
+          slug: string;
+          mediaUrl?: string;
+          relatedGameIds?: string[];
+        };
+
+        // 1. WhatsApp sharing
         await this.notificationsService.sharePost({
-          title: payload.title,
-          subtitle: payload.subtitle,
-          postUrl: this.buildPostUrl(payload.slug),
-          mediaUrl: payload.mediaUrl,
+          title: typedPayload.title,
+          subtitle: typedPayload.subtitle,
+          postUrl: this.buildPostUrl(typedPayload.slug),
+          mediaUrl: typedPayload.mediaUrl,
         });
+
+        // 2. Subscriber emails
+        if (
+          typedPayload.id &&
+          typedPayload.relatedGameIds &&
+          typedPayload.relatedGameIds.length > 0
+        ) {
+          try {
+            await this.notificationsService.sendGameSubscriberEmails({
+              postId: typedPayload.id,
+              title: typedPayload.title,
+              subtitle: typedPayload.subtitle,
+              slug: typedPayload.slug,
+              relatedGameIds: typedPayload.relatedGameIds,
+            });
+          } catch (error) {
+            this.logger.error(
+              `Failed to send game subscriber emails for post ${typedPayload.id}`,
+              error instanceof Error ? error.stack : String(error),
+            );
+            // Re-throw to trigger outbox retry
+            throw error;
+          }
+        }
+
+        // 3. Cache invalidation
         await this.invalidateFrontendCache();
       },
     );
@@ -228,10 +264,12 @@ export class EditorService implements OnModuleInit {
         await this.outboxService.enqueueImmediate({
           type: 'editorial.post.published',
           payload: {
+            id: savedPost.$id,
             title: savedPost.title,
             subtitle: savedPost.subtitle ?? '',
             slug: savedPost.slug,
             mediaUrl: mainImage?.url,
+            relatedGameIds: savedPost.relatedGameIds || [],
           },
         });
 
@@ -285,10 +323,12 @@ export class EditorService implements OnModuleInit {
         await this.outboxService.enqueueImmediate({
           type: 'editorial.post.published',
           payload: {
+            id: savedPost.$id,
             title: savedPost.title,
             subtitle: savedPost.subtitle ?? '',
             slug: savedPost.slug,
             mediaUrl: mainImage?.url,
+            relatedGameIds: savedPost.relatedGameIds || [],
           },
         });
 

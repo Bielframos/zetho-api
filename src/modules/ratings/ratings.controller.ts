@@ -31,9 +31,12 @@ export class RatingsController {
     @Body() dto: VoteRatingDto,
   ) {
     const user = req.user as Models.User;
-    return await this.ratingsService.voteRating(user.$id, ratingId, dto.operation);
+    return await this.ratingsService.voteRating(
+      user.$id,
+      ratingId,
+      dto.operation,
+    );
   }
-
 
   @Get(':gameId')
   async getRatings(

@@ -161,7 +161,8 @@ export class ZCoinsService {
           }
         }
 
-        const amount = customAmount ?? this.resolveAmount(type, reason, bonusId);
+        const amount =
+          customAmount ?? this.resolveAmount(type, reason, bonusId);
         const profile = await this.getProfileByUserId(safeUserId);
 
         if (type === 'output') {

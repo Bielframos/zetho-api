@@ -137,4 +137,55 @@ describe('Webhook integration contract (e2e)', () => {
       .send(payload)
       .expect(503);
   });
+
+  it('validates signature using endpoint-specific environment variable when configured', async () => {
+    // Set endpoint-specific secret
+    process.env.APPWRITE_WEBHOOK_SIGNATURE_ENTRY_SYNC =
+      'endpoint-specific-secret';
+
+    zethoHandler.syncEntry.mockResolvedValue({ success: true });
+
+    const payload = JSON.stringify({
+      $id: 'entry-specific-test',
+      ownerFingerprint: 'fp',
+      gameId: 'game-3',
+      status: 'completed',
+      liked: true,
+      hyped: false,
+    });
+
+    const specificMessage = `${process.env.APP_URL}/webhook/entry-sync${payload}`;
+    const specificSignature = crypto
+      .createHmac('sha1', 'endpoint-specific-secret')
+      .update(specificMessage)
+      .digest('base64');
+
+    // 1. Sending with the specific signature should pass
+    await request(app.getHttpServer())
+      .post('/webhook/entry-sync')
+      .set('content-type', 'application/json')
+      .set('x-appwrite-webhook-events', 'databases.*.rows.*.create')
+      .set('x-appwrite-webhook-signature', specificSignature)
+      .set('x-appwrite-webhook-id', 'evt-3')
+      .send(payload)
+      .expect(201);
+
+    // 2. Sending with the global signature should fail with 401
+    const globalSignature = crypto
+      .createHmac('sha1', process.env.APPWRITE_WEBHOOK_SIGNATURE as string)
+      .update(specificMessage)
+      .digest('base64');
+
+    await request(app.getHttpServer())
+      .post('/webhook/entry-sync')
+      .set('content-type', 'application/json')
+      .set('x-appwrite-webhook-events', 'databases.*.rows.*.create')
+      .set('x-appwrite-webhook-signature', globalSignature)
+      .set('x-appwrite-webhook-id', 'evt-4')
+      .send(payload)
+      .expect(401);
+
+    // Cleanup
+    delete process.env.APPWRITE_WEBHOOK_SIGNATURE_ENTRY_SYNC;
+  });
 });
