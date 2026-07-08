@@ -12,6 +12,11 @@ type EmailSection =
   | {
       kind: 'metadata';
       rows: Array<{ label: string; value: string }>;
+    }
+  | {
+      kind: 'image';
+      url: string;
+      alt?: string;
     };
 
 type EmailCta = {
@@ -32,13 +37,15 @@ type CommentReplyEmailOptions = {
   recipientName: string;
   replyAuthor: string;
   commentContent: string;
-  appUrl: string;
+  gameName: string;
+  gameUrl: string;
 };
 
 type GazethoPostEmailOptions = {
   gameName: string;
   title: string;
   subtitle?: string | null;
+  mediaUrl?: string | null;
   postUrl: string;
 };
 
@@ -60,16 +67,17 @@ export class EmailTemplateService {
     recipientName,
     replyAuthor,
     commentContent,
-    appUrl,
+    gameName,
+    gameUrl,
   }: CommentReplyEmailOptions) {
     return this.renderTransactionalEmail({
-      preheader: `${replyAuthor || 'Alguém'} respondeu ao seu comentário no Zetho.`,
+      preheader: `${replyAuthor || 'Alguém'} respondeu ao seu comentário em ${gameName} no Zetho.`,
       title: 'Nova resposta ao seu comentário',
       intro: `Olá, ${recipientName || 'Gamer'}!`,
       sections: [
         {
           kind: 'paragraph',
-          text: `${replyAuthor || 'Alguém'} respondeu ao seu comentário no Zetho.`,
+          text: `${replyAuthor || 'Alguém'} respondeu ao seu comentário em ${gameName} no Zetho.`,
         },
         {
           kind: 'quote',
@@ -77,8 +85,8 @@ export class EmailTemplateService {
         },
       ],
       cta: {
-        label: 'Abrir Zetho',
-        href: appUrl,
+        label: `Ver comentário em ${gameName}`,
+        href: gameUrl,
       },
       footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
     });
@@ -88,21 +96,21 @@ export class EmailTemplateService {
     gameName,
     title,
     subtitle,
+    mediaUrl,
     postUrl,
   }: GazethoPostEmailOptions) {
+    // Corpo alinhado ao caption enviado no WhatsApp: imagem, título e descrição.
     const sections: EmailSection[] = [
+      ...(mediaUrl
+        ? ([{ kind: 'image', url: mediaUrl, alt: title }] as EmailSection[])
+        : []),
       {
         kind: 'paragraph',
         text: `Uma nova matéria sobre ${gameName} foi publicada no Gazetho.`,
       },
-      {
-        kind: 'metadata',
-        rows: [
-          { label: 'Jogo', value: gameName },
-          { label: 'Matéria', value: title },
-          ...(subtitle ? [{ label: 'Resumo', value: subtitle }] : []),
-        ],
-      },
+      ...(subtitle
+        ? ([{ kind: 'paragraph', text: subtitle }] as EmailSection[])
+        : []),
     ];
 
     return this.renderTransactionalEmail({
@@ -189,6 +197,10 @@ export class EmailTemplateService {
           <td style="padding:16px; color:${palette.gray12}; font-size:15px; line-height:1.6;">${this.escapeHtml(section.text)}</td>
         </tr>
       </table>`;
+    }
+
+    if (section.kind === 'image') {
+      return `<img src="${this.escapeAttribute(section.url)}" alt="${this.escapeAttribute(section.alt ?? '')}" width="536" style="display:block; width:100%; max-width:536px; height:auto; margin:0 0 22px; border:1px solid ${palette.gray6};" />`;
     }
 
     const rows = section.rows

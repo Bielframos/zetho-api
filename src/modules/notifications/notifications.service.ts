@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 import { AppwriteException, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { EmailTemplateService } from './email-template.service';
@@ -8,11 +10,13 @@ import { ZETHO_WPP_CHANNEL } from './notifications.constants';
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private static readonly WHATSAPP_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
 
   constructor(
     private readonly evolutionService: EvolutionService,
     private readonly appwrite: Appwrite,
     private readonly emailTemplateService: EmailTemplateService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async sharePost({
@@ -26,6 +30,18 @@ export class NotificationsService {
     postUrl: string;
     mediaUrl?: string;
   }) {
+    // O handler do outbox pode reprocessar o mesmo evento (retry após falha em
+    // outra etapa), então garantimos aqui que cada postUrl só gera uma
+    // mensagem no WhatsApp.
+    const dedupKey = `notifications:whatsapp-post:${postUrl}`;
+    const alreadyShared = await this.cache.get<string>(dedupKey);
+    if (alreadyShared) {
+      this.logger.debug(
+        `Post já compartilhado no WhatsApp anteriormente, envio ignorado: ${postUrl}`,
+      );
+      return;
+    }
+
     const safeSubtitle = subtitle?.trim() || '';
     const caption = `*${title}*\n\n${safeSubtitle}\n\n${postUrl}`;
 
@@ -46,6 +62,11 @@ export class NotificationsService {
         });
       }
 
+      await this.cache.set(
+        dedupKey,
+        '1',
+        NotificationsService.WHATSAPP_DEDUP_TTL_MS,
+      );
       this.logger.log(`Post shared successfully to WhatsApp: ${postUrl}`);
     } catch (error) {
       this.logger.error(
@@ -60,6 +81,7 @@ export class NotificationsService {
     title: string;
     subtitle: string;
     slug: string;
+    mediaUrl?: string;
     relatedGameIds: string[];
   }) {
     const errors: any[] = [];
@@ -83,6 +105,7 @@ export class NotificationsService {
           gameName: game.name,
           title: payload.title,
           subtitle: payload.subtitle,
+          mediaUrl: payload.mediaUrl,
           postUrl: this.getGazethoPostUrl(payload.slug),
         });
 

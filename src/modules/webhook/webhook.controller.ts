@@ -80,7 +80,24 @@ export class WebhookController {
 
   @Post('comments/on-create')
   @UseGuards(new AppwriteWebhookGuard('comments/on-create'))
-  handleCommentCreate(@Body() comment: any) {
+  handleCommentCreate(
+    @Body() comment: any,
+    @Headers('x-appwrite-webhook-events') events: string,
+  ) {
+    const eventArray = String(events ?? '')
+      .split(',')
+      .map((event) => event.trim())
+      .filter(Boolean);
+
+    if (!eventArray.some((event) => event.endsWith('.create'))) {
+      return {
+        message: 'Evento não suportado.',
+        success: true,
+        noOp: true,
+        reason: 'unsupported_event',
+      };
+    }
+
     return this.zethoHandler.handleCommentCreate(comment);
   }
 
