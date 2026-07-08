@@ -593,71 +593,118 @@ export class ZethoHandler {
 
   // Processamento de novos comentários para notificação de resposta
   async handleCommentCreate(comment: any) {
-    if (!comment.parentId) {
-      return {
-        success: true,
-        message: 'Comentário raiz, sem necessidade de notificação.',
-      };
-    }
+    const parentId = this.extractRelationId(comment.parentId);
+    const replyProfileId = this.extractRelationId(comment.userProfile);
 
-    // 1. Obter comentário pai
-    const parentComment = await this.tablesDB.getRow<any>({
-      databaseId: 'app',
-      tableId: 'game_comments',
-      rowId: comment.parentId,
-    });
+    return this.loggerContext.trackLifecycle(
+      this.logger,
+      {
+        component: ZethoHandler.name,
+        operation: 'webhook.comments.on-create',
+        metadata: {
+          commentId: comment.$id,
+          parentId,
+          replyProfileId,
+        },
+      },
+      async () => {
+        if (!parentId) {
+          return {
+            success: true,
+            message: 'Comentário raiz, sem necessidade de notificação.',
+          };
+        }
 
-    // Ignorar se o usuário estiver respondendo a si mesmo
-    if (comment.userProfile === parentComment.userProfile) {
-      return { success: true, message: 'Auto-resposta ignorada.' };
-    }
+        // 1. Obter comentário pai
+        const parentComment = await this.tablesDB.getRow<any>({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          rowId: parentId,
+        });
 
-    // 2. Obter perfis
-    const [parentProfile, replyProfile] = await Promise.all([
-      this.tablesDB.getRow<any>({
-        databaseId: 'app',
-        tableId: 'user_profiles',
-        rowId: parentComment.userProfile,
-      }),
-      this.tablesDB.getRow<any>({
-        databaseId: 'app',
-        tableId: 'user_profiles',
-        rowId: comment.userProfile,
-      }),
-    ]);
+        const parentProfileId = this.extractRelationId(
+          parentComment.userProfile,
+        );
 
-    if (!parentProfile.userId) {
-      return {
-        success: true,
-        message: 'Perfil pai não possui userId vinculado.',
-      };
-    }
+        if (!parentProfileId) {
+          return {
+            success: true,
+            message: 'Comentário pai sem perfil vinculado.',
+          };
+        }
 
-    // 3. Enviar e-mail de resposta direto para o autor do comentário pai
-    const replyAuthor = replyProfile.gamertag || 'Alguém';
-    const emailSubject = `[Zetho] Nova resposta ao seu comentário`;
-    const emailContent = this.emailTemplateService.renderCommentReplyEmail({
-      recipientName: parentProfile.gamertag || 'Gamer',
-      replyAuthor,
-      commentContent: comment.content,
-      appUrl: this.getFrontendAppUrl(),
-    });
+        // Ignorar se o usuário estiver respondendo a si mesmo
+        if (replyProfileId === parentProfileId) {
+          return { success: true, message: 'Auto-resposta ignorada.' };
+        }
 
-    await this.appwrite.messaging.createEmail(
-      ID.unique(),
-      emailSubject,
-      emailContent,
-      [], // topics
-      [parentProfile.userId], // users
-      [], // targets
-      [], // cc
-      [], // bcc
-      [], // attachments
-      false, // draft
-      true, // html
+        // 2. Obter perfis
+        const [parentProfile, replyProfile] = await Promise.all([
+          this.tablesDB.getRow<any>({
+            databaseId: 'app',
+            tableId: 'user_profiles',
+            rowId: parentProfileId,
+          }),
+          replyProfileId
+            ? this.tablesDB.getRow<any>({
+                databaseId: 'app',
+                tableId: 'user_profiles',
+                rowId: replyProfileId,
+              })
+            : Promise.resolve(null),
+        ]);
+
+        if (!parentProfile.userId) {
+          return {
+            success: true,
+            message: 'Perfil pai não possui userId vinculado.',
+          };
+        }
+
+        // 3. Enviar e-mail de resposta direto para o autor do comentário pai
+        const replyAuthor = replyProfile?.gamertag || 'Alguém';
+        const emailSubject = `[Zetho] Nova resposta ao seu comentário`;
+        const emailContent = this.emailTemplateService.renderCommentReplyEmail({
+          recipientName: parentProfile.gamertag || 'Gamer',
+          replyAuthor,
+          commentContent: comment.content,
+          appUrl: this.getFrontendAppUrl(),
+        });
+
+        await this.appwrite.messaging.createEmail(
+          ID.unique(),
+          emailSubject,
+          emailContent,
+          [], // topics
+          [parentProfile.userId], // users
+          [], // targets
+          [], // cc
+          [], // bcc
+          [], // attachments
+          false, // draft
+          true, // html
+        );
+
+        return { success: true, message: 'E-mail de resposta enviado.' };
+      },
     );
+  }
 
-    return { success: true, message: 'E-mail de resposta enviado.' };
+  /**
+   * Normaliza um campo de relacionamento do Appwrite para o seu ID.
+   *
+   * Relações podem vir como string (ID) ou como o documento aninhado
+   * (`{ $id, ... }`) tanto no payload do webhook quanto no retorno de
+   * `getRow`. Este helper garante que sempre trabalhamos com o `$id`.
+   */
+  private extractRelationId(value: unknown): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && '$id' in value) {
+      const id = (value as { $id?: unknown }).$id;
+      return typeof id === 'string' ? id : null;
+    }
+    return null;
   }
 
   private getFrontendAppUrl() {

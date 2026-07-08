@@ -4,12 +4,14 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 
 @Injectable()
 export class AppwriteWebhookGuard implements CanActivate {
   private endpoint: string;
+  private readonly logger = new Logger(AppwriteWebhookGuard.name);
 
   constructor(endpoint: string) {
     this.endpoint = endpoint;
@@ -25,10 +27,16 @@ export class AppwriteWebhookGuard implements CanActivate {
     const payload = req.rawBody;
 
     if (!signatureHeader) {
+      this.logger.warn(
+        `Webhook rejeitado (${this.endpoint}): assinatura ausente no cabeçalho`,
+      );
       throw new UnauthorizedException('Assinatura ausente no cabeçalho');
     }
 
     if (!payload) {
+      this.logger.warn(
+        `Webhook rejeitado (${this.endpoint}): raw body não encontrado`,
+      );
       throw new UnauthorizedException(
         'Raw body não encontrado. Verifique se o webhook enviou dados.',
       );
@@ -38,11 +46,18 @@ export class AppwriteWebhookGuard implements CanActivate {
     const webhookUrl = `${baseUrl}/webhook/${this.endpoint}`;
 
     const envSuffix = this.endpoint.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const scopedEnvKey = `APPWRITE_WEBHOOK_SIGNATURE_${envSuffix}`;
+    const usedEnvKey = process.env[scopedEnvKey]
+      ? scopedEnvKey
+      : 'APPWRITE_WEBHOOK_SIGNATURE';
     const signatureKey =
-      process.env[`APPWRITE_WEBHOOK_SIGNATURE_${envSuffix}`] ||
-      process.env.APPWRITE_WEBHOOK_SIGNATURE;
+      process.env[scopedEnvKey] || process.env.APPWRITE_WEBHOOK_SIGNATURE;
 
     if (!signatureKey) {
+      this.logger.warn(
+        `Webhook rejeitado (${this.endpoint}): nenhuma chave de assinatura configurada ` +
+          `(esperado ${scopedEnvKey} ou APPWRITE_WEBHOOK_SIGNATURE)`,
+      );
       throw new UnauthorizedException(
         'Configuração de assinatura do webhook ausente',
       );
@@ -63,6 +78,12 @@ export class AppwriteWebhookGuard implements CanActivate {
       crypto.timingSafeEqual(signatureBuffer, generatedBuffer);
 
     if (!isValid) {
+      this.logger.warn(
+        `Webhook rejeitado (${this.endpoint}): assinatura inválida. ` +
+          `URL usada na verificação: ${webhookUrl} | chave: ${usedEnvKey}. ` +
+          `Confira se a URL cadastrada no Appwrite é exatamente essa e se ${usedEnvKey} ` +
+          `corresponde à Signature Key deste webhook.`,
+      );
       throw new UnauthorizedException('Assinatura do Webook inválida');
     }
 
