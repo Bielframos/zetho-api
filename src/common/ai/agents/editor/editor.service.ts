@@ -166,6 +166,7 @@ export class EditorService implements OnModuleInit {
               title: typedPayload.title,
               subtitle: typedPayload.subtitle,
               slug: typedPayload.slug,
+              mediaUrl: typedPayload.mediaUrl,
               relatedGameIds: typedPayload.relatedGameIds,
             });
           } catch (error) {

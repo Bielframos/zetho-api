@@ -638,8 +638,8 @@ export class ZethoHandler {
           return { success: true, message: 'Auto-resposta ignorada.' };
         }
 
-        // 2. Obter perfis
-        const [parentProfile, replyProfile] = await Promise.all([
+        // 2. Obter perfis e o jogo do comentário
+        const [parentProfile, replyProfile, game] = await Promise.all([
           this.tablesDB.getRow<any>({
             databaseId: 'app',
             tableId: 'user_profiles',
@@ -652,6 +652,15 @@ export class ZethoHandler {
                 rowId: replyProfileId,
               })
             : Promise.resolve(null),
+          comment.gameId
+            ? this.tablesDB
+                .getRow<any>({
+                  databaseId: 'app',
+                  tableId: 'games',
+                  rowId: comment.gameId,
+                })
+                .catch(() => null)
+            : Promise.resolve(null),
         ]);
 
         if (!parentProfile.userId) {
@@ -663,12 +672,19 @@ export class ZethoHandler {
 
         // 3. Enviar e-mail de resposta direto para o autor do comentário pai
         const replyAuthor = replyProfile?.gamertag || 'Alguém';
-        const emailSubject = `[Zetho] Nova resposta ao seu comentário`;
+        const gameName = game?.name || 'um jogo';
+        const gameUrl = game?.slug
+          ? new URL(`/jogo/${game.slug}`, this.getFrontendAppUrl()).toString()
+          : this.getFrontendAppUrl();
+        const emailSubject = game?.name
+          ? `[Zetho] Nova resposta ao seu comentário em ${game.name}`
+          : `[Zetho] Nova resposta ao seu comentário`;
         const emailContent = this.emailTemplateService.renderCommentReplyEmail({
           recipientName: parentProfile.gamertag || 'Gamer',
           replyAuthor,
           commentContent: comment.content,
-          appUrl: this.getFrontendAppUrl(),
+          gameName,
+          gameUrl,
         });
 
         await this.appwrite.messaging.createEmail(

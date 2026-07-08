@@ -28,7 +28,8 @@ describe('EmailTemplateService', () => {
       recipientName: '<Admin>',
       replyAuthor: 'Player & Co',
       commentContent: '<script>alert("xss")</script>',
-      appUrl: 'https://www.zetho.app/?next=<profile>',
+      gameName: '<Cool Game>',
+      gameUrl: 'https://www.zetho.app/jogo/cool-game?next=<profile>',
     });
 
     expect(html).not.toContain('<script>');
@@ -38,8 +39,9 @@ describe('EmailTemplateService', () => {
     expect(html).toContain(
       '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;',
     );
+    expect(html).toContain('&lt;Cool Game&gt;');
     expect(html).toContain(
-      'href="https://www.zetho.app/?next=&lt;profile&gt;"',
+      'href="https://www.zetho.app/jogo/cool-game?next=&lt;profile&gt;"',
     );
   });
 });
