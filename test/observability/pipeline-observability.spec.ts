@@ -60,8 +60,15 @@ describe('Pipeline observability contract', () => {
       set: jest.fn(),
     } as any;
 
-    const coordinationService = { applyRateLimit: jest.fn(), getCachedToken: jest.fn(), cacheToken: jest.fn() };
-    const upsertService = { upsertGameRow: jest.fn(), ensureGameZStats: jest.fn() };
+    const coordinationService = {
+      applyRateLimit: jest.fn(),
+      getCachedToken: jest.fn(),
+      cacheToken: jest.fn(),
+    };
+    const upsertService = {
+      upsertGameRow: jest.fn(),
+      ensureGameZStats: jest.fn(),
+    };
 
     igdbService = new IGDBService(
       mockAppwrite,

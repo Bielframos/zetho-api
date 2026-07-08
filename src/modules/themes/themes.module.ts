@@ -9,4 +9,4 @@ import { AppwriteModule } from 'src/common/appwrite/appwrite.module';
   providers: [ThemesService],
   controllers: [ThemesController, AdminThemesController],
 })
-export class ThemesModule { }
+export class ThemesModule {}

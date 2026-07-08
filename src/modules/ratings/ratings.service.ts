@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ID, Query, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { ZCoinsService } from '../zcoins/zcoins.service';
@@ -46,7 +51,9 @@ export class RatingsService {
     }
 
     if (game.releaseDate && new Date(game.releaseDate) > new Date()) {
-      throw new BadRequestException('Jogos não lançados não podem ser avaliados');
+      throw new BadRequestException(
+        'Jogos não lançados não podem ser avaliados',
+      );
     }
 
     const profile = await this.getProfileByUserId(userId);
@@ -94,23 +101,39 @@ export class RatingsService {
         // Se for uma nova avaliação, conceder Z-Coins
         try {
           // Se houver review longo/estruturado (content), concede o bônus de write_review (5 Z-Coins), senão engaged (1 Z-Coin)
-          const reason = dto.content && dto.content.trim().length > 100 ? 'write_review' : 'engaged';
+          const reason =
+            dto.content && dto.content.trim().length > 100
+              ? 'write_review'
+              : 'engaged';
           await this.zCoinsService.applyInput(userId, reason);
         } catch (err) {
-          this.logger.error(`Falha ao conceder Z-Coins para avaliação de ${userId}:`, err);
+          this.logger.error(
+            `Falha ao conceder Z-Coins para avaliação de ${userId}:`,
+            err,
+          );
         }
       }
 
       // Atualizar as estatísticas do jogo
-      const ratingDiff = hasPriorRating ? dto.rating - prior.rating : dto.rating;
-      await this.updateGameRatingStats(gameId, ratingDiff, !hasPriorRating, false);
-
+      const ratingDiff = hasPriorRating
+        ? dto.rating - prior.rating
+        : dto.rating;
+      await this.updateGameRatingStats(
+        gameId,
+        ratingDiff,
+        !hasPriorRating,
+        false,
+      );
     } catch (err: any) {
       this.logger.error('Appwrite Error in upsertRating:', err);
       if (err.code === 400 && err.type === 'document_invalid_structure') {
-        throw new BadRequestException('Erro de esquema no Appwrite: Provavelmente o atributo "content" não foi criado na coleção de avaliações.');
+        throw new BadRequestException(
+          'Erro de esquema no Appwrite: Provavelmente o atributo "content" não foi criado na coleção de avaliações.',
+        );
       }
-      throw new BadRequestException(err.message || 'Erro ao salvar avaliação no Appwrite');
+      throw new BadRequestException(
+        err.message || 'Erro ao salvar avaliação no Appwrite',
+      );
     }
 
     return {
@@ -122,7 +145,12 @@ export class RatingsService {
     };
   }
 
-  private async updateGameRatingStats(gameId: string, ratingDiff: number, isNew: boolean, isDelete: boolean) {
+  private async updateGameRatingStats(
+    gameId: string,
+    ratingDiff: number,
+    isNew: boolean,
+    isDelete: boolean,
+  ) {
     try {
       const gameResult = await this.tablesDB.listRows<any>({
         databaseId: RatingsService.DB_ID,
@@ -158,7 +186,10 @@ export class RatingsService {
         },
       });
     } catch (err) {
-      this.logger.error(`Failed to update rating stats for game ${gameId}:`, err);
+      this.logger.error(
+        `Failed to update rating stats for game ${gameId}:`,
+        err,
+      );
     }
   }
 
@@ -178,7 +209,7 @@ export class RatingsService {
     if (!rating) {
       throw new NotFoundException('Avaliação não encontrada');
     }
-    
+
     return {
       ...rating,
       profile: {
@@ -213,7 +244,9 @@ export class RatingsService {
     }
 
     // Coletar fingerprints únicos para buscar os perfis dos usuários correspondentes
-    const fingerprints = Array.from(new Set(result.rows.map((r) => r.ownerFingerprint)));
+    const fingerprints = Array.from(
+      new Set(result.rows.map((r) => r.ownerFingerprint)),
+    );
 
     // Buscar perfis
     const profilesResult = await this.tablesDB.listRows<UserProfiles>({
@@ -235,10 +268,12 @@ export class RatingsService {
       const p = profileMap.get(row.ownerFingerprint);
       return {
         ...row,
-        profile: p ? {
-          gamertag: p.gamertag,
-          avatarUrl: p.avatarUrl,
-        } : null,
+        profile: p
+          ? {
+              gamertag: p.gamertag,
+              avatarUrl: p.avatarUrl,
+            }
+          : null,
       };
     });
 

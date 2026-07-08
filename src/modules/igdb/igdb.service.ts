@@ -124,7 +124,10 @@ export class IGDBService {
 
     const data = await response.json();
 
-    await this.coordinationService.cacheToken(data.access_token, data.expires_in);
+    await this.coordinationService.cacheToken(
+      data.access_token,
+      data.expires_in,
+    );
 
     return data.access_token;
   }
@@ -529,8 +532,6 @@ export class IGDBService {
     };
   }
 
-
-
   private parseGame(game: IGDBGame, developers: string[] = []) {
     const { releaseDate, releaseYear } = this.resolveReleaseData(game);
 
@@ -592,8 +593,6 @@ export class IGDBService {
       releaseYear: release.getUTCFullYear().toString(),
     };
   }
-
-
 
   private async getDevs(game: IGDBGame) {
     const developers = (game.involved_companies ?? []).filter(

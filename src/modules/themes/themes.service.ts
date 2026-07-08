@@ -134,7 +134,9 @@ export class ThemesService {
       } catch (refundError) {
         this.logger.error(
           `Critical: Failed to refund ${theme.price} Z-Coins to user ${userId} after theme purchase failure.`,
-          refundError instanceof Error ? refundError.stack : String(refundError),
+          refundError instanceof Error
+            ? refundError.stack
+            : String(refundError),
         );
       }
       throw error;

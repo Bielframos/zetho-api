@@ -145,7 +145,6 @@ export class IGDBHandler {
     return Array.from(new Set(ids));
   }
 
-
   private getDurationMs(startedAt: bigint) {
     return Number((process.hrtime.bigint() - startedAt) / BigInt(1e6));
   }

@@ -365,21 +365,26 @@ export class GazethoService {
     });
 
     const allItems = [
-      ...ratingsResponse.rows.map(r => ({ ...r, _highlightType: 'rating' })),
-      ...commentsResponse.rows.map(c => ({ ...c, _highlightType: 'comment' })),
+      ...ratingsResponse.rows.map((r) => ({ ...r, _highlightType: 'rating' })),
+      ...commentsResponse.rows.map((c) => ({
+        ...c,
+        _highlightType: 'comment',
+      })),
     ].sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
 
     const total = allItems.length;
     const start = (safePage - 1) * safePageSize;
     const paginatedItems = allItems.slice(start, start + safePageSize);
 
-    const fingerprints = Array.from(new Set(
-      paginatedItems
-        .filter(i => i._highlightType === 'rating')
-        .map(r => r.ownerFingerprint)
-        .filter(Boolean)
-    ));
-    
+    const fingerprints = Array.from(
+      new Set(
+        paginatedItems
+          .filter((i) => i._highlightType === 'rating')
+          .map((r) => r.ownerFingerprint)
+          .filter(Boolean),
+      ),
+    );
+
     const profileMap = new Map<string, any>();
     if (fingerprints.length > 0) {
       const profilesResult = await this.tablesDB.listRows<any>({
@@ -395,13 +400,19 @@ export class GazethoService {
       }
     }
 
-    const profileIds = Array.from(new Set(
-      paginatedItems
-        .filter(i => i._highlightType === 'comment')
-        .map(c => typeof c.userProfile === 'string' ? c.userProfile : c.userProfile?.$id)
-        .filter(Boolean)
-    ));
-    
+    const profileIds = Array.from(
+      new Set(
+        paginatedItems
+          .filter((i) => i._highlightType === 'comment')
+          .map((c) =>
+            typeof c.userProfile === 'string'
+              ? c.userProfile
+              : c.userProfile?.$id,
+          )
+          .filter(Boolean),
+      ),
+    );
+
     const profileIdMap = new Map<string, any>();
     if (profileIds.length > 0) {
       const profilesByIdResult = await this.tablesDB.listRows<any>({
@@ -417,7 +428,9 @@ export class GazethoService {
       }
     }
 
-    const gameIds = Array.from(new Set(paginatedItems.map(h => h.gameId).filter(Boolean)));
+    const gameIds = Array.from(
+      new Set(paginatedItems.map((h) => h.gameId).filter(Boolean)),
+    );
     const gameMap = new Map<string, any>();
     if (gameIds.length > 0) {
       const gamesResult = await this.tablesDB.listRows<any>({
@@ -429,19 +442,30 @@ export class GazethoService {
         ],
       });
       for (const g of gamesResult.rows) {
-        gameMap.set(g.$id, { name: g.name, slug: g.slug, coverUrl: g.coverUrl });
+        gameMap.set(g.$id, {
+          name: g.name,
+          slug: g.slug,
+          coverUrl: g.coverUrl,
+        });
       }
     }
 
-    const assembledItems = paginatedItems.map(item => {
+    const assembledItems = paginatedItems.map((item) => {
       let userProfile: any = null;
       if (item._highlightType === 'rating') {
         const p = profileMap.get(item.ownerFingerprint);
-        userProfile = p ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl } : null;
+        userProfile = p
+          ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl }
+          : null;
       } else {
-        const pId = typeof item.userProfile === 'string' ? item.userProfile : item.userProfile?.$id;
+        const pId =
+          typeof item.userProfile === 'string'
+            ? item.userProfile
+            : item.userProfile?.$id;
         const p = pId ? profileIdMap.get(pId) : null;
-        userProfile = p ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl } : null;
+        userProfile = p
+          ? { gamertag: p.gamertag, avatarUrl: p.avatarUrl }
+          : null;
       }
 
       return {

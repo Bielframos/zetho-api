@@ -13,6 +13,7 @@ import type {
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
+import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 
 @Injectable()
@@ -38,6 +39,7 @@ export class ZethoHandler {
   constructor(
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
+    private readonly emailTemplateService: EmailTemplateService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -587,5 +589,78 @@ export class ZethoHandler {
     if (prev !== status && current === status) return 'increment';
     if (prev === status && current !== status) return 'decrement';
     return null;
+  }
+
+  // Processamento de novos comentários para notificação de resposta
+  async handleCommentCreate(comment: any) {
+    if (!comment.parentId) {
+      return {
+        success: true,
+        message: 'Comentário raiz, sem necessidade de notificação.',
+      };
+    }
+
+    // 1. Obter comentário pai
+    const parentComment = await this.tablesDB.getRow<any>({
+      databaseId: 'app',
+      tableId: 'game_comments',
+      rowId: comment.parentId,
+    });
+
+    // Ignorar se o usuário estiver respondendo a si mesmo
+    if (comment.userProfile === parentComment.userProfile) {
+      return { success: true, message: 'Auto-resposta ignorada.' };
+    }
+
+    // 2. Obter perfis
+    const [parentProfile, replyProfile] = await Promise.all([
+      this.tablesDB.getRow<any>({
+        databaseId: 'app',
+        tableId: 'user_profiles',
+        rowId: parentComment.userProfile,
+      }),
+      this.tablesDB.getRow<any>({
+        databaseId: 'app',
+        tableId: 'user_profiles',
+        rowId: comment.userProfile,
+      }),
+    ]);
+
+    if (!parentProfile.userId) {
+      return {
+        success: true,
+        message: 'Perfil pai não possui userId vinculado.',
+      };
+    }
+
+    // 3. Enviar e-mail de resposta direto para o autor do comentário pai
+    const replyAuthor = replyProfile.gamertag || 'Alguém';
+    const emailSubject = `[Zetho] Nova resposta ao seu comentário`;
+    const emailContent = this.emailTemplateService.renderCommentReplyEmail({
+      recipientName: parentProfile.gamertag || 'Gamer',
+      replyAuthor,
+      commentContent: comment.content,
+      appUrl: this.getFrontendAppUrl(),
+    });
+
+    await this.appwrite.messaging.createEmail(
+      ID.unique(),
+      emailSubject,
+      emailContent,
+      [], // topics
+      [parentProfile.userId], // users
+      [], // targets
+      [], // cc
+      [], // bcc
+      [], // attachments
+      false, // draft
+      true, // html
+    );
+
+    return { success: true, message: 'E-mail de resposta enviado.' };
+  }
+
+  private getFrontendAppUrl() {
+    return process.env.FRONTEND_APP_URL || 'https://www.zetho.app/';
   }
 }
