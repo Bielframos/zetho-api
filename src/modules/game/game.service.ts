@@ -314,27 +314,48 @@ export class GameService {
     return response;
   }
 
-  async getRandomScreenshot(gameId: string) {
-    const mediasResult = await this.tablesDB.listRows({
-      databaseId: 'app',
+  /**
+   * Resolve a melhor imagem editorial disponível para um jogo, em cascata:
+   * screenshot aleatório → key art → coverUrl (IGDB). Retorna `null` quando o
+   * jogo não possui nenhuma imagem, deixando o chamador decidir o fallback
+   * genérico (ex.: Unsplash). Não lança exceção por ausência de mídia.
+   */
+  async getEditorialImage(
+    gameId: string,
+  ): Promise<{ url: string; type: 'screenshot' | 'keyart' | 'cover' } | null> {
+    const mediasResult = await this.tablesDB.listRows<GameMedias>({
+      databaseId: GameService.DB_ID,
       tableId: 'game_medias',
-      queries: [
-        Query.equal('game' as any, gameId as any),
-        Query.equal('type', GameMediasType.SCREENSHOT),
-        Query.limit(1),
-        Query.orderRandom(),
-      ],
+      queries: [Query.equal('game' as any, gameId as any)],
     });
 
-    const screenshot = mediasResult.rows[0];
-
-    if (!screenshot) {
-      throw new NotFoundException(
-        `Nenhum screenshot encontrado para jogo ${gameId}`,
-      );
+    const screenshots = mediasResult.rows.filter(
+      (m) => m.type === GameMediasType.SCREENSHOT,
+    );
+    if (screenshots.length) {
+      const pick = screenshots[Math.floor(Math.random() * screenshots.length)];
+      return {
+        url: this.buildImageUrl('screenshot_big', pick.mediaId),
+        type: 'screenshot',
+      };
     }
 
-    return this.buildImageUrl('screenshot_big', screenshot.mediaId);
+    const artwork = mediasResult.rows.find(
+      (m) => m.type === GameMediasType.KEY_ART,
+    );
+    if (artwork) {
+      return {
+        url: this.buildImageUrl('1080p', artwork.mediaId),
+        type: 'keyart',
+      };
+    }
+
+    const game = await this.findById(gameId, '$id,coverUrl').catch(() => null);
+    if (game?.coverUrl) {
+      return { url: game.coverUrl, type: 'cover' };
+    }
+
+    return null;
   }
 
   async findHeroImageBySlug(slug: string) {

@@ -3,7 +3,6 @@ import { OutboxService } from 'src/common/events/outbox.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
-import type { Games } from 'src/common/appwrite/appwrite';
 import { PostsStatus } from 'src/common/appwrite/appwrite.enums';
 import { ID, Query } from 'node-appwrite';
 import { GameService } from 'src/modules/game/game.service';
@@ -113,6 +112,9 @@ const feedUrls = [
 export class EditorService implements OnModuleInit {
   private readonly logger = new Logger(EditorService.name);
   private static readonly DB_ID = 'app';
+  /** Imagem de último recurso p/ garantir mainImage. Vazia => sem fallback. */
+  private static readonly DEFAULT_MAIN_IMAGE_URL =
+    process.env.EDITOR_DEFAULT_MAIN_IMAGE_URL?.trim() ?? '';
   private readonly tablesDB: Appwrite['tablesDB'];
   private readonly defaultCaptureWindowHours =
     this.resolveCaptureWindowHours(
@@ -560,18 +562,13 @@ export class EditorService implements OnModuleInit {
       return null;
     }
 
+    // 1-3. Imagem própria do jogo, em cascata (screenshot → key art → cover).
     if (article.imageStrategy.type === 'game') {
       const gameId = article.post.relatedGameIds[0];
       if (gameId) {
-        try {
-          const game = await this.gameService.findById(gameId, 'name,slug');
-          return await this.pickGameScreenshot(game);
-        } catch (error) {
-          this.logger.warn(
-            `Falha ao resolver imagem do jogo ${gameId}; usando fallback. ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
+        const gameImage = await this.resolveGameImage(gameId);
+        if (gameImage) {
+          return gameImage;
         }
       } else {
         this.logger.warn(
@@ -580,12 +577,84 @@ export class EditorService implements OnModuleInit {
       }
     }
 
-    if (article.imageStrategy.query) {
-      const images = await this.searchUnsplash(article.imageStrategy.query);
-      return images.length > 0 ? this.pickImage(images) : null;
+    // 4. Unsplash: usa a query da IA ou deriva do próprio artigo (tags/título).
+    const query =
+      article.imageStrategy.query?.trim() || this.buildImageQuery(article);
+    if (query) {
+      const images = await this.searchUnsplash(query);
+      if (images.length > 0) {
+        return this.pickImage(images);
+      }
     }
 
-    return null;
+    // 5. Default estático: garante imagem para posts que a pediram
+    // (needsImage=true). Posts sem necessidade de imagem já saíram acima.
+    return this.defaultMainImage();
+  }
+
+  /**
+   * Resolve a imagem editorial de um jogo (cascata em GameService) e a converte
+   * em PickedImage com legenda. Retorna null se o jogo não tiver imagem ou se a
+   * resolução falhar — o chamador segue para o fallback genérico.
+   */
+  private async resolveGameImage(gameId: string): Promise<PickedImage | null> {
+    try {
+      const [game, gameImage] = await Promise.all([
+        this.gameService.findById(gameId, 'name,slug'),
+        this.gameService.getEditorialImage(gameId),
+      ]);
+
+      if (!gameImage) {
+        this.logger.warn(
+          `Jogo ${gameId} sem imagem disponível (screenshot/keyart/cover); usando fallback.`,
+        );
+        return null;
+      }
+
+      return {
+        url: gameImage.url,
+        alt: `Imagem do jogo: ${game.name}`,
+        caption: `Imagem do jogo: ${game.name}`,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Falha ao resolver imagem do jogo ${gameId}; usando fallback. ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Deriva um termo de busca de imagem a partir do próprio artigo quando a IA
+   * não forneceu `imageStrategy.query`. Prioriza tags (mais genéricas, melhores
+   * resultados no Unsplash) e cai para o título.
+   */
+  private buildImageQuery(article: AiArticle): string {
+    const fromTags = (article.post.tags ?? [])
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' ');
+
+    return fromTags || (article.post.title ?? '').trim();
+  }
+
+  /**
+   * Imagem padrão de último recurso, garantindo que o post nunca fique sem
+   * mainImage. Configurável via EDITOR_DEFAULT_MAIN_IMAGE_URL; se não definida,
+   * retorna null (nenhuma imagem fabricada).
+   */
+  private defaultMainImage(): PickedImage | null {
+    const url = EditorService.DEFAULT_MAIN_IMAGE_URL;
+    if (!url) {
+      this.logger.warn(
+        'Nenhuma imagem resolvida e EDITOR_DEFAULT_MAIN_IMAGE_URL não configurada; post ficará sem mainImage.',
+      );
+      return null;
+    }
+    return { url, alt: 'Gazetho', caption: '' };
   }
 
   /**
@@ -616,7 +685,7 @@ export class EditorService implements OnModuleInit {
         subtitle: this.toNullableString(article.post.subtitle),
         slug,
         body: article.post.body,
-        mainImage: String(mainImage),
+        mainImage,
         status: PostsStatus.PUBLISHED,
         tags: article.post.tags
           .map((tag) => this.slugify(tag))
@@ -833,19 +902,6 @@ export class EditorService implements OnModuleInit {
       authorName: img.user.name,
       authorUsername: img.user.username,
     }));
-  }
-
-  /**
-   * Busca um screenshot aleatório de um jogo no Zetho.
-   */
-  private async pickGameScreenshot(game: Games): Promise<PickedImage | null> {
-    const media = await this.gameService.getRandomScreenshot(game.$id);
-
-    return {
-      url: media,
-      alt: `Captura de tela do jogo: ${game.name}`,
-      caption: `Captura de tela do jogo: ${game.name}`,
-    };
   }
 
   /**
