@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# graphify output
+graphify-out/
+
 # Logs
 logs
 *.log

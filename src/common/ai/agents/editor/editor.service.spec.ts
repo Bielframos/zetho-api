@@ -87,12 +87,19 @@ describe('EditorService.resolveMainImage', () => {
   it('não derruba o artigo quando findById lança; cai no fallback', async () => {
     const gameService = {
       findById: jest.fn().mockRejectedValue(new Error('not found')),
+      getEditorialImage: jest.fn().mockResolvedValue(null),
       search: jest.fn(),
     };
     const { service } = buildService({ gameService });
 
+    // Unsplash sem resultados e sem EDITOR_DEFAULT_MAIN_IMAGE_URL => null
+    global.fetch = jest.fn(
+      async () =>
+        new Response(JSON.stringify({ results: [] }), { status: 200 }),
+    ) as any;
+
     const article = {
-      post: { relatedGameIds: ['ghost-id'] },
+      post: { relatedGameIds: ['ghost-id'], tags: ['acao'], title: 'Título' },
       imageStrategy: { needsImage: true, type: 'game' },
     };
 
@@ -100,6 +107,32 @@ describe('EditorService.resolveMainImage', () => {
 
     expect(gameService.findById).toHaveBeenCalledWith('ghost-id', 'name,slug');
     expect(result).toBeNull();
+  });
+
+  it('resolve a imagem do jogo em cascata (screenshot/keyart/cover)', async () => {
+    const gameService = {
+      findById: jest.fn().mockResolvedValue({ name: 'Hollow Knight' }),
+      getEditorialImage: jest.fn().mockResolvedValue({
+        url: 'https://img/cover.jpg',
+        type: 'cover',
+      }),
+      search: jest.fn(),
+    };
+    const { service } = buildService({ gameService });
+
+    const article = {
+      post: { relatedGameIds: ['game-1'], tags: ['metroidvania'], title: 'X' },
+      imageStrategy: { needsImage: true, type: 'game' },
+    };
+
+    const result = await (service as any).resolveMainImage(article);
+
+    expect(gameService.getEditorialImage).toHaveBeenCalledWith('game-1');
+    expect(result).toEqual({
+      url: 'https://img/cover.jpg',
+      alt: 'Imagem do jogo: Hollow Knight',
+      caption: 'Imagem do jogo: Hollow Knight',
+    });
   });
 });
 
