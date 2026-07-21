@@ -89,7 +89,9 @@ describe('NotificationsService', () => {
     });
 
     const emailBody = (createEmail.mock.calls as string[][])[0][2];
-    expect(emailBody).toContain('src="https://cdn.zetho.app/posts/hades-ii.jpg"');
+    expect(emailBody).toContain(
+      'src="https://cdn.zetho.app/posts/hades-ii.jpg"',
+    );
   });
 
   it('only sends one WhatsApp message per postUrl even if sharePost is called again (outbox retry)', async () => {

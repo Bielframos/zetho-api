@@ -6,6 +6,18 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-21
+
+### Added
+
+- Endpoint autenticado `GET /dashboard/connections-list-activity`, retornando jogos adicionados recentemente às listas públicas de quem o usuário segue.
+- Endpoint autenticado `GET /dashboard/suggested-connections`, sugerindo jogadores com avaliações em jogos em comum.
+- Endpoint público `GET /profile/invite/:code`, retornando o mini-perfil de quem é dono de um código de convite.
+
+### Changed
+
+- Aplicar um código de convite agora cria conexão mútua: convidado e convidante passam a se seguir automaticamente.
+
 ## [0.1.2] - 2026-07-08
 
 ### Added

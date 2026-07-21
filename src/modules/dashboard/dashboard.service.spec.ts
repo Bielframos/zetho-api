@@ -455,4 +455,147 @@ describe('DashboardService', () => {
     );
     expect(tablesDB.updateRow).not.toHaveBeenCalled();
   });
+
+  it('returns empty connections list activity when the user follows nobody', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
+    };
+
+    const service = makeService(tablesDB);
+
+    await expect(service.getConnectionsListActivity('user-1')).resolves.toEqual(
+      { items: [], hasMore: false },
+    );
+  });
+
+  it('hydrates a game added by a followed user to a public list', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        // caller profile
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        // connections
+        .mockResolvedValueOnce({
+          rows: [{ targetProfileId: 'profile-2' }],
+        })
+        // followed profiles
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-2',
+              userId: 'user-2',
+              fingerprint: 'friend',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          ],
+        })
+        // lists owned by followed users
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'list-1',
+              title: 'Top RPGs',
+              slug: 'top-rpgs',
+              ownerFingerprint: 'friend',
+            },
+          ],
+        })
+        // list_items
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'item-1',
+              $createdAt: '2026-01-03T00:00:00.000Z',
+              list: 'list-1',
+              game: {
+                $id: 'game-1',
+                name: 'Baldur',
+                slug: 'baldur',
+                coverUrl: 'cover.jpg',
+              },
+            },
+          ],
+        }),
+    };
+
+    const service = makeService(tablesDB);
+    const result = await service.getConnectionsListActivity('user-1');
+
+    expect(result.hasMore).toBe(false);
+    expect(result.items).toEqual([
+      {
+        $id: 'item-1',
+        $createdAt: '2026-01-03T00:00:00.000Z',
+        author: {
+          $id: 'profile-2',
+          userId: 'user-2',
+          fingerprint: 'friend',
+          gamertag: 'Friend',
+          avatarUrl: null,
+        },
+        list: { $id: 'list-1', title: 'Top RPGs', slug: 'top-rpgs' },
+        game: {
+          $id: 'game-1',
+          name: 'Baldur',
+          slug: 'baldur',
+          coverUrl: 'cover.jpg',
+        },
+      },
+    ]);
+  });
+
+  it('suggests unfollowed players who rated the same games', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        // caller profile
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        // my ratings → game ids
+        .mockResolvedValueOnce({
+          rows: [{ gameId: 'game-1' }, { gameId: 'game-2' }],
+        })
+        // ratings on those games (other users)
+        .mockResolvedValueOnce({
+          rows: [
+            { ownerFingerprint: 'friend' },
+            { ownerFingerprint: 'friend' },
+            { ownerFingerprint: 'me' },
+          ],
+        })
+        // my following
+        .mockResolvedValueOnce({ rows: [] })
+        // candidate profiles by fingerprint
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-2',
+              userId: 'user-2',
+              fingerprint: 'friend',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          ],
+        }),
+    };
+
+    const service = makeService(tablesDB);
+    const result = await service.getSuggestedConnections('user-1');
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      $id: 'profile-2',
+      gamertag: 'Friend',
+      sharedCount: 2,
+    });
+  });
 });
