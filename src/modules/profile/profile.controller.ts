@@ -36,6 +36,11 @@ export class ProfileController {
     return await this.profileService.getMonthlyInviteBonus(user.$id);
   }
 
+  @Get('invite/:code')
+  async getInviter(@Param('code') code: string) {
+    return await this.profileService.getInviterByCode(code);
+  }
+
   @Get()
   @UseGuards(AppwriteSessionGuard)
   @Roles(['admin'])

@@ -23,6 +23,18 @@ type ParentCommentSummary = {
 export class DashboardService {
   private static readonly DB_ID = 'app';
 
+  /**
+   * Status de `z_entries` que valem como marco social no feed. Mudanças de
+   * status sem peso (ex.: `wishlist`) ficam de fora para reduzir ruído; e cada
+   * par (dono, jogo) é deduplicado para o registro mais recente.
+   */
+  private static readonly FEED_STATUS_MILESTONES = [
+    'completed',
+    'backlog',
+    'playing',
+    'dropped',
+  ];
+
   constructor(private readonly appwrite: Appwrite) {}
 
   async getPersonalFeed(userId: string, page = 1, pageSize = 12) {
@@ -55,7 +67,7 @@ export class DashboardService {
       return { items: [], hasMore: false };
     }
 
-    const [ratings, comments, lists] = await Promise.all([
+    const [ratings, comments, lists, statusEntries] = await Promise.all([
       this.appwrite.tablesDB.listRows<any>({
         databaseId: DashboardService.DB_ID,
         tableId: 'ratings',
@@ -90,6 +102,16 @@ export class DashboardService {
           Query.limit(100),
         ],
       }),
+      this.appwrite.tablesDB.listRows<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entries',
+        queries: [
+          Query.equal('ownerFingerprint', followedFingerprints),
+          Query.equal('status', DashboardService.FEED_STATUS_MILESTONES),
+          Query.orderDesc('$createdAt'),
+          Query.limit(100),
+        ],
+      }),
     ]);
 
     const profileByFingerprint = new Map(
@@ -97,9 +119,24 @@ export class DashboardService {
     );
     const profileById = new Map(followedProfiles.map((p) => [p.$id, p]));
 
+    // z_entries é um log append-only; colapsa para o registro mais recente de
+    // cada par (dono, jogo) — assim backlog→playing→completed vira só o último.
+    const seenStatusKeys = new Set<string>();
+    const dedupedStatusEntries = statusEntries.rows.filter((entry) => {
+      const key = `${entry.ownerFingerprint}:${entry.gameId}`;
+      if (seenStatusKeys.has(key)) return false;
+      seenStatusKeys.add(key);
+      return true;
+    });
+
+    // list_items dos seguidos: reutiliza as listas públicas já buscadas acima
+    // como janela; hidrata jogo via `game.*`.
+    const listById = new Map(lists.rows.map((list) => [list.$id, list]));
+    const listItemRows = await this.getFollowedListItems(lists.rows);
+
     const gameIds = Array.from(
       new Set(
-        [...ratings.rows, ...comments.rows]
+        [...ratings.rows, ...comments.rows, ...dedupedStatusEntries]
           .map((item) => item.gameId)
           .filter(Boolean),
       ),
@@ -147,14 +184,167 @@ export class DashboardService {
         type: 'list' as const,
         userProfile: profileByFingerprint.get(list.ownerFingerprint) ?? null,
       })),
+      ...dedupedStatusEntries.map((entry) => ({
+        $id: entry.$id,
+        $createdAt: entry.$createdAt,
+        type: 'status' as const,
+        status: entry.status,
+        userProfile: profileByFingerprint.get(entry.ownerFingerprint) ?? null,
+        game: entry.gameId ? (gameMap.get(entry.gameId) ?? null) : null,
+      })),
+      ...listItemRows.map((item) => {
+        const listId = this.getRelationId(item.list);
+        const list = listId ? listById.get(listId) : null;
+        const game =
+          typeof item.game === 'object' && item.game
+            ? {
+                $id: item.game.$id,
+                name: item.game.name,
+                slug: item.game.slug,
+                coverUrl: item.game.coverUrl ?? null,
+              }
+            : null;
+
+        return {
+          $id: item.$id,
+          $createdAt: item.$createdAt,
+          type: 'list_item' as const,
+          userProfile: list
+            ? (profileByFingerprint.get(list.ownerFingerprint) ?? null)
+            : null,
+          game,
+          list: list
+            ? { $id: list.$id, title: list.title, slug: list.slug }
+            : null,
+        };
+      }),
     ]
       .filter((item) => item.userProfile)
+      // status e list_item exigem jogo hidratado para renderizar
+      .filter(
+        (item) =>
+          (item.type !== 'status' && item.type !== 'list_item') || item.game,
+      )
       .sort((a, b) => b.$createdAt.localeCompare(a.$createdAt));
 
     return {
       items: items.slice(offset, offset + safePageSize),
       hasMore: offset + safePageSize < items.length,
     };
+  }
+
+  /**
+   * `list_items` mais recentes das listas públicas informadas (janela de 100).
+   * Cada linha carrega o jogo hidratado (`game.*`); a resolução de lista/autor
+   * fica a cargo do chamador via `listById`.
+   */
+  private async getFollowedListItems(listRows: any[]) {
+    const listIds = listRows.map((list) => list.$id).filter(Boolean);
+    if (listIds.length === 0) return [];
+
+    const listItems = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'list_items',
+      queries: [
+        Query.equal('list', listIds),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+        Query.select(['*', 'game.*']),
+      ],
+    });
+
+    return listItems.rows;
+  }
+
+  /**
+   * Sugere perfis para o usuário seguir, com base em afinidade: jogadores que
+   * avaliaram os mesmos jogos. Se `seedGameIds` for informado (ex.: onboarding
+   * passa os jogos recém-adicionados), usa-os como semente; caso contrário usa
+   * os jogos que o próprio usuário já avaliou. Exclui o próprio usuário e quem
+   * ele já segue.
+   */
+  async getSuggestedConnections(
+    userId: string,
+    limit = 6,
+    seedGameIds: string[] = [],
+  ) {
+    const profile = await this.getProfileByUserId(userId);
+    const safeLimit = Math.max(1, Math.min(limit, 24));
+
+    let gameIds = seedGameIds.filter(Boolean);
+
+    if (gameIds.length === 0) {
+      const myRatings = await this.appwrite.tablesDB.listRows<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'ratings',
+        queries: [
+          Query.equal('ownerFingerprint', profile.fingerprint),
+          Query.limit(100),
+          Query.select(['gameId']),
+        ],
+      });
+      gameIds = Array.from(
+        new Set(myRatings.rows.map((r) => r.gameId).filter(Boolean)),
+      );
+    }
+
+    if (gameIds.length === 0) {
+      return { items: [] };
+    }
+
+    const ratings = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'ratings',
+      queries: [
+        Query.equal('gameId', gameIds.slice(0, 100)),
+        Query.limit(100),
+        Query.select(['ownerFingerprint']),
+      ],
+    });
+
+    const sharedByFingerprint = new Map<string, number>();
+    for (const rating of ratings.rows) {
+      const fingerprint = rating.ownerFingerprint;
+      if (!fingerprint || fingerprint === profile.fingerprint) continue;
+      sharedByFingerprint.set(
+        fingerprint,
+        (sharedByFingerprint.get(fingerprint) ?? 0) + 1,
+      );
+    }
+
+    if (sharedByFingerprint.size === 0) {
+      return { items: [] };
+    }
+
+    const following = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'connections',
+      queries: [
+        Query.equal('requesterProfileId', profile.$id),
+        Query.limit(100),
+      ],
+    });
+    const followingIds = new Set(
+      following.rows.map((c) => c.targetProfileId).filter(Boolean),
+    );
+
+    const candidateProfiles = await this.getProfilesByFingerprints(
+      Array.from(sharedByFingerprint.keys()),
+    );
+
+    const items = candidateProfiles
+      .filter(
+        (candidate) =>
+          candidate.$id !== profile.$id && !followingIds.has(candidate.$id),
+      )
+      .map((candidate) => ({
+        ...candidate,
+        sharedCount: sharedByFingerprint.get(candidate.fingerprint) ?? 0,
+      }))
+      .sort((a, b) => b.sharedCount - a.sharedCount)
+      .slice(0, safeLimit);
+
+    return { items };
   }
 
   async getTrendingLists(userId?: string, limit = 12) {

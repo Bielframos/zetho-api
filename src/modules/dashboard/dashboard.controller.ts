@@ -35,6 +35,27 @@ export class DashboardController {
     );
   }
 
+  @Get('dashboard/suggested-connections')
+  @UseGuards(AppwriteSessionGuard)
+  getSuggestedConnections(
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('gameIds') gameIds?: string,
+  ) {
+    const user = req.user as Models.User;
+    const seedGameIds = gameIds
+      ? gameIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [];
+    return this.dashboardService.getSuggestedConnections(
+      user.$id,
+      limit ? parseInt(limit, 10) : 6,
+      seedGameIds,
+    );
+  }
+
   @Get('lists/trending')
   @UseGuards(OptionalAppwriteSessionGuard)
   getTrendingLists(@Req() req: any, @Query('limit') limit?: string) {

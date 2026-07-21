@@ -171,6 +171,31 @@ export class ProfileService {
     };
   }
 
+  /** Mini-perfil público do dono de um código de convite (para a tela de cadastro). */
+  async getInviterByCode(code: string) {
+    const trimmed = code?.trim();
+    if (!trimmed) return null;
+
+    const result = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: ProfileService.DB_ID,
+      tableId: 'user_profiles',
+      queries: [
+        Query.equal('inviteCode', trimmed),
+        Query.limit(1),
+        Query.select(['gamertag', 'avatarUrl', 'totalsCompleted']),
+      ],
+    });
+
+    const inviter = result.rows[0];
+    if (!inviter) return null;
+
+    return {
+      gamertag: inviter.gamertag,
+      avatarUrl: inviter.avatarUrl ?? null,
+      totalsCompleted: inviter.totalsCompleted ?? 0,
+    };
+  }
+
   async updateInviteCode(profileId: string) {
     const inviteCode = this.generateInviteCode();
 
@@ -491,6 +516,43 @@ export class ProfileService {
         },
       });
     });
+
+    // Conexão mútua: o convidado nasce seguindo o convidante e vice-versa, para
+    // que ambos tenham feed com vida desde o primeiro acesso (loop de convite).
+    await this.createMutualConnection(
+      params.invitedProfileId,
+      inviterProfile.$id,
+    );
+  }
+
+  private async createMutualConnection(
+    invitedProfileId: string,
+    inviterProfileId: string,
+  ) {
+    const pairs = [
+      {
+        requesterProfileId: invitedProfileId,
+        targetProfileId: inviterProfileId,
+      },
+      {
+        requesterProfileId: inviterProfileId,
+        targetProfileId: invitedProfileId,
+      },
+    ];
+
+    for (const data of pairs) {
+      try {
+        await this.tablesDB.createRow({
+          databaseId: 'app',
+          tableId: 'connections',
+          rowId: crypto.randomUUID(),
+          data,
+        });
+      } catch (error) {
+        // Não bloqueia o cadastro caso a conexão falhe (best-effort).
+        console.error('Falha ao criar conexão de convite', error);
+      }
+    }
   }
 
   private generateInviteLogRowId(inviterUserId: string, invitedUserId: string) {
