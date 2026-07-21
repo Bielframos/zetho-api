@@ -23,6 +23,18 @@ type ParentCommentSummary = {
 export class DashboardService {
   private static readonly DB_ID = 'app';
 
+  /**
+   * Status de `z_entries` que valem como marco social no feed. Mudanças de
+   * status sem peso (ex.: `wishlist`) ficam de fora para reduzir ruído; e cada
+   * par (dono, jogo) é deduplicado para o registro mais recente.
+   */
+  private static readonly FEED_STATUS_MILESTONES = [
+    'completed',
+    'backlog',
+    'playing',
+    'dropped',
+  ];
+
   constructor(private readonly appwrite: Appwrite) {}
 
   async getPersonalFeed(userId: string, page = 1, pageSize = 12) {
@@ -55,7 +67,7 @@ export class DashboardService {
       return { items: [], hasMore: false };
     }
 
-    const [ratings, comments, lists] = await Promise.all([
+    const [ratings, comments, lists, statusEntries] = await Promise.all([
       this.appwrite.tablesDB.listRows<any>({
         databaseId: DashboardService.DB_ID,
         tableId: 'ratings',
@@ -90,6 +102,16 @@ export class DashboardService {
           Query.limit(100),
         ],
       }),
+      this.appwrite.tablesDB.listRows<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entries',
+        queries: [
+          Query.equal('ownerFingerprint', followedFingerprints),
+          Query.equal('status', DashboardService.FEED_STATUS_MILESTONES),
+          Query.orderDesc('$createdAt'),
+          Query.limit(100),
+        ],
+      }),
     ]);
 
     const profileByFingerprint = new Map(
@@ -97,9 +119,24 @@ export class DashboardService {
     );
     const profileById = new Map(followedProfiles.map((p) => [p.$id, p]));
 
+    // z_entries é um log append-only; colapsa para o registro mais recente de
+    // cada par (dono, jogo) — assim backlog→playing→completed vira só o último.
+    const seenStatusKeys = new Set<string>();
+    const dedupedStatusEntries = statusEntries.rows.filter((entry) => {
+      const key = `${entry.ownerFingerprint}:${entry.gameId}`;
+      if (seenStatusKeys.has(key)) return false;
+      seenStatusKeys.add(key);
+      return true;
+    });
+
+    // list_items dos seguidos: reutiliza as listas públicas já buscadas acima
+    // como janela; hidrata jogo via `game.*`.
+    const listById = new Map(lists.rows.map((list) => [list.$id, list]));
+    const listItemRows = await this.getFollowedListItems(lists.rows);
+
     const gameIds = Array.from(
       new Set(
-        [...ratings.rows, ...comments.rows]
+        [...ratings.rows, ...comments.rows, ...dedupedStatusEntries]
           .map((item) => item.gameId)
           .filter(Boolean),
       ),
@@ -147,8 +184,47 @@ export class DashboardService {
         type: 'list' as const,
         userProfile: profileByFingerprint.get(list.ownerFingerprint) ?? null,
       })),
+      ...dedupedStatusEntries.map((entry) => ({
+        $id: entry.$id,
+        $createdAt: entry.$createdAt,
+        type: 'status' as const,
+        status: entry.status,
+        userProfile: profileByFingerprint.get(entry.ownerFingerprint) ?? null,
+        game: entry.gameId ? (gameMap.get(entry.gameId) ?? null) : null,
+      })),
+      ...listItemRows.map((item) => {
+        const listId = this.getRelationId(item.list);
+        const list = listId ? listById.get(listId) : null;
+        const game =
+          typeof item.game === 'object' && item.game
+            ? {
+                $id: item.game.$id,
+                name: item.game.name,
+                slug: item.game.slug,
+                coverUrl: item.game.coverUrl ?? null,
+              }
+            : null;
+
+        return {
+          $id: item.$id,
+          $createdAt: item.$createdAt,
+          type: 'list_item' as const,
+          userProfile: list
+            ? (profileByFingerprint.get(list.ownerFingerprint) ?? null)
+            : null,
+          game,
+          list: list
+            ? { $id: list.$id, title: list.title, slug: list.slug }
+            : null,
+        };
+      }),
     ]
       .filter((item) => item.userProfile)
+      // status e list_item exigem jogo hidratado para renderizar
+      .filter(
+        (item) =>
+          (item.type !== 'status' && item.type !== 'list_item') || item.game,
+      )
       .sort((a, b) => b.$createdAt.localeCompare(a.$createdAt));
 
     return {
@@ -158,62 +234,13 @@ export class DashboardService {
   }
 
   /**
-   * Jogos que perfis seguidos pelo usuário adicionaram recentemente às suas
-   * listas públicas. Resolve o grafo de conexões → listas públicas dos
-   * seguidos → `list_items` mais recentes dessas listas, e hidrata autor,
-   * lista e jogo. Endpoint dedicado (não o feed) porque `list_items` é criado
-   * com muito mais frequência e teria sua própria janela de paginação.
+   * `list_items` mais recentes das listas públicas informadas (janela de 100).
+   * Cada linha carrega o jogo hidratado (`game.*`); a resolução de lista/autor
+   * fica a cargo do chamador via `listById`.
    */
-  async getConnectionsListActivity(userId: string, page = 1, pageSize = 12) {
-    const profile = await this.getProfileByUserId(userId);
-    const safePage = Math.max(1, page);
-    const safePageSize = Math.max(1, Math.min(pageSize, 50));
-    const offset = (safePage - 1) * safePageSize;
-
-    const connections = await this.appwrite.tablesDB.listRows<any>({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'connections',
-      queries: [
-        Query.equal('requesterProfileId', profile.$id),
-        Query.limit(100),
-      ],
-    });
-
-    const followedProfileIds = connections.rows
-      .map((connection) => connection.targetProfileId)
-      .filter(Boolean);
-
-    if (followedProfileIds.length === 0) {
-      return { items: [], hasMore: false };
-    }
-
-    const followedProfiles = await this.getProfilesByIds(followedProfileIds);
-    const followedFingerprints = followedProfiles.map((p) => p.fingerprint);
-
-    if (followedFingerprints.length === 0) {
-      return { items: [], hasMore: false };
-    }
-
-    const lists = await this.appwrite.tablesDB.listRows<any>({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'lists',
-      queries: [
-        Query.equal('ownerFingerprint', followedFingerprints),
-        Query.equal('isPublic', true),
-        Query.limit(100),
-        Query.select(['$id', 'title', 'slug', 'ownerFingerprint']),
-      ],
-    });
-
-    if (lists.rows.length === 0) {
-      return { items: [], hasMore: false };
-    }
-
-    const listById = new Map(lists.rows.map((list) => [list.$id, list]));
-    const listIds = lists.rows.map((list) => list.$id);
-    const profileByFingerprint = new Map(
-      followedProfiles.map((p) => [p.fingerprint, p]),
-    );
+  private async getFollowedListItems(listRows: any[]) {
+    const listIds = listRows.map((list) => list.$id).filter(Boolean);
+    if (listIds.length === 0) return [];
 
     const listItems = await this.appwrite.tablesDB.listRows<any>({
       databaseId: DashboardService.DB_ID,
@@ -226,39 +253,7 @@ export class DashboardService {
       ],
     });
 
-    const items = listItems.rows
-      .map((item) => {
-        const listId = this.getRelationId(item.list);
-        const list = listId ? listById.get(listId) : null;
-        const author = list
-          ? (profileByFingerprint.get(list.ownerFingerprint) ?? null)
-          : null;
-        const game =
-          typeof item.game === 'object' && item.game
-            ? {
-                $id: item.game.$id,
-                name: item.game.name,
-                slug: item.game.slug,
-                coverUrl: item.game.coverUrl ?? null,
-              }
-            : null;
-
-        if (!list || !author || !game) return null;
-
-        return {
-          $id: item.$id,
-          $createdAt: item.$createdAt,
-          author,
-          list: { $id: list.$id, title: list.title, slug: list.slug },
-          game,
-        };
-      })
-      .filter(Boolean);
-
-    return {
-      items: items.slice(offset, offset + safePageSize),
-      hasMore: offset + safePageSize < items.length,
-    };
+    return listItems.rows;
   }
 
   /**

@@ -35,21 +35,6 @@ export class DashboardController {
     );
   }
 
-  @Get('dashboard/connections-list-activity')
-  @UseGuards(AppwriteSessionGuard)
-  getConnectionsListActivity(
-    @Req() req: any,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ) {
-    const user = req.user as Models.User;
-    return this.dashboardService.getConnectionsListActivity(
-      user.$id,
-      page ? parseInt(page, 10) : 1,
-      pageSize ? parseInt(pageSize, 10) : 12,
-    );
-  }
-
   @Get('dashboard/suggested-connections')
   @UseGuards(AppwriteSessionGuard)
   getSuggestedConnections(

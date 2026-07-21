@@ -10,12 +10,12 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ### Added
 
-- Endpoint autenticado `GET /dashboard/connections-list-activity`, retornando jogos adicionados recentemente às listas públicas de quem o usuário segue.
 - Endpoint autenticado `GET /dashboard/suggested-connections`, sugerindo jogadores com avaliações em jogos em comum.
 - Endpoint público `GET /profile/invite/:code`, retornando o mini-perfil de quem é dono de um código de convite.
 
 ### Changed
 
+- O feed do dashboard (`GET /dashboard/feed`) agora é um fluxo social unificado: além de reviews, comentários e listas, inclui os registros de status dos seguidos (marcos `completed`/`backlog`/`playing`/`dropped`, deduplicados por jogo para o mais recente) e as adições de jogos às listas públicas deles.
 - Aplicar um código de convite agora cria conexão mútua: convidado e convidante passam a se seguir automaticamente.
 
 ## [0.1.2] - 2026-07-08

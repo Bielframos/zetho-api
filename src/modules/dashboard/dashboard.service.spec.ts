@@ -59,7 +59,11 @@ describe('DashboardService', () => {
           ],
           total: 1,
         })
+        // lists
         .mockResolvedValueOnce({ rows: [], total: 0 })
+        // z_entries (marcos de status)
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        // getParentCommentMap → game_comments
         .mockResolvedValueOnce({
           rows: [
             {
@@ -146,7 +150,11 @@ describe('DashboardService', () => {
           ],
           total: 1,
         })
+        // lists
         .mockResolvedValueOnce({ rows: [], total: 0 })
+        // z_entries (marcos de status)
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        // getCommentVoteMap → game_comment_votes
         .mockResolvedValueOnce({ rows: [], total: 0 }),
     };
 
@@ -456,24 +464,7 @@ describe('DashboardService', () => {
     expect(tablesDB.updateRow).not.toHaveBeenCalled();
   });
 
-  it('returns empty connections list activity when the user follows nobody', async () => {
-    const tablesDB = {
-      listRows: jest
-        .fn()
-        .mockResolvedValueOnce({
-          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
-        })
-        .mockResolvedValueOnce({ rows: [], total: 0 }),
-    };
-
-    const service = makeService(tablesDB);
-
-    await expect(service.getConnectionsListActivity('user-1')).resolves.toEqual(
-      { items: [], hasMore: false },
-    );
-  });
-
-  it('hydrates a game added by a followed user to a public list', async () => {
+  it('merges status milestones and list additions into the personal feed', async () => {
     const tablesDB = {
       listRows: jest
         .fn()
@@ -484,6 +475,7 @@ describe('DashboardService', () => {
         // connections
         .mockResolvedValueOnce({
           rows: [{ targetProfileId: 'profile-2' }],
+          total: 1,
         })
         // followed profiles
         .mockResolvedValueOnce({
@@ -497,18 +489,45 @@ describe('DashboardService', () => {
             },
           ],
         })
-        // lists owned by followed users
+        // ratings
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        // comments
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        // lists (uma lista pública do seguido, serve de janela p/ list_items)
         .mockResolvedValueOnce({
           rows: [
             {
               $id: 'list-1',
+              $createdAt: '2026-01-01T00:00:00.000Z',
               title: 'Top RPGs',
               slug: 'top-rpgs',
               ownerFingerprint: 'friend',
+              isPublic: true,
             },
           ],
+          total: 1,
         })
-        // list_items
+        // z_entries: backlog→completed no mesmo jogo colapsa para completed
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'entry-2',
+              $createdAt: '2026-01-04T00:00:00.000Z',
+              ownerFingerprint: 'friend',
+              gameId: 'game-1',
+              status: 'completed',
+            },
+            {
+              $id: 'entry-1',
+              $createdAt: '2026-01-02T00:00:00.000Z',
+              ownerFingerprint: 'friend',
+              gameId: 'game-1',
+              status: 'backlog',
+            },
+          ],
+          total: 2,
+        })
+        // list_items (janela das listas acima)
         .mockResolvedValueOnce({
           rows: [
             {
@@ -516,40 +535,48 @@ describe('DashboardService', () => {
               $createdAt: '2026-01-03T00:00:00.000Z',
               list: 'list-1',
               game: {
-                $id: 'game-1',
+                $id: 'game-2',
                 name: 'Baldur',
                 slug: 'baldur',
                 coverUrl: 'cover.jpg',
               },
             },
           ],
-        }),
+        })
+        // getGameMap (game-1 do status)
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'game-1',
+              name: 'Hades',
+              slug: 'hades',
+              coverUrl: 'hades.jpg',
+            },
+          ],
+        })
+        // getParentCommentMap → game_comments (sem comentários)
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        // getCommentVoteMap → game_comment_votes
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
     };
 
     const service = makeService(tablesDB);
-    const result = await service.getConnectionsListActivity('user-1');
+    const result = await service.getPersonalFeed('user-1');
 
-    expect(result.hasMore).toBe(false);
-    expect(result.items).toEqual([
-      {
-        $id: 'item-1',
-        $createdAt: '2026-01-03T00:00:00.000Z',
-        author: {
-          $id: 'profile-2',
-          userId: 'user-2',
-          fingerprint: 'friend',
-          gamertag: 'Friend',
-          avatarUrl: null,
-        },
-        list: { $id: 'list-1', title: 'Top RPGs', slug: 'top-rpgs' },
-        game: {
-          $id: 'game-1',
-          name: 'Baldur',
-          slug: 'baldur',
-          coverUrl: 'cover.jpg',
-        },
-      },
+    // Ordem por data desc: status completed (04) > list_item (03) > list (01)
+    expect(result.items.map((item: any) => [item.type, item.$id])).toEqual([
+      ['status', 'entry-2'],
+      ['list_item', 'item-1'],
+      ['list', 'list-1'],
     ]);
+
+    const status = result.items[0];
+    expect(status.status).toBe('completed');
+    expect(status.game).toMatchObject({ $id: 'game-1', name: 'Hades' });
+
+    const listItem = result.items[1];
+    expect(listItem.list).toMatchObject({ $id: 'list-1', slug: 'top-rpgs' });
+    expect(listItem.game).toMatchObject({ $id: 'game-2', name: 'Baldur' });
   });
 
   it('suggests unfollowed players who rated the same games', async () => {
