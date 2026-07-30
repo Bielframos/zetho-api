@@ -346,3 +346,57 @@ export type ProfileThemes = Models.Row & {
   tertiaryColor: string | null;
   gameId: string | null;
 };
+
+export type GameplaySessionPrivacy = 'closed' | 'public';
+export type GameplaySessionStatus =
+  | 'scheduled'
+  | 'active'
+  | 'completed'
+  | 'cancelled';
+export type GameplaySessionParticipantStatus =
+  | 'pending'
+  | 'invited'
+  | 'confirmed'
+  | 'declined'
+  | 'rejected'
+  | 'removed'
+  | 'cancelled'
+  | 'left';
+export type NotificationType =
+  | 'session_invite'
+  | 'session_rsvp'
+  | 'session_reminder';
+
+export type GameplaySessions = Models.Row & {
+  hostProfileId: string;
+  gameId: string;
+  gameName: string;
+  gameCoverUrl: string | null;
+  title: string;
+  description: string | null;
+  scheduledAt: string;
+  privacy: GameplaySessionPrivacy;
+  maxPlayers: number;
+  confirmedCount: number;
+  status: GameplaySessionStatus;
+  tags: string[] | null;
+};
+
+export type GameplaySessionParticipants = Models.Row & {
+  sessionId: string;
+  profileId: string;
+  status: GameplaySessionParticipantStatus;
+  isHost: boolean;
+  invitedAt: string | null;
+  respondedAt: string | null;
+};
+
+export type Notifications = Models.Row & {
+  recipientProfileId: string;
+  senderProfileId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  entityId: string;
+  read: boolean;
+};

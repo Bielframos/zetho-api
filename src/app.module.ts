@@ -19,6 +19,7 @@ import { RatingsModule } from './modules/ratings/ratings.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ThemesModule } from './modules/themes/themes.module';
+import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-sessions.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ThemesModule } from './modules/themes/themes.module';
     RaffleModule,
     RatingsModule,
     DashboardModule,
+    GameplaySessionsModule,
 
     /** Modulos do sístema */
     WebhookModule,
@@ -53,6 +55,7 @@ import { ThemesModule } from './modules/themes/themes.module';
 
     ThemesModule,
   ],
+
   controllers: [],
   providers: [],
 })

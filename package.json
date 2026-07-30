@@ -1,6 +1,6 @@
 {
   "name": "zetho-api",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -21,6 +21,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "gameplay:dedupe-participants": "ts-node scripts/dedupe-gameplay-session-participants.ts",
     "deploy": "dotenv -e .env -- sh -c 'curl -f -s -X GET \"$DEPLOYMENT_TRIGGER_ENDPOINT\"'"
   },
   "dependencies": {
