@@ -2528,6 +2528,377 @@
                 }
             ],
             "indexes": []
+        },
+        {
+            "$id": "gameplay_sessions",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Gameplay Sessions",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "hostProfileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "gameId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "gameName",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "gameCoverUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 500,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "title",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "description",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 2000,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "scheduledAt",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "privacy",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "maxPlayers",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "min": 2,
+                    "max": 100,
+                    "default": null
+                },
+                {
+                    "key": "confirmedCount",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "min": 0,
+                    "max": 100,
+                    "default": null
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "tags",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 64,
+                    "encrypt": false,
+                    "default": null
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_privacy",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "privacy"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_host",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "hostProfileId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_game",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "gameId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_status",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_scheduled_at",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "scheduledAt"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "gameplay_session_participants",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Gameplay Session Participants",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "sessionId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "profileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "isHost",
+                    "type": "boolean",
+                    "required": true,
+                    "array": false,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "invitedAt",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "respondedAt",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "encrypt": false,
+                    "default": null
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_session",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "sessionId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_profile",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "profileId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "uniq_session_profile",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "sessionId",
+                        "profileId"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_status",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "notifications",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Notifications",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "recipientProfileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "senderProfileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 32,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "title",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "body",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 1000,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "entityId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "encrypt": false,
+                    "default": null
+                },
+                {
+                    "key": "read",
+                    "type": "boolean",
+                    "required": true,
+                    "array": false,
+                    "encrypt": false,
+                    "default": null
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_recipient",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "recipientProfileId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
         }
     ],
     "buckets": [

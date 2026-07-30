@@ -126,6 +126,116 @@ export class EmailTemplateService {
     });
   }
 
+  renderSessionInviteEmail({
+    recipientName,
+    hostName,
+    sessionTitle,
+    gameName,
+    scheduledAt,
+  }: {
+    recipientName: string;
+    hostName: string;
+    sessionTitle: string;
+    gameName: string;
+    scheduledAt: string;
+  }) {
+    return this.renderTransactionalEmail({
+      preheader: `${hostName} te convidou para jogar ${gameName} no Zetho.`,
+      title: 'Convite para uma Jogatina',
+      intro: `Olá, ${recipientName || 'Gamer'}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: `${hostName} convidou você para a Jogatina "${sessionTitle}" do jogo ${gameName}.`,
+        },
+        {
+          kind: 'metadata',
+          rows: [
+            { label: 'Jogo', value: gameName },
+            { label: 'Jogatina', value: sessionTitle },
+            { label: 'Data/Hora', value: scheduledAt },
+          ],
+        },
+      ],
+      footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
+    });
+  }
+
+  renderSessionRsvpEmail({
+    hostName,
+    participantName,
+    sessionTitle,
+    status,
+  }: {
+    hostName: string;
+    participantName: string;
+    sessionTitle: string;
+    status: 'confirmed' | 'declined';
+  }) {
+    const statusText =
+      status === 'confirmed' ? 'confirmou presença' : 'recusou o convite';
+    return this.renderTransactionalEmail({
+      preheader: `${participantName} ${statusText} na sua Jogatina "${sessionTitle}".`,
+      title: 'Atualização na Jogatina',
+      intro: `Olá, ${hostName}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: `${participantName} ${statusText} para a Jogatina "${sessionTitle}".`,
+        },
+      ],
+      footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
+    });
+  }
+
+  renderSessionStartReminderEmail({
+    recipientName,
+    sessionTitle,
+    gameName,
+    scheduledAt,
+  }: {
+    recipientName: string;
+    sessionTitle: string;
+    gameName: string;
+    scheduledAt: string;
+  }) {
+    return this.renderTransactionalEmail({
+      preheader: `Sua Jogatina "${sessionTitle}" está prestes a começar!`,
+      title: 'Lembrete de Início da Partida',
+      intro: `Olá, ${recipientName || 'Gamer'}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: `Sua partida de ${gameName} ("${sessionTitle}") agendada para ${scheduledAt} vai começar! Prepare seu controle e divirta-se.`,
+        },
+      ],
+      footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
+    });
+  }
+
+  renderSessionCancellationEmail({
+    recipientName,
+    sessionTitle,
+    gameName,
+  }: {
+    recipientName: string;
+    sessionTitle: string;
+    gameName: string;
+  }) {
+    return this.renderTransactionalEmail({
+      preheader: `A Jogatina "${sessionTitle}" foi cancelada.`,
+      title: 'Jogatina cancelada',
+      intro: `Olá, ${recipientName || 'Gamer'}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: `A Jogatina "${sessionTitle}" (${gameName}) foi cancelada pelo host.`,
+        },
+      ],
+      footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
+    });
+  }
+
   renderTransactionalEmail({
     title,
     preheader,

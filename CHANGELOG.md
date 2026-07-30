@@ -6,6 +6,25 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-29
+
+### Added
+
+- APIs autenticadas para criar, listar, consultar, responder e cancelar jogatinas públicas, privadas e por convite.
+- Notificações internas persistentes para convites, confirmações, recusas e cancelamentos, com leitura e exclusão pelo próprio destinatário.
+- E-mails transacionais de convite, confirmação e cancelamento de jogatinas.
+- Script de manutenção para deduplicar participantes antes da ativação da restrição única no Appwrite.
+
+### Changed
+
+- As tabelas de jogatinas, participantes e notificações internas agora são acessadas exclusivamente pela API, com índices para os principais filtros e limites alinhados aos DTOs.
+- A criação da jogatina e do anfitrião participante é atômica por transação do Appwrite.
+
+### Fixed
+
+- O build de produção agora compila somente `src`, mantendo `main.js` e `app.module.js` diretamente em `dist` mesmo com scripts TypeScript fora da aplicação.
+- O acesso a jogatinas privadas não aceita relações encerradas e as datas de criação precisam estar no futuro.
+
 ## [0.1.4] - 2026-07-21
 
 ### Added
