@@ -100,15 +100,12 @@ export class ZethoHandler {
 
         const readId = this.createId(entry.ownerFingerprint, entry.gameId);
 
-        const [profiles, existingReadEntry] = await Promise.all([
-          this.tablesDB.listRows<
-            Models.Row & { userId?: string; fingerprint?: string }
-          >({
+        const [profiles, existingReadEntry, zStatsRow] = await Promise.all([
+          this.tablesDB.listRows<Models.Row & Record<string, unknown>>({
             databaseId: ZethoHandler.DB_ID,
             tableId: 'user_profiles',
             queries: [
               Query.equal('fingerprint', entry.ownerFingerprint),
-              Query.select(['$id', 'userId', 'fingerprint']),
             ],
           }),
           this.tablesDB
@@ -116,6 +113,13 @@ export class ZethoHandler {
               databaseId: 'app',
               tableId: 'z_entries_read',
               rowId: readId,
+            })
+            .catch(() => null),
+          this.tablesDB
+            .getRow<Models.Row & Record<string, unknown>>({
+              databaseId: 'app',
+              tableId: 'z_entry_count',
+              rowId: `zstats_${entry.gameId}`,
             })
             .catch(() => null),
         ]);
@@ -254,21 +258,26 @@ export class ZethoHandler {
             );
             if (!action) return null;
 
+            const zstatsCol = `${status}Count`;
+            const userCol = `totals${status.charAt(0).toUpperCase() + status.slice(1)}`;
+
             return [
-              this.createIncDecOp(
+              this.createCounterOp(
                 action,
                 'app',
                 'z_entry_count',
                 `zstats_${entry.gameId}`,
-                `${status}Count`,
+                zstatsCol,
+                zStatsRow ? zStatsRow[zstatsCol] : null,
               ),
 
-              this.createIncDecOp(
+              this.createCounterOp(
                 action,
                 'app',
                 'user_profiles',
                 userProfile.$id,
-                `totals${status.charAt(0).toUpperCase() + status.slice(1)}`,
+                userCol,
+                userProfile[userCol],
               ),
             ];
           })
@@ -279,12 +288,13 @@ export class ZethoHandler {
         let hypedOps: Array<Record<string, unknown>> = [];
         const zcoinOps: Array<Record<string, unknown>> = zcoinChanges.map(
           (change) =>
-            this.createIncDecOp(
+            this.createCounterOp(
               change.type === 'input' ? 'increment' : 'decrement',
               'app',
               'user_profiles',
               userProfile.$id,
               'zcoinBalance',
+              userProfile.zcoinBalance,
               change.amount,
             ),
         );
@@ -296,33 +306,36 @@ export class ZethoHandler {
           if (prevLiked === true && currentLiked !== true) delta = -1;
 
           if (delta === 1) {
-            likeOp = this.createIncDecOp(
+            likeOp = this.createCounterOp(
               'increment',
               'app',
               'z_entry_count',
               `zstats_${entry.gameId}`,
               'likes',
+              zStatsRow ? zStatsRow.likes : null,
             );
           }
 
           if (delta === -1) {
-            likeOp = this.createIncDecOp(
+            likeOp = this.createCounterOp(
               'decrement',
               'app',
               'z_entry_count',
               `zstats_${entry.gameId}`,
               'likes',
+              zStatsRow ? zStatsRow.likes : null,
             );
           }
 
           if (currentLiked === true && !likedEver) {
             const engagedValue = SCORE_TABLE.input.engaged;
-            const engagedOp = this.createIncDecOp(
+            const engagedOp = this.createCounterOp(
               'increment',
               'app',
               'user_profiles',
               userProfile.$id,
               'zcoinBalance',
+              userProfile.zcoinBalance,
               engagedValue,
             );
 
@@ -339,19 +352,21 @@ export class ZethoHandler {
           const action = currentHyped ? 'increment' : 'decrement';
 
           hypedOps = [
-            this.createIncDecOp(
+            this.createCounterOp(
               action,
               'app',
               'z_entry_count',
               `zstats_${entry.gameId}`,
               'hypedCount',
+              zStatsRow ? zStatsRow.hypedCount : null,
             ),
-            this.createIncDecOp(
+            this.createCounterOp(
               action,
               'app',
               'user_profiles',
               userProfile.$id,
               'totalsHyped',
+              userProfile.totalsHyped,
             ),
           ];
         }
@@ -475,29 +490,47 @@ export class ZethoHandler {
   }
 
   /**
-   * Constrói uma operação de tabela para incrementar ou decrementar um campo.
+   * Constrói uma operação de tabela para incrementar/decrementar um campo.
+   * Se o valor atual da coluna for nulo ou indefinido, realiza um 'update' direto
+   * definindo o novo valor calculado a partir de 0, garantindo compatibilidade com
+   * registros criados antes da implementação atômica.
    *
-   * @param action Tipo de operação em TablesDB.
+   * @param action Tipo de alteração ('increment' | 'decrement').
    * @param databaseId ID do banco de dados Appwrite.
    * @param tableId ID da tabela alvo.
    * @param rowId ID da linha a ser atualizada.
-   * @param column Coluna que receberá o delta.
-   * @param value Valor do delta.
+   * @param column Coluna que receberá o delta/update.
+   * @param currentValue Valor atual conhecido da coluna na linha.
+   * @param delta Valor do delta.
    */
-  private createIncDecOp(
+  private createCounterOp(
     action: 'increment' | 'decrement',
     databaseId: string,
     tableId: string,
     rowId: string,
     column: string,
-    value = 1,
+    currentValue: unknown,
+    delta = 1,
   ) {
+    const isNullOrUndefined = currentValue === null || currentValue === undefined;
+
+    if (isNullOrUndefined) {
+      const initialVal = action === 'increment' ? delta : 0;
+      return {
+        action: 'update',
+        databaseId,
+        tableId,
+        rowId,
+        data: { [column]: initialVal },
+      };
+    }
+
     return {
       action,
       databaseId,
       tableId,
       rowId,
-      data: { value, column },
+      data: { value: delta, column },
     };
   }
 
