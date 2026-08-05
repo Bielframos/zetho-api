@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ID, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
@@ -37,11 +42,20 @@ export class DashboardService {
 
   constructor(private readonly appwrite: Appwrite) {}
 
-  async getPersonalFeed(userId: string, page = 1, pageSize = 12) {
+  async getPersonalFeed(
+    userId: string,
+    page = 1,
+    pageSize = 12,
+    scope: 'connections' | 'mine' = 'connections',
+  ) {
     const profile = await this.getProfileByUserId(userId);
     const safePage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 50));
     const offset = (safePage - 1) * safePageSize;
+
+    if (scope === 'mine') {
+      return this.getOwnEntryFeed(userId, profile, offset, safePageSize);
+    }
 
     const connections = await this.appwrite.tablesDB.listRows<any>({
       databaseId: DashboardService.DB_ID,
@@ -142,11 +156,15 @@ export class DashboardService {
       ),
     );
     const gameMap = await this.getGameMap(gameIds);
-    const [parentCommentMap, commentVoteMap] = await Promise.all([
+    const [parentCommentMap, commentVoteMap, entryLikeMap] = await Promise.all([
       this.getParentCommentMap(comments.rows),
       this.getCommentVoteMap(
         userId,
         comments.rows.map((comment) => comment.$id).filter(Boolean),
+      ),
+      this.getEntryLikeMap(
+        userId,
+        dedupedStatusEntries.map((entry) => entry.$id).filter(Boolean),
       ),
     ]);
     const parentProfileById = await this.getParentCommentProfileMap(
@@ -189,6 +207,9 @@ export class DashboardService {
         $createdAt: entry.$createdAt,
         type: 'status' as const,
         status: entry.status,
+        likeCount: entry.likeCount ?? 0,
+        commentCount: entry.commentCount ?? 0,
+        likedByMe: entryLikeMap.has(entry.$id),
         userProfile: profileByFingerprint.get(entry.ownerFingerprint) ?? null,
         game: entry.gameId ? (gameMap.get(entry.gameId) ?? null) : null,
       })),
@@ -230,6 +251,56 @@ export class DashboardService {
     return {
       items: items.slice(offset, offset + safePageSize),
       hasMore: offset + safePageSize < items.length,
+    };
+  }
+
+  private async getOwnEntryFeed(
+    userId: string,
+    profile: ProfileSummary,
+    offset: number,
+    pageSize: number,
+  ) {
+    const result = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entries',
+      queries: [
+        Query.equal('ownerFingerprint', profile.fingerprint),
+        Query.equal('status', DashboardService.FEED_STATUS_MILESTONES),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ],
+    });
+
+    const seenGames = new Set<string>();
+    const entries = result.rows.filter((entry) => {
+      if (!entry.gameId || seenGames.has(entry.gameId)) return false;
+      seenGames.add(entry.gameId);
+      return true;
+    });
+    const [gameMap, entryLikeMap] = await Promise.all([
+      this.getGameMap(entries.map((entry) => entry.gameId)),
+      this.getEntryLikeMap(
+        userId,
+        entries.map((entry) => entry.$id).filter(Boolean),
+      ),
+    ]);
+    const items = entries
+      .map((entry) => ({
+        $id: entry.$id,
+        $createdAt: entry.$createdAt,
+        type: 'status' as const,
+        status: entry.status,
+        likeCount: entry.likeCount ?? 0,
+        commentCount: entry.commentCount ?? 0,
+        likedByMe: entryLikeMap.has(entry.$id),
+        userProfile: profile,
+        game: gameMap.get(entry.gameId) ?? null,
+      }))
+      .filter((item) => item.game);
+
+    return {
+      items: items.slice(offset, offset + pageSize),
+      hasMore: offset + pageSize < items.length,
     };
   }
 
@@ -470,6 +541,225 @@ export class DashboardService {
     }
 
     return { success: true, delta, operation, newVoteCount, viewerVote };
+  }
+
+  async toggleEntryLike(userId: string, entryId: string) {
+    const [profile, entry] = await Promise.all([
+      this.getProfileByUserId(userId),
+      this.getEntryById(entryId),
+    ]);
+    this.assertFeedEntry(entry);
+
+    const existing = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_likes',
+      queries: [
+        Query.equal('entryId', entryId),
+        Query.equal('userId', userId),
+        Query.limit(1),
+      ],
+    });
+    const likedByMe = existing.rows.length === 0;
+
+    if (likedByMe) {
+      await this.appwrite.tablesDB.createRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_likes',
+        rowId: ID.unique(),
+        data: { entryId, userId, profileId: profile.$id },
+      });
+      const updated = await this.appwrite.tablesDB.incrementRowColumn({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entries',
+        rowId: entryId,
+        column: 'likeCount',
+        value: 1,
+      });
+      return this.entrySocialState(updated, true);
+    }
+
+    await this.appwrite.tablesDB.deleteRow({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_likes',
+      rowId: existing.rows[0].$id,
+    });
+    const updated = await this.appwrite.tablesDB.decrementRowColumn({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entries',
+      rowId: entryId,
+      column: 'likeCount',
+      value: 1,
+      min: 0,
+    });
+    return this.entrySocialState(updated, false);
+  }
+
+  async getEntryComments(
+    entryId: string,
+    page = 1,
+    pageSize = 20,
+    parentId?: string,
+  ) {
+    const entry = await this.getEntryById(entryId);
+    this.assertFeedEntry(entry);
+    const safePage = Math.max(1, Number.isFinite(page) ? page : 1);
+    const safePageSize = Math.max(
+      1,
+      Math.min(Number.isFinite(pageSize) ? pageSize : 20, 50),
+    );
+    const queries = [
+      Query.equal('entryId', entryId),
+      parentId ? Query.equal('parentId', parentId) : Query.isNull('parentId'),
+      Query.orderDesc('$createdAt'),
+      Query.limit(safePageSize),
+      Query.offset((safePage - 1) * safePageSize),
+    ];
+    const result = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_comments',
+      queries,
+    });
+    const profiles = await this.getProfilesByIds(
+      Array.from(
+        new Set(result.rows.map((row) => row.profileId).filter(Boolean)),
+      ),
+    );
+    const profileMap = new Map(
+      profiles.map((profile) => [profile.$id, profile]),
+    );
+
+    return {
+      items: result.rows.map((comment) => ({
+        ...comment,
+        userProfile: profileMap.get(comment.profileId) ?? null,
+      })),
+      total: result.total,
+      hasMore: safePage * safePageSize < result.total,
+    };
+  }
+
+  async createEntryComment(
+    userId: string,
+    entryId: string,
+    rawContent: string,
+    parentId?: string,
+  ) {
+    const content = rawContent.trim();
+    if (!content)
+      throw new BadRequestException('Comentário não pode ser vazio');
+
+    const [profile, entry] = await Promise.all([
+      this.getProfileByUserId(userId),
+      this.getEntryById(entryId),
+    ]);
+    this.assertFeedEntry(entry);
+
+    let depth = 0;
+    if (parentId) {
+      const parent = await this.getEntryCommentById(parentId);
+      if (parent.entryId !== entryId) {
+        throw new BadRequestException(
+          'Comentário pai pertence a outro registro',
+        );
+      }
+      depth = (parent.depth ?? 0) + 1;
+      if (depth > 2) {
+        throw new BadRequestException('Limite de respostas atingido');
+      }
+    }
+
+    const comment = await this.appwrite.tablesDB.createRow<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_comments',
+      rowId: ID.unique(),
+      data: {
+        entryId,
+        profileId: profile.$id,
+        content,
+        parentId: parentId ?? null,
+        depth,
+        replyCount: 0,
+      },
+    });
+
+    await this.appwrite.tablesDB.incrementRowColumn({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entries',
+      rowId: entryId,
+      column: 'commentCount',
+      value: 1,
+    });
+    if (parentId) {
+      await this.appwrite.tablesDB.incrementRowColumn({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_comments',
+        rowId: parentId,
+        column: 'replyCount',
+        value: 1,
+      });
+    }
+
+    await this.notifyEntryOwner(entry, profile, content);
+    return { ...comment, userProfile: profile };
+  }
+
+  async deleteEntryComment(
+    userId: string,
+    entryId: string,
+    commentId: string,
+    isAdmin = false,
+  ) {
+    const [profile, entry, comment] = await Promise.all([
+      this.getProfileByUserId(userId),
+      this.getEntryById(entryId),
+      this.getEntryCommentById(commentId),
+    ]);
+    this.assertFeedEntry(entry);
+    if (comment.entryId !== entryId) {
+      throw new NotFoundException('Comentário não encontrado');
+    }
+    if (comment.profileId !== profile.$id && !isAdmin) {
+      throw new ForbiddenException('Você não pode excluir este comentário');
+    }
+
+    const descendants = await this.getEntryCommentDescendants(
+      entryId,
+      commentId,
+    );
+    for (const row of [...descendants].reverse()) {
+      await this.appwrite.tablesDB.deleteRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_comments',
+        rowId: row.$id,
+      });
+    }
+    await this.appwrite.tablesDB.deleteRow({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_comments',
+      rowId: commentId,
+    });
+
+    const deletedCount = descendants.length + 1;
+    await this.appwrite.tablesDB.decrementRowColumn({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entries',
+      rowId: entryId,
+      column: 'commentCount',
+      value: deletedCount,
+      min: 0,
+    });
+    if (comment.parentId) {
+      await this.appwrite.tablesDB.decrementRowColumn({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_comments',
+        rowId: comment.parentId,
+        column: 'replyCount',
+        value: 1,
+        min: 0,
+      });
+    }
+
+    return { success: true, deletedCount };
   }
 
   private async toggleListRelation(
@@ -763,6 +1053,22 @@ export class DashboardService {
     return new Map<string, VoteType>(entries);
   }
 
+  private async getEntryLikeMap(userId: string, entryIds: string[]) {
+    const uniqueIds = Array.from(new Set(entryIds));
+    if (uniqueIds.length === 0) return new Set<string>();
+
+    const likes = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'z_entry_likes',
+      queries: [
+        Query.equal('entryId', uniqueIds),
+        Query.equal('userId', userId),
+        Query.limit(uniqueIds.length),
+      ],
+    });
+    return new Set(likes.rows.map((like) => like.entryId).filter(Boolean));
+  }
+
   private async getComputedCommentVoteCount(commentId: string) {
     const pageSize = 100;
     let offset = 0;
@@ -844,6 +1150,94 @@ export class DashboardService {
 
   private getRelationId(value: any) {
     return typeof value === 'string' ? value : value?.$id;
+  }
+
+  private async getEntryById(entryId: string) {
+    try {
+      return await this.appwrite.tablesDB.getRow<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entries',
+        rowId: entryId,
+      });
+    } catch {
+      throw new NotFoundException('Registro não encontrado');
+    }
+  }
+
+  private assertFeedEntry(entry: any) {
+    if (!DashboardService.FEED_STATUS_MILESTONES.includes(entry.status)) {
+      throw new BadRequestException('Este registro não é publicável no feed');
+    }
+  }
+
+  private entrySocialState(entry: any, likedByMe: boolean) {
+    return {
+      entryId: entry.$id,
+      likeCount: entry.likeCount ?? 0,
+      commentCount: entry.commentCount ?? 0,
+      likedByMe,
+    };
+  }
+
+  private async getEntryCommentById(commentId: string) {
+    try {
+      return await this.appwrite.tablesDB.getRow<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_comments',
+        rowId: commentId,
+      });
+    } catch {
+      throw new NotFoundException('Comentário não encontrado');
+    }
+  }
+
+  private async getEntryCommentDescendants(entryId: string, parentId: string) {
+    const descendants: any[] = [];
+    let frontier = [parentId];
+    while (frontier.length > 0) {
+      const result = await this.appwrite.tablesDB.listRows<any>({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'z_entry_comments',
+        queries: [
+          Query.equal('entryId', entryId),
+          Query.equal('parentId', frontier),
+          Query.limit(100),
+        ],
+      });
+      descendants.push(...result.rows);
+      frontier = result.rows.map((row) => row.$id).filter(Boolean);
+    }
+    return descendants;
+  }
+
+  private async notifyEntryOwner(
+    entry: any,
+    sender: ProfileSummary,
+    content: string,
+  ) {
+    const [owner] = await this.getProfilesByFingerprints([
+      entry.ownerFingerprint,
+    ]);
+    if (!owner || owner.$id === sender.$id) return;
+
+    try {
+      await this.appwrite.tablesDB.createRow({
+        databaseId: DashboardService.DB_ID,
+        tableId: 'notifications',
+        rowId: ID.unique(),
+        data: {
+          recipientProfileId: owner.$id,
+          senderProfileId: sender.$id,
+          type: 'entry_comment',
+          title: `${sender.gamertag} comentou no seu registro`,
+          body: content,
+          entityId: entry.$id,
+          read: false,
+        },
+      });
+    } catch {
+      // A interação principal não deve falhar se a notificação estiver indisponível.
+    }
   }
 
   private async getListState(userId: string, listIds: string[]) {

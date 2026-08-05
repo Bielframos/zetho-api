@@ -749,12 +749,13 @@ export class GameplaySessionsService {
             notification.type === 'session_invite'
               ? profile.$id
               : notification.senderProfileId;
-          const participant = notification.entityId
-            ? await this.findParticipant(
-                notification.entityId,
-                relatedProfileId,
-              )
-            : null;
+          const participant =
+            notification.entityId && notification.type !== 'entry_comment'
+              ? await this.findParticipant(
+                  notification.entityId,
+                  relatedProfileId,
+                )
+              : null;
           return {
             ...notification,
             senderProfile: this.publicProfile(sender),

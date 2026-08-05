@@ -678,9 +678,160 @@
                     "required": false,
                     "array": false,
                     "default": null
+                },
+                {
+                    "key": "likeCount",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 2147483647
+                },
+                {
+                    "key": "commentCount",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 2147483647
                 }
             ],
             "indexes": []
+        },
+        {
+            "$id": "z_entry_likes",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Z Entry Likes",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "entryId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "profileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "z_entry_likes_entry_user_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": ["entryId", "userId"],
+                    "orders": ["ASC", "ASC"]
+                },
+                {
+                    "key": "z_entry_likes_user_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["userId"],
+                    "orders": ["ASC"]
+                }
+            ]
+        },
+        {
+            "$id": "z_entry_comments",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Z Entry Comments",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "entryId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "profileId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "content",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 350,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "parentId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "depth",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 2
+                },
+                {
+                    "key": "replyCount",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": 0,
+                    "max": 2147483647
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "z_entry_comments_entry_parent_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["entryId", "parentId"],
+                    "orders": ["ASC", "ASC"]
+                },
+                {
+                    "key": "z_entry_comments_profile_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["profileId"],
+                    "orders": ["ASC"]
+                }
+            ]
         },
         {
             "$id": "companies",

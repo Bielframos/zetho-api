@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -14,7 +15,7 @@ import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { DashboardService } from './dashboard.service';
-import { VoteCommentDto } from './dashboard.dto';
+import { CreateEntryCommentDto, VoteCommentDto } from './dashboard.dto';
 
 @Controller()
 export class DashboardController {
@@ -26,12 +27,14 @@ export class DashboardController {
     @Req() req: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('scope') scope?: string,
   ) {
     const user = req.user as Models.User;
     return this.dashboardService.getPersonalFeed(
       user.$id,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,
+      scope === 'mine' ? 'mine' : 'connections',
     );
   }
 
@@ -115,6 +118,62 @@ export class DashboardController {
       user.$id,
       commentId,
       dto.operation,
+    );
+  }
+
+  @Post('dashboard/entries/:entryId/like')
+  @UseGuards(AppwriteSessionGuard)
+  toggleEntryLike(@Req() req: any, @Param('entryId') entryId: string) {
+    const user = req.user as Models.User;
+    return this.dashboardService.toggleEntryLike(user.$id, entryId);
+  }
+
+  @Get('dashboard/entries/:entryId/comments')
+  @UseGuards(AppwriteSessionGuard)
+  getEntryComments(
+    @Param('entryId') entryId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('parentId') parentId?: string,
+  ) {
+    return this.dashboardService.getEntryComments(
+      entryId,
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 20,
+      parentId,
+    );
+  }
+
+  @Post('dashboard/entries/:entryId/comments')
+  @UseGuards(AppwriteSessionGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createEntryComment(
+    @Req() req: any,
+    @Param('entryId') entryId: string,
+    @Body() dto: CreateEntryCommentDto,
+  ) {
+    const user = req.user as Models.User;
+    return this.dashboardService.createEntryComment(
+      user.$id,
+      entryId,
+      dto.content,
+      dto.parentId,
+    );
+  }
+
+  @Delete('dashboard/entries/:entryId/comments/:commentId')
+  @UseGuards(AppwriteSessionGuard)
+  deleteEntryComment(
+    @Req() req: any,
+    @Param('entryId') entryId: string,
+    @Param('commentId') commentId: string,
+  ) {
+    const user = req.user as Models.User;
+    return this.dashboardService.deleteEntryComment(
+      user.$id,
+      entryId,
+      commentId,
+      user.labels?.includes('admin') ?? false,
     );
   }
 }
