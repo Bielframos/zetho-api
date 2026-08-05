@@ -6,6 +6,22 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-05
+
+### Added
+
+- Curtidas e comentários em threads nos registros de status exibidos no feed, com contadores persistidos e notificações para o autor.
+- Escopo `mine` no feed do dashboard para que o usuário acompanhe seus próprios registros e as interações recebidas.
+
+### Changed
+
+- O contrato dos registros do feed agora informa contagens de curtidas e comentários e se o usuário autenticado já curtiu o registro.
+- O schema Appwrite inclui as tabelas de curtidas e comentários de registros e os respectivos índices de consulta e unicidade.
+
+### Fixed
+
+- A atualização de registros de gameplay preserva os contadores sociais existentes.
+
 ## [0.2.0] - 2026-07-29
 
 ### Added

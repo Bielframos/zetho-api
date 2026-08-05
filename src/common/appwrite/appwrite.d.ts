@@ -165,6 +165,23 @@ export type ZEntries = Models.Row & {
   ownerFingerprint: string;
   processedAt: string | null;
   hyped: boolean | null;
+  likeCount: number;
+  commentCount: number;
+};
+
+export type ZEntryLikes = Models.Row & {
+  entryId: string;
+  userId: string;
+  profileId: string;
+};
+
+export type ZEntryComments = Models.Row & {
+  entryId: string;
+  profileId: string;
+  content: string;
+  parentId: string | null;
+  depth: number;
+  replyCount: number;
 };
 
 export type Companies = Models.Row & {
@@ -365,7 +382,8 @@ export type GameplaySessionParticipantStatus =
 export type NotificationType =
   | 'session_invite'
   | 'session_rsvp'
-  | 'session_reminder';
+  | 'session_reminder'
+  | 'entry_comment';
 
 export type GameplaySessions = Models.Row & {
   hostProfileId: string;

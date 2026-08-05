@@ -22,6 +22,76 @@ describe('DashboardService', () => {
     });
   });
 
+  it('returns only the current user status entries for the mine scope', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-1',
+              userId: 'user-1',
+              fingerprint: 'me',
+              gamertag: 'Player',
+              avatarUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'entry-2',
+              $createdAt: '2026-08-02T00:00:00.000Z',
+              ownerFingerprint: 'me',
+              gameId: 'game-1',
+              status: 'completed',
+              likeCount: 3,
+              commentCount: 2,
+            },
+            {
+              $id: 'entry-1',
+              $createdAt: '2026-08-01T00:00:00.000Z',
+              ownerFingerprint: 'me',
+              gameId: 'game-1',
+              status: 'playing',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'game-1',
+              name: 'Hades',
+              slug: 'hades',
+              coverUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ entryId: 'entry-2', userId: 'user-1' }],
+        }),
+    };
+
+    const service = makeService(tablesDB);
+    const result = await service.getPersonalFeed('user-1', 1, 12, 'mine');
+
+    expect(result).toEqual({
+      items: [
+        expect.objectContaining({
+          $id: 'entry-2',
+          type: 'status',
+          status: 'completed',
+          likeCount: 3,
+          commentCount: 2,
+          likedByMe: true,
+          userProfile: expect.objectContaining({ gamertag: 'Player' }),
+          game: expect.objectContaining({ name: 'Hades' }),
+        }),
+      ],
+      hasMore: false,
+    });
+  });
+
   it('adds direct parent comment context and viewer vote to reply feed items', async () => {
     const tablesDB = {
       listRows: jest
@@ -624,5 +694,121 @@ describe('DashboardService', () => {
       gamertag: 'Friend',
       sharedCount: 2,
     });
+  });
+
+  it('toggles a like on a feed entry and returns the authoritative counters', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
+      getRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        status: 'completed',
+        likeCount: 2,
+        commentCount: 4,
+      }),
+      createRow: jest.fn().mockResolvedValue({}),
+      incrementRowColumn: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        likeCount: 3,
+        commentCount: 4,
+      }),
+    };
+    const service = makeService(tablesDB);
+
+    await expect(service.toggleEntryLike('user-1', 'entry-1')).resolves.toEqual(
+      {
+        entryId: 'entry-1',
+        likeCount: 3,
+        commentCount: 4,
+        likedByMe: true,
+      },
+    );
+    expect(tablesDB.createRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'z_entry_likes',
+        data: {
+          entryId: 'entry-1',
+          userId: 'user-1',
+          profileId: 'profile-1',
+        },
+      }),
+    );
+  });
+
+  it('creates an entry comment, increments counters and notifies its owner', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-1',
+              userId: 'user-1',
+              fingerprint: 'me',
+              gamertag: 'Me',
+              avatarUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-2',
+              userId: 'user-2',
+              fingerprint: 'friend',
+              gamertag: 'Friend',
+              avatarUrl: null,
+            },
+          ],
+        }),
+      getRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        status: 'playing',
+        ownerFingerprint: 'friend',
+      }),
+      createRow: jest
+        .fn()
+        .mockResolvedValueOnce({
+          $id: 'entry-comment-1',
+          entryId: 'entry-1',
+          profileId: 'profile-1',
+          content: 'Boa jogatina!',
+          depth: 0,
+          replyCount: 0,
+        })
+        .mockResolvedValueOnce({}),
+      incrementRowColumn: jest.fn().mockResolvedValue({}),
+    };
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.createEntryComment('user-1', 'entry-1', '  Boa jogatina!  '),
+    ).resolves.toMatchObject({
+      $id: 'entry-comment-1',
+      content: 'Boa jogatina!',
+      userProfile: { $id: 'profile-1', gamertag: 'Me' },
+    });
+    expect(tablesDB.incrementRowColumn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'z_entries',
+        rowId: 'entry-1',
+        column: 'commentCount',
+      }),
+    );
+    expect(tablesDB.createRow).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tableId: 'notifications',
+        data: expect.objectContaining({
+          recipientProfileId: 'profile-2',
+          senderProfileId: 'profile-1',
+          type: 'entry_comment',
+          entityId: 'entry-1',
+        }),
+      }),
+    );
   });
 });
