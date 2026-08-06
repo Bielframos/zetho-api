@@ -769,6 +769,7 @@ describe('DashboardService', () => {
         $id: 'entry-1',
         status: 'playing',
         ownerFingerprint: 'friend',
+        commentCount: 4,
       }),
       createRow: jest
         .fn()
@@ -808,6 +809,137 @@ describe('DashboardService', () => {
           type: 'entry_comment',
           entityId: 'entry-1',
         }),
+      }),
+    );
+  });
+
+  it('writes an absolute like count when the entry counter is still null', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({ rows: [], total: 0 }),
+      getRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        status: 'completed',
+        likeCount: null,
+        commentCount: null,
+      }),
+      createRow: jest.fn().mockResolvedValue({}),
+      incrementRowColumn: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        likeCount: 1,
+        commentCount: null,
+      }),
+    };
+    const service = makeService(tablesDB);
+
+    await expect(service.toggleEntryLike('user-1', 'entry-1')).resolves.toEqual(
+      {
+        entryId: 'entry-1',
+        likeCount: 1,
+        commentCount: 0,
+        likedByMe: true,
+      },
+    );
+    expect(tablesDB.incrementRowColumn).not.toHaveBeenCalled();
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'z_entries',
+        rowId: 'entry-1',
+        data: { likeCount: 1 },
+      }),
+    );
+  });
+
+  it('never writes a negative count when unliking an entry with a null counter', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
+        })
+        .mockResolvedValueOnce({ rows: [{ $id: 'like-1' }], total: 1 }),
+      getRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        status: 'completed',
+        likeCount: null,
+        commentCount: null,
+      }),
+      deleteRow: jest.fn().mockResolvedValue({}),
+      decrementRowColumn: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        likeCount: 0,
+        commentCount: null,
+      }),
+    };
+    const service = makeService(tablesDB);
+
+    await expect(service.toggleEntryLike('user-1', 'entry-1')).resolves.toEqual(
+      {
+        entryId: 'entry-1',
+        likeCount: 0,
+        commentCount: 0,
+        likedByMe: false,
+      },
+    );
+    expect(tablesDB.decrementRowColumn).not.toHaveBeenCalled();
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'z_entries',
+        rowId: 'entry-1',
+        data: { likeCount: 0 },
+      }),
+    );
+  });
+
+  it('writes an absolute comment count when the entry counter is still null', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-1',
+              userId: 'user-1',
+              fingerprint: 'me',
+              gamertag: 'Me',
+              avatarUrl: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] }),
+      getRow: jest.fn().mockResolvedValue({
+        $id: 'entry-1',
+        status: 'playing',
+        ownerFingerprint: 'friend',
+        commentCount: null,
+      }),
+      createRow: jest.fn().mockResolvedValue({
+        $id: 'entry-comment-1',
+        entryId: 'entry-1',
+        profileId: 'profile-1',
+        content: 'Boa jogatina!',
+        depth: 0,
+        replyCount: 0,
+      }),
+      incrementRowColumn: jest.fn().mockResolvedValue({}),
+      updateRow: jest.fn().mockResolvedValue({}),
+    };
+    const service = makeService(tablesDB);
+
+    await service.createEntryComment('user-1', 'entry-1', 'Boa jogatina!');
+
+    expect(tablesDB.incrementRowColumn).not.toHaveBeenCalled();
+    expect(tablesDB.updateRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'z_entries',
+        rowId: 'entry-1',
+        data: { commentCount: 1 },
       }),
     );
   });

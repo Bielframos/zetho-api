@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ID, Query } from 'node-appwrite';
+import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 
 type ProfileSummary = {
@@ -16,6 +16,8 @@ type ProfileSummary = {
 };
 
 type VoteType = 'up' | 'down';
+
+type CounterRow = Models.Row & Record<string, unknown>;
 
 type ParentCommentSummary = {
   $id: string;
@@ -568,13 +570,13 @@ export class DashboardService {
         rowId: ID.unique(),
         data: { entryId, userId, profileId: profile.$id },
       });
-      const updated = await this.appwrite.tablesDB.incrementRowColumn({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'z_entries',
-        rowId: entryId,
-        column: 'likeCount',
-        value: 1,
-      });
+      const updated = await this.applyCounter(
+        'z_entries',
+        entryId,
+        'likeCount',
+        entry.likeCount,
+        1,
+      );
       return this.entrySocialState(updated, true);
     }
 
@@ -583,14 +585,13 @@ export class DashboardService {
       tableId: 'z_entry_likes',
       rowId: existing.rows[0].$id,
     });
-    const updated = await this.appwrite.tablesDB.decrementRowColumn({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'z_entries',
-      rowId: entryId,
-      column: 'likeCount',
-      value: 1,
-      min: 0,
-    });
+    const updated = await this.applyCounter(
+      'z_entries',
+      entryId,
+      'likeCount',
+      entry.likeCount,
+      -1,
+    );
     return this.entrySocialState(updated, false);
   }
 
@@ -655,8 +656,9 @@ export class DashboardService {
     this.assertFeedEntry(entry);
 
     let depth = 0;
+    let parent: any = null;
     if (parentId) {
-      const parent = await this.getEntryCommentById(parentId);
+      parent = await this.getEntryCommentById(parentId);
       if (parent.entryId !== entryId) {
         throw new BadRequestException(
           'Comentário pai pertence a outro registro',
@@ -682,21 +684,21 @@ export class DashboardService {
       },
     });
 
-    await this.appwrite.tablesDB.incrementRowColumn({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'z_entries',
-      rowId: entryId,
-      column: 'commentCount',
-      value: 1,
-    });
+    await this.applyCounter(
+      'z_entries',
+      entryId,
+      'commentCount',
+      entry.commentCount,
+      1,
+    );
     if (parentId) {
-      await this.appwrite.tablesDB.incrementRowColumn({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'z_entry_comments',
-        rowId: parentId,
-        column: 'replyCount',
-        value: 1,
-      });
+      await this.applyCounter(
+        'z_entry_comments',
+        parentId,
+        'replyCount',
+        parent?.replyCount,
+        1,
+      );
     }
 
     await this.notifyEntryOwner(entry, profile, content);
@@ -740,23 +742,26 @@ export class DashboardService {
     });
 
     const deletedCount = descendants.length + 1;
-    await this.appwrite.tablesDB.decrementRowColumn({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'z_entries',
-      rowId: entryId,
-      column: 'commentCount',
-      value: deletedCount,
-      min: 0,
-    });
+    await this.applyCounter(
+      'z_entries',
+      entryId,
+      'commentCount',
+      entry.commentCount,
+      -deletedCount,
+    );
     if (comment.parentId) {
-      await this.appwrite.tablesDB.decrementRowColumn({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'z_entry_comments',
-        rowId: comment.parentId,
-        column: 'replyCount',
-        value: 1,
-        min: 0,
-      });
+      const parent = await this.getEntryCommentById(comment.parentId).catch(
+        () => null,
+      );
+      if (parent) {
+        await this.applyCounter(
+          'z_entry_comments',
+          comment.parentId,
+          'replyCount',
+          parent.replyCount,
+          -1,
+        );
+      }
     }
 
     return { success: true, deletedCount };
@@ -1150,6 +1155,49 @@ export class DashboardService {
 
   private getRelationId(value: any) {
     return typeof value === 'string' ? value : value?.$id;
+  }
+
+  /**
+   * Colunas de contagem criadas depois que a tabela já tinha registros ficam com
+   * `null` (o `default` do Appwrite só vale na criação da row), e
+   * increment/decrement sobre `null` é um no-op silencioso: responde 200, mexe
+   * no `$updatedAt` e mantém o valor nulo. Nesses casos gravamos o valor
+   * absoluto; com valor presente seguimos no caminho atômico.
+   */
+  private async applyCounter(
+    tableId: string,
+    rowId: string,
+    column: string,
+    currentValue: unknown,
+    delta: number,
+  ): Promise<CounterRow> {
+    if (currentValue === null || currentValue === undefined) {
+      return this.appwrite.tablesDB.updateRow<CounterRow>({
+        databaseId: DashboardService.DB_ID,
+        tableId,
+        rowId,
+        data: { [column]: Math.max(0, delta) },
+      });
+    }
+
+    if (delta >= 0) {
+      return this.appwrite.tablesDB.incrementRowColumn<CounterRow>({
+        databaseId: DashboardService.DB_ID,
+        tableId,
+        rowId,
+        column,
+        value: delta,
+      });
+    }
+
+    return this.appwrite.tablesDB.decrementRowColumn<CounterRow>({
+      databaseId: DashboardService.DB_ID,
+      tableId,
+      rowId,
+      column,
+      value: Math.abs(delta),
+      min: 0,
+    });
   }
 
   private async getEntryById(entryId: string) {
