@@ -51,26 +51,6 @@ type AiArticle = {
     };
     originalSourceUrl: string;
   };
-  imageStrategy: {
-    needsImage: boolean;
-    type: 'game' | 'generic';
-    query?: string;
-  };
-};
-
-type UnsplashImage = {
-  id: string;
-  url: string;
-  alt: string;
-  description: string;
-  authorName: string;
-  authorUsername: string;
-};
-
-type PickedImage = {
-  url: string;
-  alt: string;
-  caption: string;
 };
 
 type RecentPostForAi = {
@@ -95,7 +75,7 @@ type GenerateGuidedArticleOptions = {
 
 const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
 const DEFAULT_CAPTURE_WINDOW_HOURS = 24;
-const GAZETHO_SITE_BASE_URL = 'https://ga.zetho.app';
+const ZETHO_SITE_BASE_URL = 'https://www.zetho.app';
 // Limita o conteúdo extraído enviado à IA no fluxo guiado, evitando estourar
 // o limite de tokens do provedor com páginas muito longas.
 const GUIDED_CONTENT_MAX_CHARS = 12000;
@@ -112,9 +92,6 @@ const feedUrls = [
 export class EditorService implements OnModuleInit {
   private readonly logger = new Logger(EditorService.name);
   private static readonly DB_ID = 'app';
-  /** Imagem de último recurso p/ garantir mainImage. Vazia => sem fallback. */
-  private static readonly DEFAULT_MAIN_IMAGE_URL =
-    process.env.EDITOR_DEFAULT_MAIN_IMAGE_URL?.trim() ?? '';
   private readonly tablesDB: Appwrite['tablesDB'];
   private readonly defaultCaptureWindowHours =
     this.resolveCaptureWindowHours(
@@ -180,9 +157,6 @@ export class EditorService implements OnModuleInit {
             throw error;
           }
         }
-
-        // 3. Cache invalidation
-        await this.invalidateFrontendCache();
       },
     );
   }
@@ -256,13 +230,7 @@ export class EditorService implements OnModuleInit {
         const processedBody = this.postProcessContent(article.post.body);
         article.post.body = processedBody;
 
-        const mainImage = await this.resolveMainImage(article);
-
-        const savedPost = await this.saveGeneratedPost({
-          article,
-          fallbackMainImage: post.link,
-          pickedMainImage: mainImage,
-        });
+        const savedPost = await this.saveGeneratedPost(article, post.link);
 
         await this.outboxService.enqueueImmediate({
           type: 'editorial.post.published',
@@ -271,7 +239,6 @@ export class EditorService implements OnModuleInit {
             title: savedPost.title,
             subtitle: savedPost.subtitle ?? '',
             slug: savedPost.slug,
-            mediaUrl: mainImage?.url,
             relatedGameIds: savedPost.relatedGameIds || [],
           },
         });
@@ -315,13 +282,7 @@ export class EditorService implements OnModuleInit {
 
         article.post.body = this.postProcessContent(article.post.body);
 
-        const mainImage = await this.resolveMainImage(article);
-
-        const savedPost = await this.saveGeneratedPost({
-          article,
-          fallbackMainImage: url,
-          pickedMainImage: mainImage,
-        });
+        const savedPost = await this.saveGeneratedPost(article, url);
 
         await this.outboxService.enqueueImmediate({
           type: 'editorial.post.published',
@@ -330,7 +291,6 @@ export class EditorService implements OnModuleInit {
             title: savedPost.title,
             subtitle: savedPost.subtitle ?? '',
             slug: savedPost.slug,
-            mediaUrl: mainImage?.url,
             relatedGameIds: savedPost.relatedGameIds || [],
           },
         });
@@ -390,17 +350,6 @@ export class EditorService implements OnModuleInit {
     return [analysis.id, analysis.title]
       .map((value) => this.toTrimmedString(value))
       .some((value) => value.toUpperCase() === 'N/A');
-  }
-
-  /**
-   * Usa a IA para selecionar a imagem mais adequada ao post dentre as imagens do Unsplash.
-   * @param images - Array de imagens do Unsplash.
-   * @returns A imagem selecionada pela IA.
-   */
-  private async pickImage(images: UnsplashImage[]): Promise<PickedImage> {
-    const prompt = this.ai.prompt('editor/pick_image');
-    const { output } = await prompt({ images });
-    return output;
   }
 
   /**
@@ -550,131 +499,13 @@ export class EditorService implements OnModuleInit {
       .trim();
   }
 
-  /**
-   * Resolve a imagem principal do artigo com base na estratégia definida.
-   * @param article - Artigo gerado pela IA.
-   * @returns A imagem principal selecionada ou null se não houver necessidade.
-   */
-  private async resolveMainImage(
+  /** Salva o post gerado pela IA sem imagem principal. */
+  private async saveGeneratedPost(
     article: AiArticle,
-  ): Promise<PickedImage | null> {
-    if (!article.imageStrategy.needsImage) {
-      return null;
-    }
-
-    // 1-3. Imagem própria do jogo, em cascata (screenshot → key art → cover).
-    if (article.imageStrategy.type === 'game') {
-      const gameId = article.post.relatedGameIds[0];
-      if (gameId) {
-        const gameImage = await this.resolveGameImage(gameId);
-        if (gameImage) {
-          return gameImage;
-        }
-      } else {
-        this.logger.warn(
-          'imageStrategy.type=game mas relatedGameIds está vazio; usando fallback.',
-        );
-      }
-    }
-
-    // 4. Unsplash: usa a query da IA ou deriva do próprio artigo (tags/título).
-    const query =
-      article.imageStrategy.query?.trim() || this.buildImageQuery(article);
-    if (query) {
-      const images = await this.searchUnsplash(query);
-      if (images.length > 0) {
-        return this.pickImage(images);
-      }
-    }
-
-    // 5. Default estático: garante imagem para posts que a pediram
-    // (needsImage=true). Posts sem necessidade de imagem já saíram acima.
-    return this.defaultMainImage();
-  }
-
-  /**
-   * Resolve a imagem editorial de um jogo (cascata em GameService) e a converte
-   * em PickedImage com legenda. Retorna null se o jogo não tiver imagem ou se a
-   * resolução falhar — o chamador segue para o fallback genérico.
-   */
-  private async resolveGameImage(gameId: string): Promise<PickedImage | null> {
-    try {
-      const [game, gameImage] = await Promise.all([
-        this.gameService.findById(gameId, 'name,slug'),
-        this.gameService.getEditorialImage(gameId),
-      ]);
-
-      if (!gameImage) {
-        this.logger.warn(
-          `Jogo ${gameId} sem imagem disponível (screenshot/keyart/cover); usando fallback.`,
-        );
-        return null;
-      }
-
-      return {
-        url: gameImage.url,
-        alt: `Imagem do jogo: ${game.name}`,
-        caption: `Imagem do jogo: ${game.name}`,
-      };
-    } catch (error) {
-      this.logger.warn(
-        `Falha ao resolver imagem do jogo ${gameId}; usando fallback. ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Deriva um termo de busca de imagem a partir do próprio artigo quando a IA
-   * não forneceu `imageStrategy.query`. Prioriza tags (mais genéricas, melhores
-   * resultados no Unsplash) e cai para o título.
-   */
-  private buildImageQuery(article: AiArticle): string {
-    const fromTags = (article.post.tags ?? [])
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .slice(0, 3)
-      .join(' ');
-
-    return fromTags || (article.post.title ?? '').trim();
-  }
-
-  /**
-   * Imagem padrão de último recurso, garantindo que o post nunca fique sem
-   * mainImage. Configurável via EDITOR_DEFAULT_MAIN_IMAGE_URL; se não definida,
-   * retorna null (nenhuma imagem fabricada).
-   */
-  private defaultMainImage(): PickedImage | null {
-    const url = EditorService.DEFAULT_MAIN_IMAGE_URL;
-    if (!url) {
-      this.logger.warn(
-        'Nenhuma imagem resolvida e EDITOR_DEFAULT_MAIN_IMAGE_URL não configurada; post ficará sem mainImage.',
-      );
-      return null;
-    }
-    return { url, alt: 'Gazetho', caption: '' };
-  }
-
-  /**
-   * Salva o post gerado pela IA no banco de dados.
-   * @param param0 - Objeto contendo o artigo gerado, a imagem principal escolhida e a imagem principal de fallback.
-   * @returns O post salvo.
-   */
-  private async saveGeneratedPost({
-    article,
-    pickedMainImage,
-    fallbackMainImage,
-  }: {
-    article: AiArticle;
-    pickedMainImage: PickedImage | null;
-    fallbackMainImage: string;
-  }) {
+    fallbackSourceUrl: string,
+  ) {
     const slug = this.slugify(article.post.slug || article.post.title);
     const title = article.post.title.trim();
-
-    const mainImage = pickedMainImage ? JSON.stringify(pickedMainImage) : null;
 
     return this.tablesDB.createRow({
       databaseId: EditorService.DB_ID,
@@ -685,7 +516,7 @@ export class EditorService implements OnModuleInit {
         subtitle: this.toNullableString(article.post.subtitle),
         slug,
         body: article.post.body,
-        mainImage,
+        mainImage: null,
         status: PostsStatus.PUBLISHED,
         tags: article.post.tags
           .map((tag) => this.slugify(tag))
@@ -697,7 +528,7 @@ export class EditorService implements OnModuleInit {
         seo: this.buildSeoString(article.post.seo),
         originalSourceUrl:
           this.toNullableString(article.post.originalSourceUrl) ||
-          this.toNullableString(fallbackMainImage),
+          this.toNullableString(fallbackSourceUrl),
         author: ZETHO_INSIDER_ID,
       },
     });
@@ -858,63 +689,6 @@ export class EditorService implements OnModuleInit {
   }
 
   private buildPostUrl(slug: string) {
-    return new URL(`/posts/${slug}`, GAZETHO_SITE_BASE_URL).toString();
-  }
-
-  /**
-   * Busca até 10 imagens no Unsplash com base em um termo.
-   */
-  private async searchUnsplash(query: string): Promise<UnsplashImage[]> {
-    const url = new URL('https://api.unsplash.com/search/photos');
-
-    url.searchParams.set('query', query);
-    url.searchParams.set('per_page', '10');
-    url.searchParams.set('orientation', 'landscape');
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error(
-        `Failed to fetch images from Unsplash: ${response.status} ${response.statusText}`,
-      );
-      return [];
-    }
-
-    const data = (await response.json()) as {
-      results: {
-        id: string;
-        urls: { regular: string };
-        alt_description: string | null;
-        description: string | null;
-        user: { name: string; username: string };
-      }[];
-    };
-
-    return data.results.map((img) => ({
-      id: img.id,
-      url: img.urls.regular,
-      alt: img.alt_description ?? '',
-      description: img.description ?? img.alt_description ?? '',
-      authorName: img.user.name,
-      authorUsername: img.user.username,
-    }));
-  }
-
-  /**
-   * Invalida o cache do Frontend do Gazetho
-   */
-  private async invalidateFrontendCache() {
-    fetch('https://ga.zetho.app/api/revalidate', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.FRONTEND_REVALIDATE_SECRET}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tag: 'posts' }),
-    });
+    return new URL(`/noticias/${slug}`, ZETHO_SITE_BASE_URL).toString();
   }
 }

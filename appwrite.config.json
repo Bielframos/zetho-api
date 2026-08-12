@@ -1926,9 +1926,7 @@
         },
         {
             "$id": "posts",
-            "$permissions": [
-                "read(\"any\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "Posts",
             "enabled": true,

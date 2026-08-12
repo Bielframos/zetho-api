@@ -6,6 +6,26 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-12
+
+### Added
+
+- Endpoints públicos para listar notícias publicadas, consultar uma notícia por slug e filtrar matérias relacionadas a um jogo.
+- DTO público dedicado, evitando a exposição de imagem principal e campos editoriais internos.
+- Cobertura de testes para impedir que imagens e rascunhos sejam retornados pela API pública.
+
+### Changed
+
+- O editor de IA agora publica matérias sem gerar ou selecionar imagem principal.
+- Notificações, e-mails e sitemap passam a direcionar as matérias para a seção de notícias do Zetho.
+- A coleção de posts deixa de permitir leitura pública direta; o conteúdo público passa a ser servido pela API.
+- O sitemap inclui somente matérias publicadas e utiliza as novas URLs do Zetho.
+
+### Removed
+
+- Prompt e integração de seleção de imagens do antigo fluxo editorial do Gazetho.
+- Invalidação de cache específica do frontend descontinuado do Gazetho.
+
 ## [0.2.1] - 2026-08-05
 
 ### Added

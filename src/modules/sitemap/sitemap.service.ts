@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { GazethoService } from 'src/modules/gazetho/gazetho.service';
 
-const SITE_BASE_URL = 'https://ga.zetho.app';
+const SITE_BASE_URL = 'https://www.zetho.app';
 
 const STATIC_SITEMAP_ENTRIES = [
   { path: '', changefreq: 'daily', priority: '1' },
@@ -51,7 +51,7 @@ export class SitemapService {
   }
 
   private getUrl(entry: any) {
-    const path = 'path' in entry ? entry.path : `/posts/${entry.slug}`;
+    const path = 'path' in entry ? entry.path : `/noticias/${entry.slug}`;
     return new URL(path, SITE_BASE_URL).toString();
   }
 

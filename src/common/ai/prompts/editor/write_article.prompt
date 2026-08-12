@@ -26,10 +26,6 @@ output:
         title: string
         description: string
       originalSourceUrl: string
-    imageStrategy:
-      needsImage: boolean
-      type: string
-      query?: string
 ---
 
 You are a Gaming Content Editor and SEO Specialist. TASK Transform the provided
@@ -92,12 +88,9 @@ topic/angle 39. Tag rules: - lowercase - hyphen-separated - no generic tags - no
 vague terms - no redundant tags - high SEO intent only META DESCRIPTION 40.
 Generate an SEO meta description: - max 160 characters - concise - informative -
 engaging STATUS 41. Always return: "published" SOURCE 42. originalSourceUrl =
-post.link IMAGE STRATEGY 43. needsImage defaults to TRUE. 44. Define image type:
-- "game" → clear primary game exists - "generic" → no strong game association
-45. Define query: - if type = "game": use main game name - if type = "generic":
-generate a descriptive English query OUTPUT RULES 46. Return ONLY the schema
-structure. 47. Do NOT include explanations. 48. Do NOT output markdown. 49. Do
-NOT output escaped HTML. 50. Do NOT output \\n, \\t, or escaped characters
+post.link OUTPUT RULES 43. Return ONLY the schema structure. 44. Do NOT include
+explanations. 45. Do NOT output markdown. 46. Do NOT output escaped HTML. 47. Do
+NOT output escaped characters
 inside body.
 
 {{#if humanInstructions}}
