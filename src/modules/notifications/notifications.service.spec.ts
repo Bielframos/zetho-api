@@ -12,7 +12,7 @@ function createInMemoryCache() {
 }
 
 describe('NotificationsService', () => {
-  it('renders Gazetho post emails with the current Gazetho URL and sends them to topic subscribers', async () => {
+  it('renders Zetho news emails and sends them to topic subscribers', async () => {
     const createEmail = jest.fn().mockResolvedValue({});
     const tablesDB = {
       getRow: jest.fn().mockResolvedValue({ name: 'Hades II' }),
@@ -44,7 +44,7 @@ describe('NotificationsService', () => {
     expect(createEmail).toHaveBeenCalledWith(
       'post-1_game-1',
       '[Zetho] Novidade sobre Hades II!',
-      expect.stringContaining('https://ga.zetho.app/posts/hades-ii-review'),
+      expect.stringContaining('https://www.zetho.app/noticias/hades-ii-review'),
       ['game_game-1'],
       [],
       [],
@@ -59,7 +59,7 @@ describe('NotificationsService', () => {
     expect(emailBody).not.toContain('zetho.com.br');
   });
 
-  it('includes the post image in the subscriber email body when mediaUrl is provided', async () => {
+  it('supports legacy media in the subscriber email body when provided', async () => {
     const createEmail = jest.fn().mockResolvedValue({});
     const appwrite = {
       tablesDB: {
@@ -110,7 +110,7 @@ describe('NotificationsService', () => {
     const post = {
       title: 'Hades II chegou',
       subtitle: 'Primeiras impressoes',
-      postUrl: 'https://www.zetho.app/gazetho/hades-ii-chegou',
+      postUrl: 'https://www.zetho.app/noticias/hades-ii-chegou',
     };
 
     await service.sharePost(post);

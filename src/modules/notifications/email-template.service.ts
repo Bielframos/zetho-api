@@ -41,7 +41,7 @@ type CommentReplyEmailOptions = {
   gameUrl: string;
 };
 
-type GazethoPostEmailOptions = {
+type NewsPostEmailOptions = {
   gameName: string;
   title: string;
   subtitle?: string | null;
@@ -92,13 +92,13 @@ export class EmailTemplateService {
     });
   }
 
-  renderGazethoPostEmail({
+  renderNewsPostEmail({
     gameName,
     title,
     subtitle,
     mediaUrl,
     postUrl,
-  }: GazethoPostEmailOptions) {
+  }: NewsPostEmailOptions) {
     // Corpo alinhado ao caption enviado no WhatsApp: imagem, título e descrição.
     const sections: EmailSection[] = [
       ...(mediaUrl
@@ -106,7 +106,7 @@ export class EmailTemplateService {
         : []),
       {
         kind: 'paragraph',
-        text: `Uma nova matéria sobre ${gameName} foi publicada no Gazetho.`,
+        text: `Uma nova notícia sobre ${gameName} foi publicada no Zetho.`,
       },
       ...(subtitle
         ? ([{ kind: 'paragraph', text: subtitle }] as EmailSection[])
@@ -114,7 +114,7 @@ export class EmailTemplateService {
     ];
 
     return this.renderTransactionalEmail({
-      preheader: `Nova matéria sobre ${gameName} no Gazetho.`,
+      preheader: `Nova notícia sobre ${gameName} no Zetho.`,
       title,
       sections,
       cta: {

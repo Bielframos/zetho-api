@@ -101,12 +101,12 @@ export class NotificationsService {
         });
 
         const emailSubject = `[Zetho] Novidade sobre ${game.name}!`;
-        const emailContent = this.emailTemplateService.renderGazethoPostEmail({
+        const emailContent = this.emailTemplateService.renderNewsPostEmail({
           gameName: game.name,
           title: payload.title,
           subtitle: payload.subtitle,
           mediaUrl: payload.mediaUrl,
-          postUrl: this.getGazethoPostUrl(payload.slug),
+          postUrl: this.getNewsPostUrl(payload.slug),
         });
 
         // Send email to the game topic
@@ -142,7 +142,7 @@ export class NotificationsService {
     }
   }
 
-  private getGazethoPostUrl(slug: string) {
-    return new URL(`/posts/${slug}`, 'https://ga.zetho.app').toString();
+  private getNewsPostUrl(slug: string) {
+    return new URL(`/noticias/${slug}`, 'https://www.zetho.app').toString();
   }
 }

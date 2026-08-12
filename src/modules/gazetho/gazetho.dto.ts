@@ -64,9 +64,10 @@ export class CreatePostDto {
   @MaxLength(8000)
   body!: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(1024)
-  mainImage!: string;
+  mainImage?: string;
 
   @IsOptional()
   @IsEnum(PostsStatus)
@@ -153,5 +154,25 @@ export class SitemapPostsDto {
   @IsInt()
   @Min(1)
   @Max(5000)
+  pageSize?: number;
+}
+
+export class PublicNewsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(96)
+  gameId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
   pageSize?: number;
 }
