@@ -17,6 +17,7 @@ import {
   GeneratePostDto,
   GetEditorNewsDto,
   PopularTagsDto,
+  PublicNewsDto,
   SearchPostsDto,
   SitemapPostsDto,
 } from './gazetho.dto';
@@ -99,5 +100,27 @@ export class GazethoPublicController {
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,
     );
+  }
+}
+
+@Controller('noticias')
+@UsePipes(
+  new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }),
+)
+export class NewsPublicController {
+  constructor(private readonly gazethoService: GazethoService) {}
+
+  @Get()
+  list(@Query() dto: PublicNewsDto) {
+    return this.gazethoService.listPublishedNews(dto);
+  }
+
+  @Get(':slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.gazethoService.findPublishedNewsBySlug(slug);
   }
 }

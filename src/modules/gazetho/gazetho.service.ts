@@ -5,6 +5,7 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import {
   CreatePostDto,
   PopularTagsDto,
+  PublicNewsDto,
   SearchPostsDto,
   SitemapPostsDto,
 } from './gazetho.dto';
@@ -37,7 +38,7 @@ export class GazethoService {
         subtitle: dto.subtitle?.trim() || null,
         slug,
         body: dto.body,
-        mainImage: dto.mainImage,
+        mainImage: dto.mainImage?.trim() || null,
         status: dto.status ?? PostsStatus.DRAFT,
         tags: dto.tags?.map((tag) => tag.trim()).filter(Boolean) || null,
         relatedGameIds:
@@ -167,6 +168,96 @@ export class GazethoService {
     };
   }
 
+  async listPublishedNews(dto: PublicNewsDto) {
+    const page = this.toPositiveInt(dto.page, 1);
+    const pageSize = this.toSafeLimit(dto.pageSize, 20, 50);
+    const filters = [Query.equal('status', PostsStatus.PUBLISHED)];
+
+    if (dto.gameId?.trim()) {
+      filters.push(Query.contains('relatedGameIds', dto.gameId.trim()));
+    }
+
+    const filterQuery = filters.length > 1 ? Query.and(filters) : filters[0];
+
+    const response = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        filterQuery,
+        Query.orderDesc('$createdAt'),
+        Query.limit(pageSize),
+        Query.offset((page - 1) * pageSize),
+        Query.select([
+          '$id',
+          '$createdAt',
+          '$updatedAt',
+          'title',
+          'subtitle',
+          'slug',
+          'tags',
+          'author.name',
+        ] as any),
+      ],
+    });
+
+    return {
+      items: response.rows.map((post) => this.toNewsSummary(post)),
+      page,
+      pageSize,
+      total: response.total,
+      hasMore: page * pageSize < response.total,
+    };
+  }
+
+  async findPublishedNewsBySlug(slug: string) {
+    const response = await this.tablesDB.listRows({
+      databaseId: GazethoService.DB_ID,
+      tableId: 'posts',
+      queries: [
+        Query.equal('slug', slug.trim()),
+        Query.equal('status', PostsStatus.PUBLISHED),
+        Query.limit(1),
+        Query.select([
+          '$id',
+          '$createdAt',
+          '$updatedAt',
+          'title',
+          'subtitle',
+          'slug',
+          'body',
+          'tags',
+          'originalSourceUrl',
+          'author.name',
+          'relatedGameIds',
+        ] as any),
+      ],
+    });
+    const post = response.rows[0];
+    if (!post) {
+      throw new NotFoundException(`Notícia com slug "${slug}" não encontrada`);
+    }
+
+    return {
+      ...this.toNewsSummary(post),
+      body: post.body,
+      originalSourceUrl: post.originalSourceUrl ?? null,
+      relatedGames: await this.expandRelatedGames(post.relatedGameIds),
+    };
+  }
+
+  private toNewsSummary(post: Record<string, any>) {
+    return {
+      $id: post.$id,
+      $createdAt: post.$createdAt,
+      $updatedAt: post.$updatedAt,
+      title: post.title,
+      subtitle: post.subtitle ?? null,
+      slug: post.slug,
+      tags: post.tags ?? [],
+      author: post.author?.name ? { name: post.author.name } : null,
+    };
+  }
+
   async getPopularTags(dto: PopularTagsDto) {
     const safeLimit = this.toSafeLimit(dto.limit, 10, 50);
     const tagCounter = new Map<string, number>();
@@ -236,6 +327,7 @@ export class GazethoService {
       databaseId: GazethoService.DB_ID,
       tableId: 'posts',
       queries: [
+        Query.equal('status', PostsStatus.PUBLISHED),
         Query.select([
           '$id',
           'title',

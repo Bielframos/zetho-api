@@ -15,7 +15,7 @@ Base path: `/gazetho`
   "subtitle": "string (opcional, max 255)",
   "slug": "string (opcional, max 255)",
   "body": "string (obrigatório, max 8000)",
-  "mainImage": "string (obrigatório, max 1024)",
+  "mainImage": "string (opcional, max 1024)",
   "status": "draft | published (opcional, default draft)",
   "tags": ["string"],
   "relatedGameIds": ["string"],
@@ -162,3 +162,18 @@ Retorna o row criado na tabela `posts` do Appwrite.
 - O endpoint de slug agora traz `relatedGames` já expandido com os campos necessários para renderização de card/link: `name`, `slug` e `coverUrl`.
 - O campo `relatedGameIds` continua disponível para compatibilidade.
 - `coverUrl` pode vir `null` e o front deve ter fallback visual.
+
+## 5) Listar notícias públicas
+
+- Método: `GET`
+- Path: `/noticias`
+- Query params: `page`, `pageSize` e `gameId` opcionais
+- Retorna somente posts publicados, em ordem decrescente de criação, sem
+  `mainImage`, `body` ou campos editoriais internos.
+
+## 6) Buscar notícia pública por slug
+
+- Método: `GET`
+- Path: `/noticias/:slug`
+- Retorna somente posts publicados, com corpo, fonte original e jogos
+  relacionados expandidos. Rascunhos e slugs inexistentes retornam `404`.
