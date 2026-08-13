@@ -1,0 +1,88 @@
+name: Deploy
+
+# Dispara o redeploy da API no EasyPanel.
+#
+# O gatilho é `push` em master, e não `pull_request: closed`, por dois motivos:
+#
+# 1. Todo merge de PR em master produz um push em master, então este gatilho é
+#    um superconjunto do pedido — cobre merge commit, squash e rebase, além de
+#    push direto (hotfix), que também precisa ir para produção.
+# 2. Workflows disparados por `pull_request` vindos de fork não recebem
+#    secrets. Com `push` esse problema não existe.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo do redeploy manual'
+        required: false
+        default: 'Redeploy manual'
+
+# Um deploy por vez. Se dois merges caírem juntos, o mais novo espera o
+# anterior em vez de os dois baterem no EasyPanel ao mesmo tempo.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  trigger-easypanel:
+    name: Dispara redeploy no EasyPanel
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Verifica se o gatilho está configurado
+        env:
+          DEPLOYMENT_TRIGGER_ENDPOINT: ${{ secrets.DEPLOYMENT_TRIGGER_ENDPOINT }}
+        run: |
+          if [ -z "$DEPLOYMENT_TRIGGER_ENDPOINT" ]; then
+            echo "::error::O secret DEPLOYMENT_TRIGGER_ENDPOINT não está configurado no repositório."
+            echo "Cadastre em Settings › Secrets and variables › Actions com a URL de deploy do EasyPanel."
+            exit 1
+          fi
+
+      - name: Chama o gatilho de deploy
+        env:
+          DEPLOYMENT_TRIGGER_ENDPOINT: ${{ secrets.DEPLOYMENT_TRIGGER_ENDPOINT }}
+        run: |
+          set -euo pipefail
+
+          # --fail-with-body: erro de HTTP vira exit code sem esconder a
+          #   resposta, que é onde o EasyPanel explica o motivo.
+          # --retry: o EasyPanel pode estar reiniciando; erros transitórios e
+          #   timeouts são reprocessados com backoff.
+          # A URL nunca é ecoada: ela carrega o token de deploy.
+          http_status=$(curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --location \
+            --request GET \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            --output response.txt \
+            --write-out '%{http_code}' \
+            "$DEPLOYMENT_TRIGGER_ENDPOINT")
+
+          echo "Gatilho respondeu HTTP $http_status"
+          echo "--- resposta ---"
+          cat response.txt || true
+          echo
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "### Deploy da API"
+            echo
+            echo "- **Commit:** \`${GITHUB_SHA::7}\`"
+            echo "- **Disparado por:** ${GITHUB_EVENT_NAME}"
+            echo "- **Resultado:** ${{ job.status }}"
+            echo
+            echo "O EasyPanel executa o build e a publicação de forma assíncrona."
+            echo "Este job confirma apenas que o gatilho foi aceito — acompanhe a"
+            echo "conclusão no painel do EasyPanel."
+          } >> "$GITHUB_STEP_SUMMARY"
