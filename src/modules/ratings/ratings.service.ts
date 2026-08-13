@@ -1,11 +1,15 @@
 import {
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { ID, Query, Models } from 'node-appwrite';
 import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { textReviewCountCacheKey } from '../game/game-seo';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
 import type { UserProfiles } from 'src/common/appwrite/appwrite';
@@ -21,8 +25,24 @@ export class RatingsService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly zCoinsService: ZCoinsService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
+  }
+
+  /**
+   * A indexabilidade da página do jogo depende de existir review com texto.
+   * Sem invalidar aqui, a primeira review de um jogo levaria até o TTL do
+   * cache para tirar a página do `noindex`.
+   */
+  private async invalidateSeoCache(gameId: string) {
+    try {
+      await this.cache.del(textReviewCountCacheKey(gameId));
+    } catch (err) {
+      this.logger.warn(
+        `Falha ao invalidar cache de SEO do jogo ${gameId}: ${String(err)}`,
+      );
+    }
   }
 
   async getProfileByUserId(userId: string): Promise<UserProfiles> {
@@ -135,6 +155,8 @@ export class RatingsService {
         err.message || 'Erro ao salvar avaliação no Appwrite',
       );
     }
+
+    await this.invalidateSeoCache(gameId);
 
     return {
       ...result,
@@ -310,6 +332,7 @@ export class RatingsService {
     });
 
     await this.updateGameRatingStats(gameId, -rating.rating, false, true);
+    await this.invalidateSeoCache(gameId);
 
     return { success: true };
   }

@@ -39,8 +39,17 @@ export class GameController {
   }
 
   @Get(':slug')
-  findBySlug(@Param('slug') slug: string, @Query('select') select?: string) {
-    return this.gameService.findBySlug(slug, select);
+  findBySlug(
+    @Param('slug') slug: string,
+    @Query('select') select?: string,
+    @Query('enrich') enrich?: string,
+  ) {
+    // O enriquecimento dispara import IGDB + tradução por IA dentro do
+    // request. No caminho de SSR isso estoura o timeout da função — o render
+    // do servidor chama com `enrich=false`.
+    return this.gameService.findBySlug(slug, select, {
+      enrich: enrich !== 'false',
+    });
   }
 
   @Get(':slug/medias')

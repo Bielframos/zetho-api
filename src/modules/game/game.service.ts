@@ -13,6 +13,11 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
 import { extractKeywords, slugify, calculateScore } from './game-search.utils';
+import {
+  buildGameSeoFlags,
+  textReviewCountCacheKey,
+  type GameSeoFlags,
+} from './game-seo';
 import { TranslatorService } from 'src/common/ai/agents/translator/translator.service';
 
 @Injectable()
@@ -41,7 +46,7 @@ export class GameService {
   async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
     const cacheKey = `game:slug:${slug}:${select ?? ''}`;
     const cached = await this.cache.get<Game>(cacheKey);
-    if (cached) return cached;
+    if (cached) return { ...cached, seo: await this.getSeoFlags(cached.$id) };
 
     const requestedFields = select
       ? select
@@ -94,7 +99,134 @@ export class GameService {
     }
 
     await this.cache.set(cacheKey, game);
-    return game;
+
+    // Fora do payload cacheado de propósito: `seo` muda quando alguém escreve
+    // uma review, e o cache do jogo é chaveado por slug+select — não daria
+    // para invalidá-lo a partir do RatingsService. `countTextReviews` tem o
+    // próprio cache, invalidável por gameId.
+    return { ...game, seo: await this.getSeoFlags(game.$id) };
+  }
+
+  /**
+   * Conta reviews com corpo de texto de um jogo.
+   *
+   * Depende do índice `ratings_gameId`. Sem ele, cada chamada varre a tabela
+   * inteira — e essa contagem entra no caminho de render de toda página de
+   * jogo.
+   */
+  async countTextReviews(gameId: string): Promise<number> {
+    const cacheKey = textReviewCountCacheKey(gameId);
+    const cached = await this.cache.get<number>(cacheKey);
+    if (typeof cached === 'number') return cached;
+
+    try {
+      const response = await this.tablesDB.listRows({
+        databaseId: GameService.DB_ID,
+        tableId: 'ratings',
+        queries: [
+          Query.equal('gameId', gameId),
+          Query.isNotNull('content'),
+          Query.notEqual('content', ''),
+          Query.limit(1),
+          Query.select(['$id'] as any),
+        ],
+      });
+
+      await this.cache.set(cacheKey, response.total);
+      return response.total;
+    } catch (error) {
+      // Indisponibilidade da contagem não pode derrubar a página do jogo.
+      // Degrada para 0 = não indexável, que é o lado seguro: uma página sem
+      // conteúdo original nunca deveria entrar no índice.
+      this.logger.warn(
+        `Falha ao contar reviews com texto do jogo ${gameId}: ${String(error)}`,
+      );
+      return 0;
+    }
+  }
+
+  async getSeoFlags(gameId: string): Promise<GameSeoFlags> {
+    return buildGameSeoFlags(await this.countTextReviews(gameId));
+  }
+
+  /** Chamado pelo RatingsService quando uma review é criada, editada ou removida. */
+  async invalidateTextReviewCount(gameId: string) {
+    await this.cache.del(textReviewCountCacheKey(gameId));
+  }
+
+  /**
+   * Enumera os jogos indexáveis para o sitemap.
+   *
+   * Dirigido pela tabela `ratings` (pequena) e não por `games` (dezenas de
+   * milhares): só é indexável quem tem review com texto, então varrer o
+   * catálogo inteiro seria varrer quase só descarte.
+   *
+   * Usa `cursorAfter` e nunca `offset` — no Appwrite o offset degrada e trava
+   * por volta de 5000 linhas, que é a razão do teto rígido em
+   * `getPostsForSitemap`.
+   */
+  async listIndexableGames(): Promise<
+    Array<{ slug: string; lastmod: string }>
+  > {
+    const lastReviewByGame = new Map<string, string>();
+    let cursor: string | undefined;
+
+    for (;;) {
+      const queries = [
+        Query.isNotNull('content'),
+        Query.notEqual('content', ''),
+        Query.orderAsc('$id'),
+        Query.limit(500),
+        Query.select(['$id', 'gameId', '$updatedAt'] as any),
+      ];
+      if (cursor) queries.push(Query.cursorAfter(cursor));
+
+      const page = await this.tablesDB.listRows<any>({
+        databaseId: GameService.DB_ID,
+        tableId: 'ratings',
+        queries,
+      });
+
+      for (const row of page.rows) {
+        const previous = lastReviewByGame.get(row.gameId);
+        if (!previous || row.$updatedAt > previous) {
+          lastReviewByGame.set(row.gameId, row.$updatedAt);
+        }
+      }
+
+      if (page.rows.length < 500) break;
+      cursor = page.rows[page.rows.length - 1].$id;
+    }
+
+    if (lastReviewByGame.size === 0) return [];
+
+    const gameIds = [...lastReviewByGame.keys()];
+    const entries: Array<{ slug: string; lastmod: string }> = [];
+
+    // Resolve slugs em lotes: `Query.equal` aceita lista de valores.
+    const batchSize = 100;
+    for (let i = 0; i < gameIds.length; i += batchSize) {
+      const batch = gameIds.slice(i, i + batchSize);
+      const games = await this.tablesDB.listRows<Game>({
+        databaseId: GameService.DB_ID,
+        tableId: 'games',
+        queries: [
+          Query.equal('$id', batch),
+          Query.limit(batch.length),
+          Query.select(['$id', 'slug'] as any),
+        ],
+      });
+
+      for (const game of games.rows) {
+        if (!game.slug) continue;
+        entries.push({
+          slug: game.slug,
+          lastmod: lastReviewByGame.get(game.$id) ?? game.$updatedAt,
+        });
+      }
+    }
+
+    return entries;
   }
 
   /**
