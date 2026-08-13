@@ -79,6 +79,10 @@ const ZETHO_SITE_BASE_URL = 'https://www.zetho.app';
 // Limita o conteúdo extraído enviado à IA no fluxo guiado, evitando estourar
 // o limite de tokens do provedor com páginas muito longas.
 const GUIDED_CONTENT_MAX_CHARS = 12000;
+// Piso de qualidade para publicação automática. Abaixo disso o post vira
+// rascunho e espera revisão humana.
+const MIN_BODY_CHARS = 1200;
+const MIN_TITLE_CHARS = 20;
 
 const feedUrls = [
   'https://feeds.feedburner.com/ign/games-all',
@@ -232,16 +236,20 @@ export class EditorService implements OnModuleInit {
 
         const savedPost = await this.saveGeneratedPost(article, post.link);
 
-        await this.outboxService.enqueueImmediate({
-          type: 'editorial.post.published',
-          payload: {
-            id: savedPost.$id,
-            title: savedPost.title,
-            subtitle: savedPost.subtitle ?? '',
-            slug: savedPost.slug,
-            relatedGameIds: savedPost.relatedGameIds || [],
-          },
-        });
+        // Rascunho retido pelo piso de qualidade não é publicação: não pode
+        // disparar compartilhamento no WhatsApp nem e-mail para inscritos.
+        if (savedPost.status === PostsStatus.PUBLISHED) {
+          await this.outboxService.enqueueImmediate({
+            type: 'editorial.post.published',
+            payload: {
+              id: savedPost.$id,
+              title: savedPost.title,
+              subtitle: savedPost.subtitle ?? '',
+              slug: savedPost.slug,
+              relatedGameIds: savedPost.relatedGameIds || [],
+            },
+          });
+        }
 
         return { skipped: false as const, savedPost };
       },
@@ -284,16 +292,19 @@ export class EditorService implements OnModuleInit {
 
         const savedPost = await this.saveGeneratedPost(article, url);
 
-        await this.outboxService.enqueueImmediate({
-          type: 'editorial.post.published',
-          payload: {
-            id: savedPost.$id,
-            title: savedPost.title,
-            subtitle: savedPost.subtitle ?? '',
-            slug: savedPost.slug,
-            relatedGameIds: savedPost.relatedGameIds || [],
-          },
-        });
+        // Mesma regra do fluxo automático: rascunho não dispara divulgação.
+        if (savedPost.status === PostsStatus.PUBLISHED) {
+          await this.outboxService.enqueueImmediate({
+            type: 'editorial.post.published',
+            payload: {
+              id: savedPost.$id,
+              title: savedPost.title,
+              subtitle: savedPost.subtitle ?? '',
+              slug: savedPost.slug,
+              relatedGameIds: savedPost.relatedGameIds || [],
+            },
+          });
+        }
 
         return { skipped: false as const, savedPost };
       },
@@ -499,6 +510,78 @@ export class EditorService implements OnModuleInit {
       .trim();
   }
 
+  /** Remove marcação para medir o texto real de um corpo em HTML. */
+  private toPlainText(value?: string | null) {
+    if (typeof value !== 'string') return '';
+    return value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Piso de qualidade antes de publicar.
+   *
+   * Não reduz a cadência do agente: descarta o refugo. Publicar
+   * automaticamente artigo curto, sem fonte ou com slug duplicado é o que
+   * caracteriza produção em escala sem valor agregado — o que a política do
+   * Google penaliza. O que não passa vira rascunho para revisão humana.
+   */
+  private async resolvePublicationStatus(input: {
+    title: string;
+    slug: string;
+    body: string;
+    sourceUrl: string | null;
+  }): Promise<{ status: PostsStatus; reasons: string[] }> {
+    const reasons: string[] = [];
+    const bodyLength = this.toPlainText(input.body).length;
+
+    if (input.title.length < MIN_TITLE_CHARS) {
+      reasons.push(
+        `título com ${input.title.length} caracteres (mínimo ${MIN_TITLE_CHARS})`,
+      );
+    }
+
+    if (bodyLength < MIN_BODY_CHARS) {
+      reasons.push(
+        `corpo com ${bodyLength} caracteres (mínimo ${MIN_BODY_CHARS})`,
+      );
+    }
+
+    if (!input.sourceUrl) {
+      reasons.push('sem URL de fonte original');
+    }
+
+    if (!input.slug) {
+      reasons.push('slug vazio');
+    } else if (await this.slugAlreadyExists(input.slug)) {
+      reasons.push(`slug duplicado ("${input.slug}")`);
+    }
+
+    return {
+      status: reasons.length ? PostsStatus.DRAFT : PostsStatus.PUBLISHED,
+      reasons,
+    };
+  }
+
+  private async slugAlreadyExists(slug: string) {
+    try {
+      const existing = await this.tablesDB.listRows({
+        databaseId: EditorService.DB_ID,
+        tableId: 'posts',
+        queries: [Query.equal('slug', slug), Query.limit(1)],
+      });
+      return existing.total > 0;
+    } catch (error) {
+      // Indisponibilidade da checagem não deve bloquear a publicação.
+      this.logger.warn(
+        `Falha ao verificar slug duplicado "${slug}": ${String(error)}`,
+      );
+      return false;
+    }
+  }
+
   /** Salva o post gerado pela IA sem imagem principal. */
   private async saveGeneratedPost(
     article: AiArticle,
@@ -506,6 +589,22 @@ export class EditorService implements OnModuleInit {
   ) {
     const slug = this.slugify(article.post.slug || article.post.title);
     const title = article.post.title.trim();
+    const originalSourceUrl =
+      this.toNullableString(article.post.originalSourceUrl) ||
+      this.toNullableString(fallbackSourceUrl);
+
+    const { status, reasons } = await this.resolvePublicationStatus({
+      title,
+      slug,
+      body: article.post.body,
+      sourceUrl: originalSourceUrl,
+    });
+
+    if (status === PostsStatus.DRAFT) {
+      this.logger.warn(
+        `Post "${title}" salvo como rascunho pelo piso de qualidade: ${reasons.join('; ')}`,
+      );
+    }
 
     return this.tablesDB.createRow({
       databaseId: EditorService.DB_ID,
@@ -517,7 +616,7 @@ export class EditorService implements OnModuleInit {
         slug,
         body: article.post.body,
         mainImage: null,
-        status: PostsStatus.PUBLISHED,
+        status,
         tags: article.post.tags
           .map((tag) => this.slugify(tag))
           .filter(Boolean)
@@ -526,9 +625,7 @@ export class EditorService implements OnModuleInit {
           .map((id) => this.toTrimmedString(id))
           .filter((id): id is string => Boolean(id)),
         seo: this.buildSeoString(article.post.seo),
-        originalSourceUrl:
-          this.toNullableString(article.post.originalSourceUrl) ||
-          this.toNullableString(fallbackSourceUrl),
+        originalSourceUrl,
         author: ZETHO_INSIDER_ID,
       },
     });

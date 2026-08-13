@@ -20,6 +20,8 @@ type RelatedGameSummary = {
 @Injectable()
 export class GazethoService {
   private static readonly DB_ID = 'app';
+  /** Autor sintético "Zetho Insider" usado pelo agente editorial. */
+  private static readonly AUTOMATED_AUTHOR_ID = '69f945e0000754418a5b';
   private readonly tablesDB: Appwrite['tablesDB'];
 
   constructor(private readonly appwrite: Appwrite) {
@@ -105,6 +107,8 @@ export class GazethoService {
         'tags',
         'mainImage',
         'author.name',
+        'author.slug',
+        'author.$id',
         'author.avatarUrl',
       ] as any),
     ];
@@ -195,7 +199,11 @@ export class GazethoService {
           'subtitle',
           'slug',
           'tags',
+          'mainImage',
+          'seo',
           'author.name',
+          'author.slug',
+          'author.$id',
         ] as any),
       ],
     });
@@ -226,8 +234,12 @@ export class GazethoService {
           'slug',
           'body',
           'tags',
+          'mainImage',
+          'seo',
           'originalSourceUrl',
           'author.name',
+          'author.slug',
+          'author.$id',
           'relatedGameIds',
         ] as any),
       ],
@@ -246,6 +258,10 @@ export class GazethoService {
   }
 
   private toNewsSummary(post: Record<string, any>) {
+    const seo = this.parseJsonColumn<{ title?: string; description?: string }>(
+      post.seo,
+    );
+
     return {
       $id: post.$id,
       $createdAt: post.$createdAt,
@@ -254,7 +270,43 @@ export class GazethoService {
       subtitle: post.subtitle ?? null,
       slug: post.slug,
       tags: post.tags ?? [],
-      author: post.author?.name ? { name: post.author.name } : null,
+      author: this.toNewsAuthor(post.author),
+      mainImage: this.parseJsonColumn<{ url?: string }>(post.mainImage),
+      seo: seo
+        ? {
+            title: seo.title || null,
+            description: seo.description || null,
+          }
+        : null,
+    };
+  }
+
+  /**
+   * `mainImage` e `seo` são strings JSON e há dados legados no acervo. Um
+   * `JSON.parse` cru derruba a listagem inteira por causa de uma linha ruim.
+   */
+  private parseJsonColumn<T>(value: unknown): T | null {
+    if (!value || typeof value !== 'string') return null;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Expõe explicitamente se a autoria é automatizada. O front usa esse flag
+   * para exibir a divulgação de IA junto ao byline — apresentar o assistente
+   * editorial como se fosse uma pessoa é o que caracteriza a violação de
+   * política, não o uso de IA em si.
+   */
+  private toNewsAuthor(author: Record<string, any> | null | undefined) {
+    if (!author?.name) return null;
+
+    return {
+      name: author.name,
+      slug: author.slug ?? null,
+      isAutomated: author.$id === GazethoService.AUTOMATED_AUTHOR_ID,
     };
   }
 
