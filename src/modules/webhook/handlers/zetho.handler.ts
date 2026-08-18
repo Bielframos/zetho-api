@@ -717,6 +717,40 @@ export class ZethoHandler {
             : Promise.resolve(null),
         ]);
 
+        const replyAuthor = replyProfile?.gamertag || 'Alguém';
+        const gameName = game?.name || 'um jogo';
+
+        // 3. Criar notificação in-app para o autor do comentário pai.
+        // O tipo ainda não consta na declaração gerada, então permanece como
+        // string local até a próxima regeneração do schema.
+        if (replyProfileId) {
+          const notificationType: string = 'game_comment';
+
+          try {
+            await this.tablesDB.createRow({
+              databaseId: ZethoHandler.DB_ID,
+              tableId: 'notifications',
+              rowId: ID.unique(),
+              data: {
+                recipientProfileId: parentProfileId,
+                senderProfileId: replyProfileId,
+                type: notificationType,
+                title: `${replyAuthor} respondeu ao seu comentário`,
+                body:
+                  comment.content ||
+                  `Nova resposta ao seu comentário em ${gameName}.`,
+                entityId: comment.$id,
+                read: false,
+              },
+            });
+          } catch (error) {
+            this.logger.error(
+              `Falha ao criar notificação de resposta ao comentário ${comment.$id}`,
+              error,
+            );
+          }
+        }
+
         if (!parentProfile.userId) {
           return {
             success: true,
@@ -724,11 +758,12 @@ export class ZethoHandler {
           };
         }
 
-        // 3. Enviar e-mail de resposta direto para o autor do comentário pai
-        const replyAuthor = replyProfile?.gamertag || 'Alguém';
-        const gameName = game?.name || 'um jogo';
+        // 4. Enviar e-mail de resposta direto para o autor do comentário pai
         const gameUrl = game?.slug
-          ? new URL(`/jogo/${game.slug}`, this.getFrontendAppUrl()).toString()
+          ? new URL(
+              `/jogo/${game.slug}?commentId=${encodeURIComponent(comment.$id)}`,
+              this.getFrontendAppUrl(),
+            ).toString()
           : this.getFrontendAppUrl();
         const emailSubject = game?.name
           ? `[Zetho] Nova resposta ao seu comentário em ${game.name}`
