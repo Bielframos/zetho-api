@@ -15,10 +15,7 @@ import { AppModule } from './app.module';
  * Aceita lista separada por vírgula para acomodar apex + www.
  */
 function resolveAllowedOrigins(): string[] {
-  const raw = [
-    process.env.FRONTEND_APP_URL,
-    process.env.FRONTEND_APP_URL_EXTRA,
-  ]
+  const raw = [process.env.FRONTEND_APP_URL, process.env.FRONTEND_APP_URL_EXTRA]
     .filter((value): value is string => Boolean(value?.trim()))
     .flatMap((value) => value.split(','));
 
