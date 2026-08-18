@@ -12,7 +12,12 @@ import { Appwrite } from 'src/common/appwrite/appwrite.provider';
 import { textReviewCountCacheKey } from '../game/game-seo';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
-import type { UserProfiles } from 'src/common/appwrite/appwrite';
+import type { Games, UserProfiles } from 'src/common/appwrite/appwrite';
+
+type RatingFeedRow = Models.Row & {
+  gameId: string;
+  ownerFingerprint: string;
+};
 
 @Injectable()
 export class RatingsService {
@@ -305,6 +310,96 @@ export class RatingsService {
       page,
       pageSize,
       totalPages: Math.ceil(result.total / pageSize),
+    };
+  }
+
+  async getRatingsFeed(page = 1, pageSize = 12) {
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    const safePageSize = Number.isFinite(pageSize)
+      ? Math.max(1, Math.min(Math.floor(pageSize), 50))
+      : 12;
+    const offset = (safePage - 1) * safePageSize;
+
+    const result = await this.tablesDB.listRows<RatingFeedRow>({
+      databaseId: RatingsService.DB_ID,
+      tableId: RatingsService.TABLE_ID,
+      queries: [
+        Query.orderDesc('$createdAt'),
+        Query.orderDesc('$id'),
+        Query.limit(safePageSize),
+        Query.offset(offset),
+      ],
+    });
+
+    const gameIds = Array.from(
+      new Set(result.rows.map((rating) => rating.gameId).filter(Boolean)),
+    );
+    const fingerprints = Array.from(
+      new Set(
+        result.rows.map((rating) => rating.ownerFingerprint).filter(Boolean),
+      ),
+    );
+
+    const [gamesResult, profilesResult] = await Promise.all([
+      gameIds.length > 0
+        ? this.tablesDB.listRows<Games>({
+            databaseId: RatingsService.DB_ID,
+            tableId: 'games',
+            queries: [Query.equal('$id', gameIds), Query.limit(gameIds.length)],
+          })
+        : Promise.resolve(null),
+      fingerprints.length > 0
+        ? this.tablesDB.listRows<UserProfiles>({
+            databaseId: RatingsService.DB_ID,
+            tableId: 'user_profiles',
+            queries: [
+              Query.equal('fingerprint', fingerprints),
+              Query.limit(fingerprints.length),
+            ],
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const gameMap = new Map(
+      (gamesResult?.rows ?? []).map((game) => [game.$id, game]),
+    );
+    const profileMap = new Map(
+      (profilesResult?.rows ?? []).map((profile) => [
+        profile.fingerprint,
+        profile,
+      ]),
+    );
+
+    const items = result.rows.map((rating) => {
+      const game = gameMap.get(rating.gameId);
+      const author = profileMap.get(rating.ownerFingerprint);
+
+      return {
+        ...rating,
+        game: game
+          ? {
+              $id: game.$id,
+              name: game.name,
+              slug: game.slug,
+              coverUrl: game.coverUrl,
+            }
+          : null,
+        author: author
+          ? {
+              $id: author.$id,
+              gamertag: author.gamertag,
+              avatarUrl: author.avatarUrl,
+            }
+          : null,
+      };
+    });
+
+    return {
+      items,
+      total: result.total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages: Math.ceil(result.total / safePageSize),
     };
   }
 

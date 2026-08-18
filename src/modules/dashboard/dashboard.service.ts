@@ -462,6 +462,70 @@ export class DashboardService {
     };
   }
 
+  async getPublicLists(userId?: string, page = 1, pageSize = 12) {
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
+    const safePageSize = Number.isFinite(pageSize)
+      ? Math.max(1, Math.min(Math.trunc(pageSize), 50))
+      : 12;
+    const offset = (safePage - 1) * safePageSize;
+
+    const lists = await this.appwrite.tablesDB.listRows<any>({
+      databaseId: DashboardService.DB_ID,
+      tableId: 'lists',
+      queries: [
+        Query.equal('isPublic', true),
+        Query.orderDesc('$createdAt'),
+        Query.orderDesc('$id'),
+        Query.limit(safePageSize),
+        Query.offset(offset),
+      ],
+    });
+
+    const total = lists.total;
+    const totalPages = Math.ceil(total / safePageSize);
+
+    if (lists.rows.length === 0) {
+      return {
+        items: [],
+        total,
+        page: safePage,
+        pageSize: safePageSize,
+        totalPages,
+        hasMore: false,
+      };
+    }
+
+    const fingerprints = Array.from(
+      new Set(lists.rows.map((list) => list.ownerFingerprint).filter(Boolean)),
+    );
+    const [profiles, state] = await Promise.all([
+      this.getProfilesByFingerprints(fingerprints),
+      userId
+        ? this.getListState(
+            userId,
+            lists.rows.map((list) => list.$id),
+          )
+        : null,
+    ]);
+    const profileByFingerprint = new Map(
+      profiles.map((profile) => [profile.fingerprint, profile]),
+    );
+
+    return {
+      items: lists.rows.map((list) => ({
+        ...this.normalizeList(list),
+        author: profileByFingerprint.get(list.ownerFingerprint) ?? null,
+        likedByMe: state?.liked.has(list.$id) ?? false,
+        savedByMe: state?.saved.has(list.$id) ?? false,
+      })),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages,
+      hasMore: safePage < totalPages,
+    };
+  }
+
   async getListSocialState(listId: string, userId?: string) {
     const list = await this.getListById(listId);
     const state = userId ? await this.getListState(userId, [listId]) : null;

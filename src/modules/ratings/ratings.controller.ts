@@ -14,7 +14,11 @@ import {
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { Roles } from 'src/common/guards/roles.decorator';
-import { CreateRatingDto, VoteRatingDto } from './ratings.dto';
+import {
+  CreateRatingDto,
+  RatingsFeedQueryDto,
+  VoteRatingDto,
+} from './ratings.dto';
 import { RatingsService } from './ratings.service';
 
 @Controller('ratings')
@@ -36,6 +40,12 @@ export class RatingsController {
       ratingId,
       dto.operation,
     );
+  }
+
+  @Get('feed')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async getRatingsFeed(@Query() query: RatingsFeedQueryDto) {
+    return await this.ratingsService.getRatingsFeed(query.page, query.pageSize);
   }
 
   @Get(':gameId')

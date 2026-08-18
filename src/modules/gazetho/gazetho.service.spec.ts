@@ -7,7 +7,7 @@ describe('GazethoService public news', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('lists only published news without main images', async () => {
+  it('lists only published news with parsed main images', async () => {
     tablesDB.listRows.mockResolvedValue({
       total: 1,
       rows: [
@@ -19,7 +19,9 @@ describe('GazethoService public news', () => {
           slug: 'titulo',
           tags: ['rpg'],
           author: { name: 'Zetho' },
-          mainImage: 'secret',
+          mainImage: JSON.stringify({
+            url: 'https://cdn.zetho.com.br/news/post-1.jpg',
+          }),
         },
       ],
     });
@@ -30,7 +32,9 @@ describe('GazethoService public news', () => {
       pageSize: 20,
     });
 
-    expect(result.items[0]).not.toHaveProperty('mainImage');
+    expect(result.items[0].mainImage).toEqual({
+      url: 'https://cdn.zetho.com.br/news/post-1.jpg',
+    });
     expect(tablesDB.listRows).toHaveBeenCalledWith(
       expect.objectContaining({
         queries: expect.arrayContaining([expect.stringContaining('status')]),

@@ -1,5 +1,7 @@
+import { Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -8,6 +10,21 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
+export class RatingsFeedQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  pageSize = 12;
+}
 
 export class VoteRatingDto {
   @IsNotEmpty()
