@@ -84,12 +84,22 @@ describe('EditorService gameSearchTool', () => {
 });
 
 describe('EditorService.generateGuidedArticle', () => {
+  const guidedArticleTitle =
+    'Hades II detalha novidades para uma jornada cooperativa';
+  const guidedArticleBody = [
+    '<p>A atualização apresentada para Hades II amplia as possibilidades de cooperação ao reorganizar encontros, recompensas e objetivos compartilhados. A proposta mantém o ritmo característico da série, mas incentiva decisões coordenadas desde a escolha das bênçãos até o momento de enfrentar cada guardião. O estúdio também destacou que a progressão continuará valorizando experimentação, leitura dos padrões inimigos e combinações diferentes a cada tentativa.</p>',
+    '<p>Durante as partidas, cada participante poderá assumir uma função complementar sem ficar preso a uma classe permanente. Armas, melhorias temporárias e efeitos concedidos pelos deuses alteram a composição do grupo ao longo da jornada. Essa flexibilidade permite que uma dupla adapte sua estratégia quando encontra salas mais agressivas, desafios opcionais ou recursos raros, evitando que uma escolha feita no início determine todo o restante da campanha.</p>',
+    '<p>O sistema de recompensas foi ajustado para reconhecer tanto o avanço coletivo quanto as contribuições individuais. Objetivos concluídos em conjunto liberam materiais para o acampamento, enquanto ações de suporte e sequências bem executadas alimentam bônus próprios. Segundo as informações divulgadas, a intenção é impedir que apenas o maior dano defina o desempenho e criar espaço para estilos defensivos, controle de área e preparação cuidadosa antes dos confrontos principais.</p>',
+    '<p>A experiência cooperativa também recebeu opções para facilitar encontros entre jogadores com rotinas diferentes. Será possível retomar uma jornada a partir de pontos seguros, revisar as escolhas recentes e combinar previamente quais recursos devem ser priorizados. Indicadores visuais foram redesenhados para comunicar perigos e oportunidades sem cobrir a ação, enquanto configurações de acessibilidade permitem ajustar contraste, intensidade de efeitos e velocidade de determinados avisos.</p>',
+    '<p>Mesmo com essas mudanças, a estrutura narrativa permanece ligada às tentativas sucessivas e às conversas que acontecem depois de cada retorno. Personagens reconhecem resultados importantes, comentam estratégias utilizadas e oferecem novas perspectivas sobre os conflitos do submundo. A combinação entre progressão, narrativa reativa e cooperação busca fazer com que cada sessão produza histórias próprias, sem abandonar a tensão e a precisão que sustentam a identidade de Hades II.</p>',
+  ].join('');
+
   const buildArticleOutput = () => ({
     post: {
-      title: 'Título Final',
+      title: guidedArticleTitle,
       subtitle: 'sub',
       slug: 'titulo-final',
-      body: '<p>corpo</p>',
+      body: guidedArticleBody,
       status: 'published',
       tags: ['hades-ii'],
       relatedGameIds: [],
@@ -113,9 +123,12 @@ describe('EditorService.generateGuidedArticle', () => {
       tablesDB: {
         listRows: jest.fn().mockResolvedValue({ rows: [] }),
         createRow: jest.fn().mockResolvedValue({
-          title: 'Título Final',
+          $id: 'post-guided-1',
+          title: guidedArticleTitle,
           subtitle: 'sub',
           slug: 'titulo-final',
+          status: 'published',
+          relatedGameIds: [],
         }),
       },
     };
