@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { MemoryHealthIndicator } from '@nestjs/terminus';
 import request from 'supertest';
 
 describe('Health readiness contract (e2e)', () => {
@@ -14,6 +15,14 @@ describe('Health readiness contract (e2e)', () => {
       },
     }),
   } as unknown as typeof import('../../src/modules/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
+
+  const mockMemoryHealthIndicator = {
+    checkHeap: jest.fn().mockResolvedValue({
+      memory_heap: {
+        status: 'up',
+      },
+    }),
+  } as unknown as MemoryHealthIndicator;
 
   beforeAll(async () => {
     process.env.APPWRITE_PROJECT = 'test-project';
@@ -32,6 +41,8 @@ describe('Health readiness contract (e2e)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [HealthModule],
     })
+      .overrideProvider(MemoryHealthIndicator)
+      .useValue(mockMemoryHealthIndicator)
       .overrideProvider(AppwriteHealthIndicator)
       .useValue(mockAppwriteHealthIndicator)
       .compile();
