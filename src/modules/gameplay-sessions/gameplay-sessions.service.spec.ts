@@ -186,6 +186,22 @@ describe('GameplaySessionsService', () => {
     return tablesDB.tables.get('gameplay_session_participants') ?? [];
   }
 
+  function seedNotification(overrides: Record<string, unknown>) {
+    tablesDB.seed('notifications', [
+      {
+        $id: 'notification-1',
+        $createdAt: new Date().toISOString(),
+        recipientProfileId: guest.$id,
+        senderProfileId: host.$id,
+        type: 'system',
+        title: 'Notification',
+        body: 'Notification body',
+        read: false,
+        ...overrides,
+      },
+    ] as Row[]);
+  }
+
   it('creates the Jogatina with one confirmed host and a consistent count', async () => {
     const session = await createSession();
     expect(session.confirmedCount).toBe(1);
@@ -443,6 +459,101 @@ describe('GameplaySessionsService', () => {
     await expect(
       service.requestToJoin('other-user', session.$id),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('hydrates a game comment target URL with an encoded comment id', async () => {
+    const commentId = 'comment/with spaces?';
+    seedNotification({
+      type: 'game_comment',
+      entityId: commentId,
+    });
+    tablesDB.seed('game_comments', [
+      { $id: commentId, gameId: 'game-1' },
+    ] as Row[]);
+    tablesDB.seed('games', [{ $id: 'game-1', slug: 'game-name' }] as Row[]);
+    const listRows = jest.spyOn(tablesDB, 'listRows');
+
+    const result = await service.getNotifications('guest-user');
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        type: 'game_comment',
+        entityId: commentId,
+        targetUrl: '/jogo/game-name?commentId=comment%2Fwith%20spaces%3F',
+        participantId: undefined,
+        actionStatus: undefined,
+      }),
+    );
+    expect(
+      listRows.mock.calls.some(
+        ([params]) => params.tableId === 'gameplay_session_participants',
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps listing a game comment notification when the comment is missing', async () => {
+    seedNotification({
+      type: 'game_comment',
+      entityId: 'missing-comment',
+    });
+
+    const result = await service.getNotifications('guest-user');
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        type: 'game_comment',
+        targetUrl: undefined,
+      }),
+    );
+  });
+
+  it.each([
+    ['game is missing', []],
+    ['game has no slug', [{ $id: 'game-1' }]],
+  ])(
+    'keeps listing a game comment notification when the %s',
+    async (_scenario, games) => {
+      seedNotification({
+        type: 'game_comment',
+        entityId: 'comment-1',
+      });
+      tablesDB.seed('game_comments', [
+        { $id: 'comment-1', gameId: 'game-1' },
+      ] as Row[]);
+      tablesDB.seed('games', games as Row[]);
+
+      const result = await service.getNotifications('guest-user');
+
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0].targetUrl).toBeUndefined();
+    },
+  );
+
+  it('preserves entry comment behavior without target or participant hydration', async () => {
+    seedNotification({
+      type: 'entry_comment',
+      entityId: 'entry-1',
+    });
+    const listRows = jest.spyOn(tablesDB, 'listRows');
+
+    const result = await service.getNotifications('guest-user');
+
+    expect(result.rows[0]).toEqual(
+      expect.objectContaining({
+        type: 'entry_comment',
+        entityId: 'entry-1',
+        targetUrl: undefined,
+        participantId: undefined,
+        actionStatus: undefined,
+      }),
+    );
+    expect(
+      listRows.mock.calls.some(
+        ([params]) => params.tableId === 'gameplay_session_participants',
+      ),
+    ).toBe(false);
   });
 
   it('returns invitation action status independently from read state', async () => {
