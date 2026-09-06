@@ -344,6 +344,17 @@
                     "orders": [
                         "ASC"
                     ]
+                },
+                {
+                    "key": "games_ratingCount",
+                    "type": "key",
+                    "status": "available",
+                    "orders": [
+                        "DESC"
+                    ],
+                    "columns": [
+                        "ratingCount"
+                    ]
                 }
             ]
         },
@@ -381,7 +392,6 @@
         {
             "$id": "user_profiles",
             "$permissions": [
-                "create(\"any\")",
                 "read(\"any\")",
                 "create(\"team:zerei\")",
                 "read(\"team:zerei\")",
@@ -741,15 +751,25 @@
                     "key": "z_entry_likes_entry_user_unique",
                     "type": "unique",
                     "status": "available",
-                    "columns": ["entryId", "userId"],
-                    "orders": ["ASC", "ASC"]
+                    "columns": [
+                        "entryId",
+                        "userId"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
                 },
                 {
                     "key": "z_entry_likes_user_idx",
                     "type": "key",
                     "status": "available",
-                    "columns": ["userId"],
-                    "orders": ["ASC"]
+                    "columns": [
+                        "userId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
                 }
             ]
         },
@@ -821,15 +841,25 @@
                     "key": "z_entry_comments_entry_parent_idx",
                     "type": "key",
                     "status": "available",
-                    "columns": ["entryId", "parentId"],
-                    "orders": ["ASC", "ASC"]
+                    "columns": [
+                        "entryId",
+                        "parentId"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
                 },
                 {
                     "key": "z_entry_comments_profile_idx",
                     "type": "key",
                     "status": "available",
-                    "columns": ["profileId"],
-                    "orders": ["ASC"]
+                    "columns": [
+                        "profileId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
                 }
             ]
         },
@@ -1639,9 +1669,43 @@
                     "twoWayKey": "rating",
                     "onDelete": "cascade",
                     "side": "child"
+                },
+                {
+                    "key": "title",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "ratings_gameId",
+                    "type": "key",
+                    "status": "available",
+                    "orders": [
+                        "ASC"
+                    ],
+                    "columns": [
+                        "gameId"
+                    ]
+                },
+                {
+                    "key": "ratings_gameId_created",
+                    "type": "key",
+                    "status": "available",
+                    "orders": [
+                        "ASC",
+                        "DESC"
+                    ],
+                    "columns": [
+                        "gameId",
+                        "$createdAt"
+                    ]
+                }
+            ]
         },
         {
             "$id": "rating_votes",
@@ -2141,8 +2205,6 @@
         {
             "$id": "zcoin_transactions",
             "$permissions": [
-                "create(\"any\")",
-                "read(\"any\")",
                 "create(\"team:zerei\")",
                 "read(\"team:zerei\")",
                 "update(\"team:zerei\")",
@@ -2594,10 +2656,7 @@
         {
             "$id": "profile_themes",
             "$permissions": [
-                "read(\"any\")",
-                "create(\"users\")",
-                "update(\"users\")",
-                "delete(\"users\")"
+                "read(\"any\")"
             ],
             "databaseId": "app",
             "name": "Profile Themes",

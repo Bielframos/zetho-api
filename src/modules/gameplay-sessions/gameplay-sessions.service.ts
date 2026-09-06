@@ -742,15 +742,19 @@ export class GameplaySessionsService {
       ...result,
       rows: await Promise.all(
         result.rows.map(async (notification) => {
-          const sender = await this.getProfileById(
-            notification.senderProfileId,
-          );
+          const notificationType = notification.type as string;
+          const [sender, targetUrl] = await Promise.all([
+            this.getProfileById(notification.senderProfileId),
+            this.getGameCommentTargetUrl(notification),
+          ]);
           const relatedProfileId =
             notification.type === 'session_invite'
               ? profile.$id
               : notification.senderProfileId;
           const participant =
-            notification.entityId && notification.type !== 'entry_comment'
+            notification.entityId &&
+            notificationType !== 'entry_comment' &&
+            notificationType !== 'game_comment'
               ? await this.findParticipant(
                   notification.entityId,
                   relatedProfileId,
@@ -761,6 +765,7 @@ export class GameplaySessionsService {
             senderProfile: this.publicProfile(sender),
             participantId: participant?.$id,
             actionStatus: participant?.status,
+            targetUrl,
           };
         }),
       ),
@@ -1062,6 +1067,34 @@ export class GameplaySessionsService {
       });
     } catch {
       throw new NotFoundException('Notificação não encontrada');
+    }
+  }
+
+  private async getGameCommentTargetUrl(notification: Notifications) {
+    if ((notification.type as string) !== 'game_comment') return undefined;
+
+    try {
+      const comment = await this.appwrite.tablesDB.getRow<
+        Models.Row & { gameId?: string }
+      >({
+        databaseId: GameplaySessionsService.DB_ID,
+        tableId: 'game_comments',
+        rowId: notification.entityId,
+      });
+      if (!comment.gameId) return undefined;
+
+      const game = await this.appwrite.tablesDB.getRow<
+        Models.Row & { slug?: string }
+      >({
+        databaseId: GameplaySessionsService.DB_ID,
+        tableId: 'games',
+        rowId: comment.gameId,
+      });
+      if (!game.slug) return undefined;
+
+      return `/jogo/${game.slug}?commentId=${encodeURIComponent(notification.entityId)}`;
+    } catch {
+      return undefined;
     }
   }
 

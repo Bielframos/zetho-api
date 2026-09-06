@@ -6,6 +6,58 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-13
+
+### Added
+
+- A consulta de um jogo passa a informar se a página deve ser indexada pelos buscadores e quantas críticas com texto ela possui, considerando indexável apenas o jogo que já recebeu ao menos uma crítica escrita.
+- A consulta de um jogo aceita dispensar o enriquecimento sob demanda, permitindo que a renderização no servidor responda sem aguardar importação externa e tradução por IA.
+- O sitemap passa a incluir as páginas institucionais, as notícias publicadas e os jogos indexáveis, com data real de última modificação e cache de uma hora.
+- A API pública de notícias passa a expor imagem principal, dados de SEO e a autoria da matéria, sinalizando explicitamente quando a autoria é automatizada.
+
+### Changed
+
+- O agente editorial de IA aplica um piso de qualidade antes de publicar — título e corpo com tamanho mínimo, fonte original presente e slug inédito — e o que não passa fica como rascunho para revisão humana, sem alterar a cadência de publicação.
+- Rascunhos retidos pelo piso de qualidade deixam de disparar o compartilhamento no WhatsApp e o e-mail aos inscritos.
+- A URL pública do site usada no sitemap passa a vir de variável de ambiente em vez de valor fixo no código.
+- A contagem de críticas com texto de um jogo é atualizada assim que uma avaliação é criada, editada ou removida.
+- O schema Appwrite inclui índices para as avaliações por jogo e para a ordenação de jogos por número de avaliações.
+
+### Fixed
+
+- As respostas em produção voltam a trazer a liberação de origem para o site: a origem permitida é normalizada, aceita mais de um domínio e a aplicação não sobe em produção sem a variável configurada.
+- A listagem de notícias tolera registros com campos malformados, evitando que uma única matéria inválida derrube a resposta.
+
+### Removed
+
+- Frequência de alteração e prioridade do sitemap, ignoradas pelos buscadores.
+
+### Security
+
+- Removida a permissão de criação sem autenticação nas tabelas de perfis de usuário e de transações de Z-Coins.
+- O histórico de transações de Z-Coins deixa de ser publicamente legível.
+- Removidas as permissões de escrita nos temas de perfil, que permitiam a qualquer usuário autenticado alterar ou apagar o tema de outro.
+
+## [0.3.0] - 2026-08-12
+
+### Added
+
+- Endpoints públicos para listar notícias publicadas, consultar uma notícia por slug e filtrar matérias relacionadas a um jogo.
+- DTO público dedicado, evitando a exposição de imagem principal e campos editoriais internos.
+- Cobertura de testes para impedir que imagens e rascunhos sejam retornados pela API pública.
+
+### Changed
+
+- O editor de IA agora publica matérias sem gerar ou selecionar imagem principal.
+- Notificações, e-mails e sitemap passam a direcionar as matérias para a seção de notícias do Zetho.
+- A coleção de posts deixa de permitir leitura pública direta; o conteúdo público passa a ser servido pela API.
+- O sitemap inclui somente matérias publicadas e utiliza as novas URLs do Zetho.
+
+### Removed
+
+- Prompt e integração de seleção de imagens do antigo fluxo editorial do Gazetho.
+- Invalidação de cache específica do frontend descontinuado do Gazetho.
+
 ## [0.2.1] - 2026-08-05
 
 ### Added

@@ -15,7 +15,11 @@ import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { DashboardService } from './dashboard.service';
-import { CreateEntryCommentDto, VoteCommentDto } from './dashboard.dto';
+import {
+  CreateEntryCommentDto,
+  PublicListsQueryDto,
+  VoteCommentDto,
+} from './dashboard.dto';
 
 @Controller()
 export class DashboardController {
@@ -66,6 +70,24 @@ export class DashboardController {
     return this.dashboardService.getTrendingLists(
       user?.$id,
       limit ? parseInt(limit, 10) : 12,
+    );
+  }
+
+  @Get('lists/public')
+  @UseGuards(OptionalAppwriteSessionGuard)
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  )
+  getPublicLists(@Req() req: any, @Query() query: PublicListsQueryDto) {
+    const user = req.user as Models.User | null;
+    return this.dashboardService.getPublicLists(
+      user?.$id,
+      query.page ?? 1,
+      query.pageSize ?? 12,
     );
   }
 

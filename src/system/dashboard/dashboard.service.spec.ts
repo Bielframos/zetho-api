@@ -4,6 +4,127 @@ describe('DashboardService', () => {
   const makeService = (tablesDB: any) =>
     new DashboardService({ tablesDB } as any);
 
+  it('returns deterministic public-list pagination with covers, authors and viewer state', async () => {
+    const latestAdditions = [
+      JSON.stringify({
+        gameId: 'game-1',
+        gameName: 'Hades',
+        gameCoverUrl: 'https://cdn.zetho.com.br/hades.jpg',
+      }),
+    ];
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'list-1',
+              $createdAt: '2026-08-02T00:00:00.000Z',
+              ownerFingerprint: 'author-one',
+              title: 'Favoritos',
+              slug: 'favoritos',
+              isPublic: true,
+              itemCount: 1,
+              likeCount: 3,
+              saveCount: 2,
+              latestAdditions,
+            },
+            {
+              $id: 'list-2',
+              $createdAt: '2026-08-01T00:00:00.000Z',
+              ownerFingerprint: 'author-two',
+              title: 'Indies',
+              slug: 'indies',
+              isPublic: true,
+              itemCount: null,
+              likeCount: null,
+              saveCount: null,
+              latestAdditions: null,
+            },
+          ],
+          total: 5,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              $id: 'profile-1',
+              userId: 'author-user-1',
+              fingerprint: 'author-one',
+              gamertag: 'AuthorOne',
+              avatarUrl: 'avatar.jpg',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [{ listId: 'list-1' }] })
+        .mockResolvedValueOnce({ rows: [{ listId: 'list-2' }] }),
+    };
+
+    const service = makeService(tablesDB);
+    const result = await service.getPublicLists('viewer-1', 2, 2);
+
+    expect(result).toEqual({
+      items: [
+        expect.objectContaining({
+          $id: 'list-1',
+          latestAdditions,
+          author: expect.objectContaining({
+            gamertag: 'AuthorOne',
+            avatarUrl: 'avatar.jpg',
+          }),
+          likedByMe: true,
+          savedByMe: false,
+        }),
+        expect.objectContaining({
+          $id: 'list-2',
+          itemCount: 0,
+          likeCount: 0,
+          saveCount: 0,
+          latestAdditions: [],
+          author: null,
+          likedByMe: false,
+          savedByMe: true,
+        }),
+      ],
+      total: 5,
+      page: 2,
+      pageSize: 2,
+      totalPages: 3,
+      hasMore: true,
+    });
+
+    const listRequest = tablesDB.listRows.mock.calls[0][0];
+    expect(listRequest).toMatchObject({ databaseId: 'app', tableId: 'lists' });
+    expect(listRequest.queries[0]).toContain('isPublic');
+    expect(listRequest.queries[0]).toContain('true');
+    expect(listRequest.queries[1]).toContain('$createdAt');
+    expect(listRequest.queries[2]).toContain('$id');
+    expect(listRequest.queries[3]).toContain('2');
+    expect(listRequest.queries[4]).toContain('2');
+  });
+
+  it('bounds public-list pagination and skips hydration for an empty anonymous page', async () => {
+    const tablesDB = {
+      listRows: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
+    };
+    const service = makeService(tablesDB);
+
+    await expect(
+      service.getPublicLists(undefined, Number.NaN, 999),
+    ).resolves.toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
+      hasMore: false,
+    });
+    expect(tablesDB.listRows).toHaveBeenCalledTimes(1);
+    const query = tablesDB.listRows.mock.calls[0][0];
+    expect(query.queries[0]).toContain('isPublic');
+    expect(query.queries[3]).toContain('50');
+    expect(query.queries[4]).toContain('0');
+  });
+
   it('returns an empty feed when the user follows nobody', async () => {
     const tablesDB = {
       listRows: jest

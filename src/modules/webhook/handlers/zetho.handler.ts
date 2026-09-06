@@ -229,23 +229,23 @@ export class ZethoHandler {
         // Registro da entrada
         // -------------------------------------------------
 
-        const {
-          $id,
-          $sequence,
-          $tableId,
-          $databaseId,
-          $createdAt,
-          $updatedAt,
-          $permissions,
-          processedAt,
-          ...cleanEntry
-        } = entry;
-
         const newLikedEver = likedEver || currentLiked === true;
         const newMaxStatusReached = this.resolveMaxStatusReached(
           maxStatusReached,
           currentStatus,
         );
+
+        /**
+         * O payload do read model é montado a partir de uma whitelist e nunca
+         * por spread de `entry`: `z_entries` possui colunas que não existem em
+         * `z_entries_read` (ex.: `processedAt`, `likeCount`, `commentCount`) e
+         * qualquer coluna desconhecida faz o commit da transação falhar com
+         * `document_invalid_structure`.
+         */
+        const readModelData = this.buildReadModelData(entry, {
+          likedEver: newLikedEver,
+          maxStatusReached: newMaxStatusReached,
+        });
 
         const statusOps = this.statuses
           .map((status) => {
@@ -388,11 +388,7 @@ export class ZethoHandler {
             databaseId: 'app',
             tableId: 'z_entries_read',
             rowId: readId,
-            data: {
-              ...cleanEntry,
-              likedEver: newLikedEver,
-              maxStatusReached: newMaxStatusReached,
-            },
+            data: readModelData,
           });
 
           const operations = [
@@ -474,6 +470,32 @@ export class ZethoHandler {
   }
 
   /** Métodos auxiliares */
+
+  /**
+   * Monta o payload de `z_entries_read` a partir das colunas projetadas do
+   * evento, ignorando qualquer coluna exclusiva de `z_entries`.
+   *
+   * O Appwrite valida a estrutura da linha somente no commit da transação, de
+   * modo que uma coluna desconhecida derruba o lote inteiro (read model,
+   * contadores, zcoins e a marcação de `processedAt`) sem erro no staging.
+   *
+   * @param entry Evento recebido pelo webhook.
+   * @param derived Campos derivados mantidos apenas no read model.
+   */
+  private buildReadModelData(
+    entry: ZEntries,
+    derived: { likedEver: boolean; maxStatusReached: string | null },
+  ): Record<string, unknown> {
+    return {
+      gameId: entry.gameId,
+      ownerFingerprint: entry.ownerFingerprint,
+      status: entry.status ?? null,
+      liked: entry.liked ?? null,
+      hyped: entry.hyped ?? false,
+      likedEver: derived.likedEver,
+      maxStatusReached: derived.maxStatusReached,
+    };
+  }
 
   /**
    * Cria um ID determinístico para a linha de leitura de um par
@@ -695,6 +717,40 @@ export class ZethoHandler {
             : Promise.resolve(null),
         ]);
 
+        const replyAuthor = replyProfile?.gamertag || 'Alguém';
+        const gameName = game?.name || 'um jogo';
+
+        // 3. Criar notificação in-app para o autor do comentário pai.
+        // O tipo ainda não consta na declaração gerada, então permanece como
+        // string local até a próxima regeneração do schema.
+        if (replyProfileId) {
+          const notificationType: string = 'game_comment';
+
+          try {
+            await this.tablesDB.createRow({
+              databaseId: ZethoHandler.DB_ID,
+              tableId: 'notifications',
+              rowId: ID.unique(),
+              data: {
+                recipientProfileId: parentProfileId,
+                senderProfileId: replyProfileId,
+                type: notificationType,
+                title: `${replyAuthor} respondeu ao seu comentário`,
+                body:
+                  comment.content ||
+                  `Nova resposta ao seu comentário em ${gameName}.`,
+                entityId: comment.$id,
+                read: false,
+              },
+            });
+          } catch (error) {
+            this.logger.error(
+              `Falha ao criar notificação de resposta ao comentário ${comment.$id}`,
+              error,
+            );
+          }
+        }
+
         if (!parentProfile.userId) {
           return {
             success: true,
@@ -702,11 +758,12 @@ export class ZethoHandler {
           };
         }
 
-        // 3. Enviar e-mail de resposta direto para o autor do comentário pai
-        const replyAuthor = replyProfile?.gamertag || 'Alguém';
-        const gameName = game?.name || 'um jogo';
+        // 4. Enviar e-mail de resposta direto para o autor do comentário pai
         const gameUrl = game?.slug
-          ? new URL(`/jogo/${game.slug}`, this.getFrontendAppUrl()).toString()
+          ? new URL(
+              `/jogo/${game.slug}?commentId=${encodeURIComponent(comment.$id)}`,
+              this.getFrontendAppUrl(),
+            ).toString()
           : this.getFrontendAppUrl();
         const emailSubject = game?.name
           ? `[Zetho] Nova resposta ao seu comentário em ${game.name}`
