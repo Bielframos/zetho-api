@@ -15,8 +15,8 @@ import {
   Query,
   Role,
 } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { TransactionService } from 'src/common/appwrite/transaction.service';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 
@@ -24,7 +24,7 @@ import crypto from 'node:crypto';
 import type {
   UserProfiles,
   ZEntriesReadOnly,
-} from 'src/common/appwrite/appwrite';
+} from 'src/infra/appwrite/appwrite';
 
 type ProfileAuditTotals = {
   totalsCompleted: number;

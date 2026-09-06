@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Query } from 'node-appwrite';
-import { EditorService } from 'src/common/ai/agents/editor/editor.service';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { YoutubeService } from '../google/youtube.service';
-import { TranslatorService } from 'src/common/ai/agents/translator/translator.service';
+import { EditorService } from 'src/agents/editor/editor.service';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { YoutubeService } from 'src/modules/google/youtube.service';
+import { TranslatorService } from 'src/agents/translator/translator.service';
 
 @Injectable()
 export class SandboxService {

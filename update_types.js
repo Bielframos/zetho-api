@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const typeFile = path.join(__dirname, 'src/common/appwrite/appwrite.d.ts');
+const typeFile = path.join(__dirname, 'src/infra/appwrite/appwrite.d.ts');
 let content = fs.readFileSync(typeFile, 'utf8');
 
 // Add ProfileThemes type

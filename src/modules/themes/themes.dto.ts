@@ -6,7 +6,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ProfileThemeType } from 'src/common/appwrite/appwrite.enums';
+import { ProfileThemeType } from 'src/infra/appwrite/appwrite.enums';
 
 export class CreateThemeDto {
   @IsString()

@@ -7,7 +7,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Account, Client, Models } from 'node-appwrite';
-import { ENDPOINT, PROJECT_ID } from 'src/common/appwrite/constants';
+import { ENDPOINT, PROJECT_ID } from 'src/infra/appwrite/constants';
 
 @Injectable()
 export class OptionalAppwriteSessionGuard implements CanActivate {

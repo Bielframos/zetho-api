@@ -9,9 +9,9 @@ import type {
   ZEntries,
   ZEntriesReadOnly,
   ZEntriesStatus,
-} from 'src/common/appwrite/appwrite';
+} from 'src/infra/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
@@ -104,9 +104,7 @@ export class ZethoHandler {
           this.tablesDB.listRows<Models.Row & Record<string, unknown>>({
             databaseId: ZethoHandler.DB_ID,
             tableId: 'user_profiles',
-            queries: [
-              Query.equal('fingerprint', entry.ownerFingerprint),
-            ],
+            queries: [Query.equal('fingerprint', entry.ownerFingerprint)],
           }),
           this.tablesDB
             .getRow<ZEntriesReadOnly>({
@@ -512,7 +510,8 @@ export class ZethoHandler {
     currentValue: unknown,
     delta = 1,
   ) {
-    const isNullOrUndefined = currentValue === null || currentValue === undefined;
+    const isNullOrUndefined =
+      currentValue === null || currentValue === undefined;
 
     if (isNullOrUndefined) {
       const initialVal = action === 'increment' ? delta : 0;

@@ -8,10 +8,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
-import type { UserProfiles } from 'src/common/appwrite/appwrite';
+import type { UserProfiles } from 'src/infra/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { TransactionService } from 'src/common/appwrite/transaction.service';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import SCORE_TABLE from './score-table';
 

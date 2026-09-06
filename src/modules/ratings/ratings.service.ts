@@ -5,10 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ID, Query, Models } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
-import type { UserProfiles } from 'src/common/appwrite/appwrite';
+import type { UserProfiles } from 'src/infra/appwrite/appwrite';
 
 @Injectable()
 export class RatingsService {

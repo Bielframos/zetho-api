@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { CorrelationContextService } from '../../src/common/observability/correlation-context.service';
 import { LoggerContextService } from '../../src/common/observability/logger-context.service';
-import { EditorService } from '../../src/common/ai/agents/editor/editor.service';
+import { EditorService } from '../../src/agents/editor/editor.service';
 import { IGDBService } from '../../src/modules/igdb/igdb.service';
 import { RaffleService } from '../../src/modules/raffle/raffle.service';
 import { ZCoinsService } from '../../src/modules/zcoins/zcoins.service';

@@ -4,8 +4,8 @@ import request from 'supertest';
 
 describe('Health readiness contract (e2e)', () => {
   let app: INestApplication;
-  let HealthModule: typeof import('../../src/modules/health/health.module').HealthModule;
-  let AppwriteHealthIndicator: typeof import('../../src/modules/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
+  let HealthModule: typeof import('../../src/system/health/health.module').HealthModule;
+  let AppwriteHealthIndicator: typeof import('../../src/system/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
 
   const mockAppwriteHealthIndicator = {
     isHealthy: jest.fn().mockResolvedValue({
@@ -13,17 +13,17 @@ describe('Health readiness contract (e2e)', () => {
         status: 'up',
       },
     }),
-  } as unknown as typeof import('../../src/modules/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
+  } as unknown as typeof import('../../src/system/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
 
   beforeAll(async () => {
     process.env.APPWRITE_PROJECT = 'test-project';
     process.env.APPWRITE_ENDPOINT = 'https://appwrite.invalid';
     process.env.APPWRITE_API_KEY = 'test-key';
 
-    ({ HealthModule } = require('../../src/modules/health/health.module'));
+    ({ HealthModule } = require('../../src/system/health/health.module'));
     ({
       AppwriteHealthIndicator,
-    } = require('../../src/modules/health/indicators/appwrite-health.indicator'));
+    } = require('../../src/system/health/indicators/appwrite-health.indicator'));
   });
 
   beforeEach(async () => {

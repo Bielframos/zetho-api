@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PostsStatus } from 'src/common/appwrite/appwrite.enums';
+import { PostsStatus } from 'src/infra/appwrite/appwrite.enums';
 import { ID, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import {
   CreatePostDto,
   PopularTagsDto,

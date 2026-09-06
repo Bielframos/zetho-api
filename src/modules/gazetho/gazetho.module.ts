@@ -5,7 +5,7 @@ import {
   NewsPublicController,
 } from './gazetho.controller';
 import { GazethoService } from './gazetho.service';
-import { EditorModule } from 'src/common/ai/agents/editor/editor.module';
+import { EditorModule } from 'src/agents/editor/editor.module';
 
 @Module({
   imports: [EditorModule],

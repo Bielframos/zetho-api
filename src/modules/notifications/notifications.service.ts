@@ -2,7 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import { AppwriteException, Models } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { EmailTemplateService } from './email-template.service';
 import { EvolutionService } from './evolution.service';
 import { ZETHO_WPP_CHANNEL } from './notifications.constants';

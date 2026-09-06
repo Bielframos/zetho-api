@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AiModule } from '../../ai.module';
+import { AiModule } from 'src/infra/ai/ai.module';
 import { EditorService } from './editor.service';
 import { ContentExtractorService } from './content-extractor.service';
 import { GameModule } from 'src/modules/game/game.module';

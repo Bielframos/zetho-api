@@ -9,7 +9,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { EditorService } from 'src/common/ai/agents/editor/editor.service';
+import { EditorService } from 'src/agents/editor/editor.service';
 import { SystemApiKeyGuard } from 'src/common/guards/system-api.guard';
 import {
   CreatePostDto,
