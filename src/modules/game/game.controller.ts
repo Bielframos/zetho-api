@@ -44,7 +44,7 @@ export class GameController {
     return this.gameService.toggleNotifications(user.$id, gameId, active);
   }
 
-  /** Briefing por IA, disponível apenas para sessões autenticadas. */
+  /** Briefing persistido por IA, disponível apenas para sessões autenticadas. */
   @Post(':gameId/ai-briefing')
   @UseGuards(AppwriteSessionGuard)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

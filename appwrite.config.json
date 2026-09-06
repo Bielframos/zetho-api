@@ -3107,6 +3107,27 @@
                     ]
                 }
             ]
+        },
+        {
+            "$id": "game_ai_briefings",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Game AI Briefings",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                { "key": "gameId", "type": "string", "required": true, "array": false, "size": 36, "default": null, "encrypt": false },
+                { "key": "overview", "type": "string", "required": true, "array": false, "size": 1000, "default": null, "encrypt": false },
+                { "key": "highlights", "type": "string", "required": true, "array": true, "size": 220, "default": null, "encrypt": false },
+                { "key": "bestFor", "type": "string", "required": true, "array": true, "size": 160, "default": null, "encrypt": false },
+                { "key": "contentWarning", "type": "string", "required": true, "array": false, "size": 500, "default": null, "encrypt": false },
+                { "key": "generatedAt", "type": "datetime", "required": true, "array": false, "default": null, "format": "" },
+                { "key": "model", "type": "string", "required": true, "array": false, "size": 100, "default": null, "encrypt": false },
+                { "key": "promptVersion", "type": "integer", "required": true, "array": false, "default": null, "min": 1, "max": 2147483647 }
+            ],
+            "indexes": [
+                { "key": "unique_game", "type": "unique", "status": "available", "columns": ["gameId"], "orders": ["ASC"] }
+            ]
         }
     ],
     "buckets": [
