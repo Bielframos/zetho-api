@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import type { ZEntries } from 'src/common/appwrite/appwrite';
+import type { ZEntries } from 'src/infra/appwrite/appwrite';
 import { AppwriteWebhookGuard } from 'src/common/guards/webhook.guard';
 import { IGDBGuard } from 'src/common/guards/igdb.guard';
 import type { IGDBGame, IGDBGenre } from '../igdb/igdb.types';

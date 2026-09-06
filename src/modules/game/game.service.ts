@@ -7,18 +7,18 @@ import type {
   GameMedias,
   Games as Game,
   ZEntriesReadOnly,
-} from 'src/common/appwrite/appwrite';
-import { GameMediasType } from 'src/common/appwrite/appwrite.enums';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+} from 'src/infra/appwrite/appwrite';
+import { GameMediasType } from 'src/infra/appwrite/appwrite.enums';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
 import { extractKeywords, slugify, calculateScore } from './game-search.utils';
+import { TranslatorService } from 'src/agents/translator/translator.service';
 import {
   buildGameSeoFlags,
   textReviewCountCacheKey,
   type GameSeoFlags,
 } from './game-seo';
-import { TranslatorService } from 'src/common/ai/agents/translator/translator.service';
 
 @Injectable()
 export class GameService {

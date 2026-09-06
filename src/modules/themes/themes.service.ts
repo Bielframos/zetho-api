@@ -6,11 +6,8 @@ import {
 } from '@nestjs/common';
 import { ID, Query } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
-import { Appwrite } from '../../common/appwrite/appwrite.provider';
-import type {
-  ProfileThemes,
-  UserProfiles,
-} from '../../common/appwrite/appwrite';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import type { ProfileThemes, UserProfiles } from 'src/infra/appwrite/appwrite';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateThemeDto } from './themes.dto';
 

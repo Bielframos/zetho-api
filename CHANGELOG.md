@@ -6,6 +6,23 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-06
+
+### Added
+
+- Endpoint `GET /dashboard/public-lists` para listar listas públicas de jogos dos usuários de forma paginada.
+- Endpoint `GET /ratings/feed` para feed paginado de avaliações da comunidade.
+- Notificações de comentários ancorados em jogos com hidratação de alvos e contexto.
+
+### Changed
+
+- Reorganização arquitetural das camadas da aplicação:
+  - Criação da camada `src/infra/` centralizando os drivers técnicos e persistência (`appwrite`, `events` com outbox e motor de IA com `ai` e prompts).
+  - Criação da camada `src/agents/` isolando os trabalhadores e agentes autônomos de aplicação (`editor` editorial de notícias e `translator` de IA) no mesmo plano de domínios.
+  - Criação da camada `src/system/` para módulos operacionais e de suporte da plataforma (`health`, `sitemap`, `dashboard`, `sandbox`).
+  - Saneamento da camada `src/common/` contendo exclusivamente utilitários transversais agnósticos (`guards`, `interceptors`, `middleware`, `observability`, `pipes`, `integration/retry-policy`), eliminando acoplamento reverso com regras de negócio.
+  - O diretório `src/modules/` permanece estritamente dedicado aos domínios e regras de negócio do Zetho.
+
 ## [0.4.0] - 2026-08-13
 
 ### Added

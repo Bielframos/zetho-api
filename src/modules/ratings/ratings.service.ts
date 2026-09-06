@@ -8,11 +8,11 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { ID, Query, Models } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { textReviewCountCacheKey } from '../game/game-seo';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
-import type { Games, UserProfiles } from 'src/common/appwrite/appwrite';
+import type { Games, UserProfiles } from 'src/infra/appwrite/appwrite';
 
 type RatingFeedRow = Models.Row & {
   gameId: string;

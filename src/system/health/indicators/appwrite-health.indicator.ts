@@ -4,7 +4,7 @@ import {
   HealthIndicatorResult,
 } from '@nestjs/terminus';
 import { Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 
 @Injectable()
 export class AppwriteHealthIndicator {

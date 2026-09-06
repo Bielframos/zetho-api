@@ -9,9 +9,9 @@ import type {
   ZEntries,
   ZEntriesReadOnly,
   ZEntriesStatus,
-} from 'src/common/appwrite/appwrite';
+} from 'src/infra/appwrite/appwrite';
 import { ID, Models, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';

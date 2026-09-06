@@ -1,4 +1,4 @@
-import { PostsStatus } from 'src/common/appwrite/appwrite.enums';
+import { PostsStatus } from 'src/infra/appwrite/appwrite.enums';
 import { Type } from 'class-transformer';
 import {
   IsArray,

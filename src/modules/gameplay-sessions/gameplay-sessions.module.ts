@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AppwriteModule } from 'src/common/appwrite/appwrite.module';
+import { AppwriteModule } from 'src/infra/appwrite/appwrite.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import {
   GameplaySessionsController,

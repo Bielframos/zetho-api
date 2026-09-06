@@ -8,16 +8,16 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AppwriteException, ID, Models, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
-import { TransactionService } from 'src/common/appwrite/transaction.service';
-import { OutboxService } from 'src/common/events/outbox.service';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { TransactionService } from 'src/infra/appwrite/transaction.service';
+import { OutboxService } from 'src/infra/events/outbox.service';
 import type {
   GameplaySessionParticipants,
   GameplaySessionParticipantStatus,
   GameplaySessions,
   Notifications,
   UserProfiles,
-} from 'src/common/appwrite/appwrite.d';
+} from 'src/infra/appwrite/appwrite.d';
 import { EmailTemplateService } from '../notifications/email-template.service';
 import { CreateGameplaySessionDto } from './dto/create-gameplay-session.dto';
 import { InviteGameplaySessionDto } from './dto/invite-gameplay-session.dto';

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ID, Models, Query } from 'node-appwrite';
-import { Appwrite } from 'src/common/appwrite/appwrite.provider';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 
 type ProfileSummary = {
   $id: string;

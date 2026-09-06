@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type Genkit } from 'genkit';
-import { GENKIT_GOOGLE_AI } from '../../ai.constants';
+import { GENKIT_GOOGLE_AI } from 'src/infra/ai/ai.constants';
 
 @Injectable()
 export class TranslatorService {
