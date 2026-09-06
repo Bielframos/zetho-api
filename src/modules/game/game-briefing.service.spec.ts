@@ -11,7 +11,6 @@ describe('GameBriefingService', () => {
     summary: null,
     genres: ['RPG', 'Roguelike'],
     releaseYear: '2025',
-    gameType: { type: 'Jogo principal' },
     ratingAvg: 92,
     ratingCount: 14,
   };

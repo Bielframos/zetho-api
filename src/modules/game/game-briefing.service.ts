@@ -34,7 +34,7 @@ export class GameBriefingService {
   async create(gameId: string): Promise<GameBriefing> {
     const game = await this.gameService.findById(
       gameId,
-      'name,summary,summaryPt,genres,releaseYear,gameType,ratingAvg,ratingCount',
+      'name,summary,summaryPt,genres,releaseYear,ratingAvg,ratingCount',
     );
 
     try {
@@ -68,7 +68,6 @@ export class GameBriefingService {
       synopsis: game.summaryPt || game.summary || 'Não informada no catálogo',
       genres: game.genres ?? [],
       releaseYear: game.releaseYear,
-      type: game.gameType?.type,
       ratingAverage: game.ratingCount > 0 ? game.ratingAvg : undefined,
       ratingCount: game.ratingCount || undefined,
     };
