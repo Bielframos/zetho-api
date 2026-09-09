@@ -1,4 +1,9 @@
-import { BadGatewayException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { ID, type Models } from 'node-appwrite';
 import { z, type Genkit } from 'genkit';
 import type { Games as Game } from 'src/infra/appwrite/appwrite';
@@ -20,7 +25,12 @@ export type PersistedGameBriefing = GameBriefing & {
 };
 
 type BriefingRow = Models.Row &
-  GameBriefing & { gameId: string; generatedAt: string; model: string; promptVersion: number };
+  GameBriefing & {
+    gameId: string;
+    generatedAt: string;
+    model: string;
+    promptVersion: number;
+  };
 
 const TABLE_ID = 'game_ai_briefings';
 const RECENT_GAME_DAYS = 90;
@@ -35,7 +45,10 @@ const PROMPT_VERSION = 1;
 @Injectable()
 export class GameBriefingService {
   private readonly logger = new Logger(GameBriefingService.name);
-  private readonly generationPromises = new Map<string, Promise<PersistedGameBriefing>>();
+  private readonly generationPromises = new Map<
+    string,
+    Promise<PersistedGameBriefing>
+  >();
 
   constructor(
     @Inject(GENKIT) private readonly ai: Genkit,
@@ -78,7 +91,12 @@ export class GameBriefingService {
       }
 
       const generatedAt = new Date().toISOString();
-      const row = await this.save(gameId, parsed.data, generatedAt, Boolean(stored));
+      const row = await this.save(
+        gameId,
+        parsed.data,
+        generatedAt,
+        Boolean(stored),
+      );
       return { ...this.toBriefing(row), source: 'generated' };
     } catch (error) {
       this.logger.error(
@@ -94,7 +112,9 @@ export class GameBriefingService {
   private async findStored(gameId: string): Promise<BriefingRow | null> {
     try {
       return await this.appwrite.tablesDB.getRow<BriefingRow>({
-        databaseId: 'app', tableId: TABLE_ID, rowId: gameId,
+        databaseId: 'app',
+        tableId: TABLE_ID,
+        rowId: gameId,
       });
     } catch (error) {
       if ((error as { code?: number }).code === 404) return null;
@@ -109,19 +129,49 @@ export class GameBriefingService {
     const generatedAt = new Date(briefing.generatedAt).getTime();
     if (Number.isNaN(releasedAt) || Number.isNaN(generatedAt)) return false;
     const day = 24 * 60 * 60 * 1000;
-    return now - releasedAt <= RECENT_GAME_DAYS * day && now - generatedAt > RECENT_BRIEFING_TTL_DAYS * day;
+    return (
+      now - releasedAt <= RECENT_GAME_DAYS * day &&
+      now - generatedAt > RECENT_BRIEFING_TTL_DAYS * day
+    );
   }
 
-  private async save(gameId: string, briefing: GameBriefing, generatedAt: string, exists: boolean) {
-    const data = { gameId, ...briefing, generatedAt, model: MODEL, promptVersion: PROMPT_VERSION };
+  private async save(
+    gameId: string,
+    briefing: GameBriefing,
+    generatedAt: string,
+    exists: boolean,
+  ) {
+    const data = {
+      gameId,
+      ...briefing,
+      generatedAt,
+      model: MODEL,
+      promptVersion: PROMPT_VERSION,
+    };
     if (exists) {
-      return this.appwrite.tablesDB.updateRow<BriefingRow>({ databaseId: 'app', tableId: TABLE_ID, rowId: gameId, data });
+      return this.appwrite.tablesDB.updateRow<BriefingRow>({
+        databaseId: 'app',
+        tableId: TABLE_ID,
+        rowId: gameId,
+        data,
+      });
     }
-    return this.appwrite.tablesDB.createRow<BriefingRow>({ databaseId: 'app', tableId: TABLE_ID, rowId: gameId || ID.unique(), data });
+    return this.appwrite.tablesDB.createRow<BriefingRow>({
+      databaseId: 'app',
+      tableId: TABLE_ID,
+      rowId: gameId || ID.unique(),
+      data,
+    });
   }
 
   private toBriefing(row: BriefingRow): Omit<PersistedGameBriefing, 'source'> {
-    return { overview: row.overview, highlights: row.highlights, bestFor: row.bestFor, contentWarning: row.contentWarning, generatedAt: row.generatedAt };
+    return {
+      overview: row.overview,
+      highlights: row.highlights,
+      bestFor: row.bestFor,
+      contentWarning: row.contentWarning,
+      generatedAt: row.generatedAt,
+    };
   }
 
   private buildPrompt(game: Game): string {

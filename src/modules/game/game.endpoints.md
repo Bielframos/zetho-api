@@ -2,7 +2,7 @@
 
 ## `POST /games/:gameId/ai-briefing`
 
-Gera ou reutiliza, para uma sessão autenticada, um briefing em português usando
+Gera ou reutiliza um briefing em português usando
 os dados catalogados do jogo. A resposta tem `overview`, `highlights`,
 `bestFor`, `contentWarning`, `generatedAt` e `source` (`generated` ou `stored`).
 
