@@ -7,15 +7,21 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { GameService } from './game.service';
-import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
+import { SearchGamesDto, HypedUpcomingDto, GameIdParamDto } from './game.dto';
+import { GameBriefingService } from './game-briefing.service';
 
 @Controller('games')
 export class GameController {
-  constructor(private readonly gameService: GameService) {}
+  constructor(
+    private readonly gameService: GameService,
+    private readonly gameBriefingService: GameBriefingService,
+  ) {}
 
   @Get('search')
   search(@Query() dto: SearchGamesDto) {
@@ -36,6 +42,14 @@ export class GameController {
   ) {
     const user = req.user as Models.User;
     return this.gameService.toggleNotifications(user.$id, gameId, active);
+  }
+
+  /** Briefing persistido por IA, disponível apenas para sessões autenticadas. */
+  @Post(':gameId/ai-briefing')
+  @UseGuards(AppwriteSessionGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createAiBriefing(@Param() params: GameIdParamDto) {
+    return this.gameBriefingService.create(params.gameId);
   }
 
   @Get(':slug')

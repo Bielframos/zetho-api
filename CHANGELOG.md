@@ -6,6 +6,27 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-09
+
+### Added
+
+- Endpoint autenticado `POST /games/:gameId/ai-briefing`, que produz um briefing estruturado em português para um jogo do catálogo.
+- Persistência de briefings em `game_ai_briefings`, com rastreabilidade da data, modelo e versão do prompt usados na geração.
+
+### Changed
+
+- Briefings de jogos lançados há mais de 90 dias são reutilizados; jogos recentes só são regenerados após 45 dias.
+- O endpoint informa se o briefing foi gerado na chamada ou reutilizado do armazenamento persistente.
+
+### Fixed
+
+- Restaurada a coluna `coverImageUrls` das listas e regenerados os tipos Appwrite derivados do schema sincronizado.
+- Recompostos os estados `isHost` de participantes de jogatinas e `read` de notificações após a reconciliação do schema Appwrite.
+
+### Security
+
+- A tabela de posts não permite mais leitura pública direta pelo Appwrite; as notícias públicas continuam servidas pelas rotas da API.
+
 ## [0.5.0] - 2026-09-06
 
 ### Added

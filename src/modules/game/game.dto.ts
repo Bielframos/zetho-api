@@ -1,5 +1,20 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+/** Identificador Appwrite de um jogo usado nos endpoints autenticados. */
+export class GameIdParamDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  gameId!: string;
+}
 
 export class SearchGamesDto {
   @IsOptional()
