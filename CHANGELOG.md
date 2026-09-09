@@ -6,6 +6,26 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-09
+
+### Added
+
+- Endpoints autenticados para gerar uma recomendação personalizada de jogo e consultar o histórico paginado do usuário.
+- Seleção de candidatos do backlog ou do catálogo, combinando atividade recente, curtidas, avaliações, popularidade, gêneros e jogos similares.
+- Persistência privada das recomendações, tentativas e metadados de geração na tabela `game_recommendations`.
+- Reserva atômica de 10 zCoins com idempotência, estorno automático em falhas e reconciliação periódica de reservas abandonadas.
+- Limite de uma recomendação concluída ou em andamento por usuário a cada dia, considerando o fuso `America/Sao_Paulo`.
+
+### Changed
+
+- O modelo padrão do agente de recomendação passa a ser `openai/gpt-5.4`, com prompt v3 voltado a compatibilidade real de gameplay e justificativas mais naturais.
+- O schema Appwrite inclui índices para histórico e backlog, além das restrições únicas de idempotência e limite diário.
+- Os tipos Appwrite foram regenerados a partir do schema atualizado e os tipos auxiliares de escrita foram separados dos modelos gerados.
+
+### Fixed
+
+- Ajustados consumidores dos tipos Appwrite regenerados nos módulos de jogatinas, importação da IGDB e webhook.
+
 ## [0.6.0] - 2026-09-09
 
 ### Added

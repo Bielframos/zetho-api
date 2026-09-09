@@ -20,6 +20,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { DashboardModule } from './system/dashboard/dashboard.module';
 import { ThemesModule } from './modules/themes/themes.module';
 import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-sessions.module';
+import { GameRecommenderModule } from './agents/game-recommender/game-recommender.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-ses
     RatingsModule,
     DashboardModule,
     GameplaySessionsModule,
+    GameRecommenderModule,
 
     /** Modulos do sístema */
     WebhookModule,
