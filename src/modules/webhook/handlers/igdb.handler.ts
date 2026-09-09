@@ -3,7 +3,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { GamesCreate } from 'src/infra/appwrite/appwrite';
+import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
 import { GamesSyncStage } from 'src/infra/appwrite/appwrite.enums';
 import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';

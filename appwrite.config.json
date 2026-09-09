@@ -1521,6 +1521,34 @@
                         "ASC",
                         "ASC"
                     ]
+                },
+                {
+                    "key": "entries_owner_updated",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "ownerFingerprint",
+                        "$updatedAt"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "DESC"
+                    ]
+                },
+                {
+                    "key": "entries_owner_status_updated",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "ownerFingerprint",
+                        "status",
+                        "$updatedAt"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC",
+                        "DESC"
+                    ]
                 }
             ]
         },
@@ -3134,6 +3162,220 @@
             ],
             "indexes": [
                 { "key": "unique_game", "type": "unique", "status": "available", "columns": ["gameId"], "orders": ["ASC"] }
+            ]
+        },
+        {
+            "$id": "game_recommendations",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Game Recommendations",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 48
+                },
+                {
+                    "key": "ownerFingerprint",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 96
+                },
+                {
+                    "key": "idempotencyKey",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 128
+                },
+                {
+                    "key": "dailyKey",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 40,
+                    "default": null
+                },
+                {
+                    "key": "gameId",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 96,
+                    "default": null
+                },
+                {
+                    "key": "scope",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "format": "enum",
+                    "elements": [
+                        "any",
+                        "library",
+                        "new"
+                    ]
+                },
+                {
+                    "key": "source",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "format": "enum",
+                    "elements": [
+                        "library",
+                        "new"
+                    ],
+                    "default": null
+                },
+                {
+                    "key": "reason",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 300,
+                    "default": null
+                },
+                {
+                    "key": "matchSignals",
+                    "type": "varchar",
+                    "required": false,
+                    "array": true,
+                    "size": 140,
+                    "default": null
+                },
+                {
+                    "key": "basedOnGameIds",
+                    "type": "varchar",
+                    "required": false,
+                    "array": true,
+                    "size": 96,
+                    "default": null
+                },
+                {
+                    "key": "state",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "format": "enum",
+                    "elements": [
+                        "pending",
+                        "completed",
+                        "failed"
+                    ]
+                },
+                {
+                    "key": "cost",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "min": 0,
+                    "max": 2147483647
+                },
+                {
+                    "key": "refunded",
+                    "type": "boolean",
+                    "required": true,
+                    "array": false
+                },
+                {
+                    "key": "model",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 100
+                },
+                {
+                    "key": "promptVersion",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "min": 1,
+                    "max": 2147483647
+                },
+                {
+                    "key": "generatedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "balance",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": 0,
+                    "max": 2147483647
+                },
+                {
+                    "key": "failureCode",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "recommendations_user_state_created",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "userId",
+                        "state",
+                        "$createdAt"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC",
+                        "DESC"
+                    ]
+                },
+                {
+                    "key": "recommendations_idempotency_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "userId",
+                        "idempotencyKey"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "recommendations_recovery",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "state",
+                        "$createdAt"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "recommendations_daily_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "dailyKey"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
             ]
         }
     ],

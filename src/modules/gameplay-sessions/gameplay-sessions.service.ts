@@ -13,11 +13,11 @@ import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { OutboxService } from 'src/infra/events/outbox.service';
 import type {
   GameplaySessionParticipants,
-  GameplaySessionParticipantStatus,
   GameplaySessions,
   Notifications,
   UserProfiles,
 } from 'src/infra/appwrite/appwrite.d';
+import type { GameplaySessionParticipantStatus } from 'src/infra/appwrite/appwrite-custom.types';
 import { EmailTemplateService } from '../notifications/email-template.service';
 import { CreateGameplaySessionDto } from './dto/create-gameplay-session.dto';
 import { InviteGameplaySessionDto } from './dto/invite-gameplay-session.dto';
@@ -566,7 +566,7 @@ export class GameplaySessionsService {
               'O host não pode remover a si próprio',
             );
           }
-          previousStatus = existing.status;
+          previousStatus = existing.status as GameplaySessionParticipantStatus;
           const nextStatus = nextByAction[action];
           if (existing.status === nextStatus) {
             return { participant: existing, changed: false };
@@ -1072,6 +1072,7 @@ export class GameplaySessionsService {
 
   private async getGameCommentTargetUrl(notification: Notifications) {
     if ((notification.type as string) !== 'game_comment') return undefined;
+    if (!notification.entityId) return undefined;
 
     try {
       const comment = await this.appwrite.tablesDB.getRow<

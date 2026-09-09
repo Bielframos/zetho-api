@@ -8,7 +8,7 @@ import {
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
 import { AppwriteException, ID, Models, Query } from 'node-appwrite';
-import type { GamesCreate } from 'src/infra/appwrite/appwrite';
+import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
 import {
   classifyHttpError,
   executeWithRetry,

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AppwriteException, Models, Query } from 'node-appwrite';
-import type { GamesCreate } from 'src/infra/appwrite/appwrite';
+import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { IGDBGenre } from './igdb.types';
