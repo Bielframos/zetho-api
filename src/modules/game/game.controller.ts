@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
+import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { GameService } from './game.service';
 import { SearchGamesDto, HypedUpcomingDto, GameIdParamDto } from './game.dto';
 import { GameBriefingService } from './game-briefing.service';
@@ -44,9 +45,9 @@ export class GameController {
     return this.gameService.toggleNotifications(user.$id, gameId, active);
   }
 
-  /** Briefing persistido por IA, disponível apenas para sessões autenticadas. */
+  /** Briefing persistido por IA do jogo. */
   @Post(':gameId/ai-briefing')
-  @UseGuards(AppwriteSessionGuard)
+  @UseGuards(OptionalAppwriteSessionGuard)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createAiBriefing(@Param() params: GameIdParamDto) {
     return this.gameBriefingService.create(params.gameId);
