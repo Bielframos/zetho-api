@@ -1,4 +1,8 @@
 import {
+  buildSearchDocument,
+  companySearchFields,
+} from '../game/game-search.utils';
+import {
   ConflictException,
   Injectable,
   NotFoundException,
@@ -133,8 +137,6 @@ export class IGDBService {
   }
 
   private async fetchIgdb(endpoint: string, body: string) {
-    await this.coordinationService.applyRateLimit();
-
     const token = await this.getToken();
 
     try {
@@ -144,6 +146,7 @@ export class IGDBService {
         timeoutMs: 10_000,
         maxRetries: 2,
         run: async (signal) => {
+          await this.coordinationService.applyRateLimit();
           const res = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
             method: 'POST',
             headers: {
@@ -213,7 +216,7 @@ export class IGDBService {
   }
 
   private gameFields =
-    'name,slug,status,game_status,game_type,summary,cover.image_id,first_release_date,hypes,follows,similar_games,checksum,genres,involved_companies.company,involved_companies.developer,involved_companies.company.name,involved_companies.company.slug,involved_companies.company.checksum';
+    'alternative_names.name,name,slug,status,game_status,game_type,summary,cover.image_id,first_release_date,hypes,follows,similar_games,checksum,genres,involved_companies.company,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,involved_companies.company.slug,involved_companies.company.checksum';
 
   async getGames(limit = 50, offset = 0) {
     const query = `
@@ -324,6 +327,7 @@ export class IGDBService {
       Models.Row & {
         externalReference: number;
         checksum?: string | null;
+        syncStage?: string | null;
       }
     >({
       databaseId: IGDBService.DB_ID,
@@ -386,6 +390,16 @@ export class IGDBService {
       offset ${offset};
     `;
     return await this.fetchIgdb('games', query);
+  }
+
+  async getSearchGamesByIds(ids: number[]): Promise<IGDBGame[]> {
+    if (!ids.length) return [];
+    if (ids.length > 100 || ids.some((id) => !Number.isSafeInteger(id)))
+      throw new Error('Invalid IGDB batch');
+    return this.fetchIgdb(
+      'games',
+      `fields name,slug,alternative_names.name,cover.image_id,genres,first_release_date,involved_companies.company.id,involved_companies.developer,involved_companies.publisher; where id = (${ids.join(',')}); limit 100;`,
+    );
   }
 
   async getGamesByIds(ids: number[] = [], limit = 12) {
@@ -461,6 +475,7 @@ export class IGDBService {
 
     if (
       existingGame.exists &&
+      existingGame.syncStage === 'full' &&
       existingGame.checksum === (igdbGame.checksum ?? null)
     ) {
       await this.upsertService.ensureGameZStats(existingGame.$id);
@@ -490,6 +505,7 @@ export class IGDBService {
     fallbackGameId: string,
   ): Promise<{
     exists: boolean;
+    syncStage?: string | null;
     $id: string;
     checksum: string | null;
     involvedCompaniesIds: string[];
@@ -497,6 +513,7 @@ export class IGDBService {
     const response = await this.tableDB.listRows<
       Models.Row & {
         checksum?: string | null;
+        syncStage?: string | null;
         involvedCompanies?: Array<{ $id?: string }>;
       }
     >({
@@ -504,7 +521,12 @@ export class IGDBService {
       tableId: 'games',
       queries: [
         Query.equal('externalReference', externalReference),
-        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
+        Query.select([
+          '$id',
+          'checksum',
+          'syncStage',
+          'involvedCompanies.$id',
+        ] as any),
         Query.limit(1),
       ],
     });
@@ -526,6 +548,7 @@ export class IGDBService {
 
     return {
       exists: true,
+      syncStage: game.syncStage,
       $id: game.$id,
       checksum: game.checksum ?? null,
       involvedCompaniesIds,
@@ -545,6 +568,15 @@ export class IGDBService {
     const uniqueDevelopers = Array.from(new Set(developers));
 
     return {
+      ...buildSearchDocument(
+        game.name,
+        game.alternative_names?.map((alias) => alias.name),
+        companySearchFields(game).developerIds,
+        companySearchFields(game).publisherIds,
+      ),
+      ...companySearchFields({
+        involved_companies: game.involved_companies ?? [],
+      }),
       name: game.name,
       slug: game.slug ?? '',
       coverUrl: game.cover

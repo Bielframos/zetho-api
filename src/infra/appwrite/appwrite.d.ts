@@ -5,6 +5,7 @@ import type { Models } from 'node-appwrite';
 
 export enum GamesSyncStage {
     BASIC = "basic",
+    SEARCH_READY = "search_ready",
     FULL = "full"
 }
 
@@ -113,6 +114,12 @@ export type IgdbTokens = Models.Row & {
 }
 
 export type Games = Models.Row & {
+  searchName?: string;
+  searchText?: string;
+  searchAliases?: string[];
+  searchIndexVersion?: number;
+  developerIds?: string[];
+  publisherIds?: string[];
     name: string;
     slug: string;
     coverUrl: string | null;

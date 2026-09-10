@@ -12,7 +12,7 @@ import {
 import type { ZEntries } from 'src/infra/appwrite/appwrite';
 import { AppwriteWebhookGuard } from 'src/common/guards/webhook.guard';
 import { IGDBGuard } from 'src/common/guards/igdb.guard';
-import type { IGDBGame, IGDBGenre } from '../igdb/igdb.types';
+import type { IGDBGameWebhook, IGDBGenre } from '../igdb/igdb.types';
 import { ZethoHandler } from './handlers/zetho.handler';
 import { IGDBHandler } from './handlers/igdb.handler';
 import { WebhookReplayService } from './replay/replay.service';
@@ -103,7 +103,7 @@ export class WebhookController {
 
   @Post('igdb/games/upsert')
   @UseGuards(IGDBGuard)
-  IGDBUpsertGame(@Body() game: IGDBGame) {
+  IGDBUpsertGame(@Body() game: IGDBGameWebhook) {
     return this.IGDBHandler.upsertGame(game);
   }
 

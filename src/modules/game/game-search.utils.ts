@@ -1,91 +1,90 @@
-/**
- * Normaliza uma string para comparação:
- * - Converte para minúsculas
- * - Remove acentos/diacríticos
- */
+/** Shared by ingestion, backfill and queries. Dots/apostrophes join letters. */
 export function normalizeText(text: string): string {
   return text
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[.'’]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
 }
 
-/**
- * Converte um texto para slug (kebab-case):
- * - Normaliza e substitui espaços/underscores/hífens por um único hífen
- */
-export function slugify(text: string): string {
-  return normalizeText(text)
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-/**
- * Extrai keywords de um texto:
- * - Normaliza
- * - Faz split por espaços, hífens e underscores
- * - Remove tokens vazios e tokens com menos de 2 caracteres
- */
 export function extractKeywords(text: string): string[] {
-  return normalizeText(text)
-    .split(/[\s\-_]+/)
-    .filter((token) => token.length >= 2);
+  return [...new Set(normalizeText(text).split(' ').filter(Boolean))];
 }
 
-export interface ScoreInput {
-  gameSlug: string;
-  gameName: string;
-  query: string;
-  keywords: string[];
-}
-
-/**
- * Calcula o score de relevância de um resultado de busca.
- * Pontuação:
- *   +100 → nome exato (normalizado)
- *   +60  → todos os keywords presentes no slug
- *   +50  → name.startsWith(query)
- *   +40  → todos os keywords presentes no name (normalizado)
- *   +30  → name.includes(query)
- *   +10  → por cada keyword individualmente presente no name
- *   bônus → max(0, 10 - name.length / 20) para nomes curtos
- */
-export function calculateScore(input: ScoreInput): number {
-  const { gameSlug, gameName, query, keywords } = input;
-  const normName = normalizeText(gameName);
-  const normSlug = normalizeText(gameSlug);
-  const normQuery = normalizeText(query);
-
-  let score = 0;
-
-  if (normName === normQuery) {
-    score += 100;
-  }
-
-  if (keywords.length > 0 && keywords.every((kw) => normSlug.includes(kw))) {
-    score += 60;
-  }
-
-  if (normName.startsWith(normQuery)) {
-    score += 50;
-  }
-
-  if (keywords.length > 0 && keywords.every((kw) => normName.includes(kw))) {
-    score += 40;
-  }
-
-  if (normName.includes(normQuery)) {
-    score += 30;
-  }
-
-  for (const kw of keywords) {
-    if (normName.includes(kw)) {
-      score += 10;
+/** Prefixes are materialized once, avoiding substring scans on every request. */
+export function buildSearchFields(name: string, aliases: string[] = []) {
+  const terms = new Set<string>();
+  const add = (word: string) => {
+    for (let length = 1; length <= Math.min(word.length, 128); length++) {
+      terms.add(word.slice(0, length));
+    }
+  };
+  for (const title of [name, ...aliases].flatMap((title) => [
+    title,
+    ...title.split(/[:：]/),
+  ])) {
+    const words = normalizeText(title).split(' ').filter(Boolean);
+    words.forEach(add);
+    // Franchise initials remain searchable when a subtitle/sequel is appended.
+    for (const sequence of [
+      words,
+      words[0] === 'the' ? words.slice(1) : words,
+      words.filter((w) => !['the', 'of', 'a', 'an', 'and'].includes(w)),
+    ]) {
+      for (let end = 2; end <= sequence.length; end++) {
+        const initials = sequence
+          .slice(0, end)
+          .map((w) => (/^\d+$/.test(w) ? w : w[0]))
+          .join('');
+        if (initials.length >= 2) terms.add(initials.slice(0, 128));
+      }
     }
   }
+  return {
+    searchName: normalizeText(name),
+    searchTerms: [...terms].sort(),
+    searchAliases: aliases,
+  };
+}
 
-  // Bônus para nomes curtos
-  score += Math.max(0, 10 - gameName.length / 20);
+export function companySearchFields(game: {
+  involved_companies?: {
+    developer?: boolean;
+    publisher?: boolean;
+    company: { id: number };
+  }[];
+}) {
+  if (!game.involved_companies) return {};
+  const ids = (role: 'developer' | 'publisher') => [
+    ...new Set(
+      game
+        .involved_companies!.filter((item) => item[role] && item.company?.id)
+        .map((item) => `igdb_${item.company.id}`),
+    ),
+  ];
+  return { developerIds: ids('developer'), publisherIds: ids('publisher') };
+}
 
-  return score;
+/** Encoded tokens avoid stemming, stop words and the full-text minimum word length. */
+export function searchToken(value: string): string {
+  return `zt${Buffer.from(value, 'utf8').toString('hex')}`;
+}
+
+export function buildSearchDocument(
+  name: string,
+  aliases: string[] = [],
+  developerIds: string[] = [],
+  publisherIds: string[] = [],
+) {
+  const { searchTerms, ...fields } = buildSearchFields(name, aliases);
+  return {
+    ...fields,
+    searchText: [
+      ...searchTerms.map(searchToken),
+      ...developerIds.map((id) => searchToken(`developer:${id}`)),
+      ...publisherIds.map((id) => searchToken(`publisher:${id}`)),
+    ].join(' '),
+  };
 }

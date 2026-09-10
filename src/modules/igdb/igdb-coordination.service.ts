@@ -20,9 +20,6 @@ export class IGDBCoordinationService implements OnModuleDestroy {
   }
 
   private readonly RATE_LIMIT_KEY = 'igdb:rate_limit:count';
-  private readonly MAX_REQUESTS_PER_SECOND = 4;
-  private readonly WINDOW_SIZE_MS = 1000;
-  private readonly SAFETY_BUFFER_MS = 10;
 
   private readonly TOKEN_KEY = 'igdb:token';
 
@@ -32,53 +29,27 @@ export class IGDBCoordinationService implements OnModuleDestroy {
    */
   async applyRateLimit(): Promise<void> {
     while (true) {
-      const now = Date.now();
-      const windowStart = now - this.WINDOW_SIZE_MS;
-
-      // Use Redis Sorted Set to track timestamps of requests
-      // ZREMRANGEBYSCORE removes timestamps older than our window
-      await this.redis.zremrangebyscore(
-        this.RATE_LIMIT_KEY,
-        '-inf',
-        windowStart,
-      );
-
-      // ZCARD gets the number of requests in the current window
-      const count = await this.redis.zcard(this.RATE_LIMIT_KEY);
-
-      if (count < this.MAX_REQUESTS_PER_SECOND) {
-        // Add the current request timestamp to the set
-        await this.redis.zadd(
+      const wait = Number(
+        await this.redis.eval(
+          `
+        local now = tonumber(ARGV[1])
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - 1000)
+        if redis.call('ZCARD', KEYS[1]) < 4 then
+          redis.call('ZADD', KEYS[1], now, ARGV[2])
+          redis.call('PEXPIRE', KEYS[1], 2000)
+          return 0
+        end
+        local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+        return math.max(10, 1010 - (now - tonumber(oldest[2])))
+      `,
+          1,
           this.RATE_LIMIT_KEY,
-          now,
-          `${now}-${Math.random()}`,
-        );
-        // Set expiry on the key so it doesn't grow forever if left alone
-        await this.redis.expire(this.RATE_LIMIT_KEY, 2);
-        return;
-      }
-
-      // If we hit the limit, calculate how long to wait
-      // ZRANGE gets the oldest request in the current window
-      const oldestRequests = await this.redis.zrange(
-        this.RATE_LIMIT_KEY,
-        0,
-        0,
-        'WITHSCORES',
+          Date.now(),
+          `${Date.now()}-${Math.random()}`,
+        ),
       );
-      let timeToWait = this.SAFETY_BUFFER_MS;
-
-      if (oldestRequests && oldestRequests.length > 1) {
-        const oldestTimestamp = parseFloat(oldestRequests[1]);
-        timeToWait += this.WINDOW_SIZE_MS - (now - oldestTimestamp);
-      } else {
-        timeToWait += 250; // Fallback wait time
-      }
-
-      this.logger.debug(
-        `Rate limit reached across instances. Waiting ${timeToWait}ms`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, timeToWait));
+      if (wait === 0) return;
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
 

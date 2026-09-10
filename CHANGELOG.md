@@ -6,6 +6,28 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-10
+
+### Added
+
+- Fluxo de ingestão de jogos em três etapas: registro básico pelo webhook, enriquecimento assíncrono para descoberta e ingestão completa ao abrir o jogo.
+- Fila durável `game_search_jobs`, com reserva, retentativas, recuperação de lease e atualizações atômicas entre o índice e o job.
+- Busca por siglas, títulos alternativos e prefixos, cobrindo consultas como `fear`, `gta`, `gow` e `tlou`.
+- Filtros de busca por desenvolvedora e publisher, usando os identificadores de empresa da IGDB.
+- Ferramentas de schema, backfill e auditoria para preencher e conferir o índice de busca sem reexecutar a ingestão completa.
+- Template e script para sincronizar o e-mail de recuperação de senha.
+
+### Changed
+
+- A busca de jogos passa a ser somente leitura no catálogo local; capas, aliases, empresas, gêneros e datas são preparados pelo worker assíncrono.
+- A abertura de um jogo completa a ingestão mesmo quando o checksum do IGDB é o mesmo de um registro ainda incompleto.
+- Atualizado o SDK `node-appwrite` para a versão 29.0.0.
+
+### Fixed
+
+- O webhook da IGDB agora trata referências não expandidas sem limpar dados já enriquecidos.
+- O cache distingue leituras com e sem enriquecimento, evitando que dados básicos impeçam a ingestão completa.
+
 ## [0.7.0] - 2026-09-09
 
 ### Added

@@ -109,4 +109,37 @@ describe('IGDBService outbound policy', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it('fully imports a basic game even when the IGDB checksum is unchanged', async () => {
+    const correlation = new CorrelationContextService();
+    const upsert = {
+      upsertGameRow: jest.fn().mockResolvedValue('igdb_1'),
+      ensureGameZStats: jest.fn(),
+    };
+    const service = new IGDBService(
+      appwriteMock as never,
+      correlation,
+      new LoggerContextService(correlation),
+      {} as never,
+      upsert as never,
+    );
+    jest
+      .spyOn(service, 'getGamesByIds')
+      .mockResolvedValue([
+        { id: 1, name: 'Game', slug: 'game', checksum: 'same' },
+      ]);
+    appwriteMock.tablesDB.listRows.mockResolvedValue({
+      rows: [
+        {
+          $id: 'igdb_1',
+          checksum: 'same',
+          syncStage: 'basic',
+          involvedCompanies: [],
+        },
+      ],
+    });
+    await service.importGameById(1);
+    expect(upsert.upsertGameRow).toHaveBeenCalledWith(
+      expect.objectContaining({ syncStage: 'full' }),
+    );
+  });
 });
