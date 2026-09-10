@@ -12,7 +12,11 @@ import { GameMediasType } from 'src/infra/appwrite/appwrite.enums';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { IGDBService } from '../igdb/igdb.service';
 import { SearchGamesDto, HypedUpcomingDto } from './game.dto';
-import { extractKeywords, slugify, calculateScore } from './game-search.utils';
+import {
+  extractKeywords,
+  normalizeText,
+  searchToken,
+} from './game-search.utils';
 import { TranslatorService } from 'src/agents/translator/translator.service';
 import {
   buildGameSeoFlags,
@@ -44,9 +48,13 @@ export class GameService {
   }
 
   async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
-    const cacheKey = `game:slug:${slug}:${select ?? ''}`;
+    const cacheKey = `game:slug:${slug}:${select ?? ''}:${enrich}`;
     const cached = await this.cache.get<Game>(cacheKey);
-    if (cached) return { ...cached, seo: await this.getSeoFlags(cached.$id) };
+    if (cached && (!enrich || cached.syncStage === 'full'))
+      return {
+        ...this.withoutSearchIndex(cached),
+        seo: await this.getSeoFlags(cached.$id),
+      };
 
     const requestedFields = select
       ? select
@@ -94,17 +102,28 @@ export class GameService {
     }
 
     const version = game.zethoVersion ?? 0;
-    if (version < this.currentVersion) {
+    if (enrich && version < this.currentVersion) {
       await this.applyMigrations(game);
     }
 
-    await this.cache.set(cacheKey, game);
+    const publicGame = this.withoutSearchIndex(game);
+    await this.cache.set(cacheKey, publicGame);
 
     // Fora do payload cacheado de propósito: `seo` muda quando alguém escreve
     // uma review, e o cache do jogo é chaveado por slug+select — não daria
     // para invalidá-lo a partir do RatingsService. `countTextReviews` tem o
     // próprio cache, invalidável por gameId.
-    return { ...game, seo: await this.getSeoFlags(game.$id) };
+    return { ...publicGame, seo: await this.getSeoFlags(game.$id) };
+  }
+
+  private withoutSearchIndex(game: Game) {
+    const {
+      searchText: _text,
+      searchName: _name,
+      searchIndexVersion: _version,
+      ...publicGame
+    } = game;
+    return publicGame;
   }
 
   /**
@@ -262,109 +281,71 @@ export class GameService {
   async search(dto: SearchGamesDto) {
     const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 12;
-    const q = dto.q?.trim();
-    const keywords = q ? extractKeywords(q) : [];
-    const hasFilters = !!(dto.genre || dto.year);
-    const shouldSearch = (q && q.length >= 3) || hasFilters;
+    const q = normalizeText(dto.q ?? '');
+    const filters: string[] = [];
+    if (dto.genre) filters.push(Query.contains('genres', [dto.genre]));
+    if (dto.year) filters.push(Query.equal('releaseYear', dto.year));
+    if (dto.developer)
+      filters.push(
+        Query.search('searchText', searchToken(`developer:${dto.developer}`)),
+      );
+    if (dto.publisher)
+      filters.push(
+        Query.search('searchText', searchToken(`publisher:${dto.publisher}`)),
+      );
+    const empty = { total: 0, page, pageSize, pageCount: 0, results: [] };
+    if (!q && (!filters.length || dto.q?.trim())) return empty;
 
-    const gameFields = [
+    const fields = Query.select([
       '$id',
       'name',
       'slug',
       'coverUrl',
       'releaseYear',
-    ] as const;
-
-    let exactMatch: Game | null = null;
-
-    // Busca exata por slug (somente na primeira página e se q existir)
-    if (q && page === 1) {
-      const slugQuery = slugify(q);
-      const exactResult = await this.tablesDB.listRows<Game>({
+    ]);
+    const list = (conditions: string[], limit: number, offset: number) =>
+      this.tablesDB.listRows<Game>({
         databaseId: GameService.DB_ID,
         tableId: 'games',
         queries: [
-          Query.equal('slug', slugQuery),
-          Query.select([
-            ...gameFields,
-            'syncStage',
-            'externalReference',
-          ] as any),
-          Query.limit(1),
+          ...filters,
+          ...conditions,
+          fields,
+          Query.orderAsc('searchName'),
+          Query.orderAsc('$id'),
+          Query.limit(limit),
+          Query.offset(offset),
         ],
       });
-      exactMatch = exactResult.rows[0] ?? null;
+    const offset = (page - 1) * pageSize;
+    let rows: Game[];
+    let total: number;
+    if (q) {
+      // Two disjoint tiers: exact titles first, then token/alias matches.
+      // Each tier is globally ordered; offsets include the size of the first.
+      const exact = await list(
+        [Query.equal('searchName', q)],
+        pageSize,
+        offset,
+      );
+      const remaining = pageSize - exact.rows.length;
+      const matches = extractKeywords(q).map((token) =>
+        Query.search('searchText', searchToken(token)),
+      );
+      const other = await list(
+        [Query.notEqual('searchName', q), ...matches],
+        Math.max(1, remaining),
+        Math.max(0, offset - exact.total),
+      );
+      total = exact.total + other.total;
+      rows = [...exact.rows, ...(remaining ? other.rows : [])];
+    } else {
+      const result = await list([], pageSize, offset);
+      rows = result.rows;
+      total = result.total;
     }
-
-    let criteriaResults: Game[] = [];
-    let total = exactMatch ? 1 : 0;
-
-    if (shouldSearch) {
-      const conditions: string[] = [];
-
-      for (const kw of keywords) {
-        conditions.push(Query.contains('slug', kw as any));
-      }
-
-      if (dto.genre) {
-        conditions.push(Query.contains('genres' as any, dto.genre as any));
-      }
-
-      if (dto.year) {
-        conditions.push(Query.equal('releaseYear', dto.year));
-      }
-
-      if (exactMatch) {
-        conditions.push(Query.notEqual('slug', exactMatch.slug));
-      }
-
-      const criteriaQueries: string[] = [
-        Query.select([...gameFields, 'syncStage', 'externalReference'] as any),
-        Query.limit(pageSize),
-        Query.offset((page - 1) * pageSize),
-      ];
-
-      if (conditions.length > 1) {
-        criteriaQueries.unshift(Query.and(conditions));
-      } else if (conditions.length === 1) {
-        criteriaQueries.unshift(conditions[0]);
-      }
-
-      const criteriaResult = await this.tablesDB.listRows<Game>({
-        databaseId: GameService.DB_ID,
-        tableId: 'games',
-        queries: criteriaQueries,
-      });
-
-      criteriaResults = criteriaResult.rows;
-      total = criteriaResult.total + (exactMatch ? 1 : 0);
-    }
-
-    // Mesclar e ordenar por score
-    const allGames = exactMatch
-      ? [exactMatch, ...criteriaResults]
-      : criteriaResults;
-
-    const scored = allGames.map((game) => ({
-      game,
-      score: q
-        ? calculateScore({
-            gameSlug: game.slug,
-            gameName: game.name,
-            query: q,
-            keywords,
-          })
-        : 0,
-    }));
-
-    scored.sort((a, b) => b.score - a.score);
-
-    const enrichedGames = await this.enrichBasicCoverUrls(
-      scored.map((s) => s.game),
-    );
-
-    const results = await this.attachZEntries(enrichedGames, dto.fingerprint);
-
+    // Searching is read-only: covers are populated by ingestion.
+    const results = await this.attachZEntries(rows, dto.fingerprint);
     return {
       total,
       page,

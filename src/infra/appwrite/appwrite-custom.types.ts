@@ -2,6 +2,12 @@ import type { GamesSyncStage } from './appwrite';
 
 // Payloads de escrita não são emitidos por `appwrite types`.
 export type GamesCreate = {
+  searchName?: string;
+  searchText?: string;
+  searchAliases?: string[];
+  searchIndexVersion?: number;
+  developerIds?: string[];
+  publisherIds?: string[];
   name: string;
   slug: string;
   coverUrl?: string | null;

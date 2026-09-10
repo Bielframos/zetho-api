@@ -1,5 +1,6 @@
 export enum GamesSyncStage {
   BASIC = 'basic',
+  SEARCH_READY = 'search_ready',
   FULL = 'full',
 }
 

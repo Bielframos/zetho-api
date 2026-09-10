@@ -44,4 +44,61 @@ describe('EmailTemplateService', () => {
       'href="https://www.zetho.app/jogo/cool-game?next=&lt;profile&gt;"',
     );
   });
+
+  describe('renderPasswordRecoveryEmail', () => {
+    it('renders password recovery email with default Appwrite variables', () => {
+      const html = service.renderPasswordRecoveryEmail();
+
+      expect(html).toContain('Recuperação de Senha');
+      expect(html).toContain('Olá, {{user}}!');
+      expect(html).toContain('href="{{redirect}}"');
+      expect(html).toContain('Redefinir senha');
+      expect(html).toContain('Recuperação de senha da sua conta no Zetho.');
+      expect(html).toContain(
+        'Recebemos uma solicitação para redefinir a senha da sua conta no Zetho.',
+      );
+      expect(html).toContain('Por segurança, este link é temporário.');
+      expect(html).toContain('background-color:#101113');
+      expect(html).toContain('border-radius:0');
+    });
+
+    it('renders password recovery email with customized recipient and URL', () => {
+      const html = service.renderPasswordRecoveryEmail({
+        recipientName: 'Gabriel',
+        resetUrl: 'https://www.zetho.app/redefinir-senha?token=abc-123',
+        projectName: 'Zetho Gaming',
+      });
+
+      expect(html).toContain('Olá, Gabriel!');
+      expect(html).toContain(
+        'href="https://www.zetho.app/redefinir-senha?token=abc-123"',
+      );
+      expect(html).toContain(
+        'Recuperação de senha da sua conta no Zetho Gaming.',
+      );
+      expect(html).toContain('Redefinir senha');
+    });
+
+    it('escapes dynamic content in password recovery email', () => {
+      const html = service.renderPasswordRecoveryEmail({
+        recipientName: '<script>alert(1)</script>',
+        resetUrl: 'https://www.zetho.app/reset?ref=<malicious>',
+      });
+
+      expect(html).not.toContain('<script>');
+      expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+      expect(html).toContain(
+        'href="https://www.zetho.app/reset?ref=&lt;malicious&gt;"',
+      );
+    });
+
+    it('returns the default subject line', () => {
+      expect(service.getPasswordRecoveryEmailSubject()).toBe(
+        'Recuperação de senha - Zetho',
+      );
+      expect(service.getPasswordRecoveryEmailSubject('Zetho Play')).toBe(
+        'Recuperação de senha - Zetho Play',
+      );
+    });
+  });
 });

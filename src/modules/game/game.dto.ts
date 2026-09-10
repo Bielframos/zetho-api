@@ -6,6 +6,8 @@ import {
   IsString,
   MaxLength,
   Min,
+  Max,
+  Matches,
 } from 'class-validator';
 
 /** Identificador Appwrite de um jogo usado nos endpoints autenticados. */
@@ -19,6 +21,7 @@ export class GameIdParamDto {
 export class SearchGamesDto {
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   q?: string;
 
   @IsOptional()
@@ -27,7 +30,18 @@ export class SearchGamesDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\d{4}$/)
   year?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^igdb_\d+$/)
+  developer?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^igdb_\d+$/)
+  publisher?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -39,6 +53,7 @@ export class SearchGamesDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   pageSize?: number = 12;
 
   @IsOptional()

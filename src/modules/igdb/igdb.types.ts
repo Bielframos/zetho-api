@@ -9,6 +9,7 @@ type IGDBStatusValue =
 export type IGDBGame = {
   id: number;
   name: string;
+  alternative_names?: { name: string }[];
   slug?: string;
   status?: IGDBStatusValue;
   game_status?: IGDBStatusValue;
@@ -27,6 +28,7 @@ export type IGDBGame = {
       checksum: string;
     };
     developer: boolean;
+    publisher?: boolean;
   }[];
   genres?: number[];
   summary?: string;
@@ -48,4 +50,14 @@ export type IGDBGameMedia = {
   artworks?: { image_id: string; artwork_type: number }[];
   screenshots?: { image_id: string }[];
   videos?: { name: string; video_id: string }[];
+};
+
+/** Webhooks contain references, not expanded entities. */
+export type IGDBGameWebhook = Omit<
+  IGDBGame,
+  'cover' | 'alternative_names' | 'involved_companies'
+> & {
+  cover?: number;
+  alternative_names?: number[];
+  involved_companies?: number[];
 };

@@ -49,6 +49,12 @@ type NewsPostEmailOptions = {
   postUrl: string;
 };
 
+export type PasswordRecoveryEmailOptions = {
+  recipientName?: string;
+  resetUrl?: string;
+  projectName?: string;
+};
+
 const palette = {
   blue9: '#3e63dd',
   blue10: '#5a73ff',
@@ -233,6 +239,37 @@ export class EmailTemplateService {
         },
       ],
       footerNote: 'Esta mensagem foi gerada automaticamente pelo Zetho.',
+    });
+  }
+
+  getPasswordRecoveryEmailSubject(projectName = 'Zetho') {
+    return `Recuperação de senha - ${projectName}`;
+  }
+
+  renderPasswordRecoveryEmail(options?: PasswordRecoveryEmailOptions) {
+    const recipientName = options?.recipientName?.trim() || '{{user}}';
+    const resetUrl = options?.resetUrl?.trim() || '{{redirect}}';
+    const project = options?.projectName?.trim() || 'Zetho';
+
+    return this.renderTransactionalEmail({
+      preheader: `Recuperação de senha da sua conta no ${project}.`,
+      title: 'Recuperação de Senha',
+      intro: `Olá, ${recipientName}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: `Recebemos uma solicitação para redefinir a senha da sua conta no ${project}.`,
+        },
+        {
+          kind: 'paragraph',
+          text: 'Clique no botão abaixo para escolher uma nova senha. Se você não fez essa solicitação, nenhuma ação é necessária e você pode desconsiderar esta mensagem.',
+        },
+      ],
+      cta: {
+        label: 'Redefinir senha',
+        href: resetUrl,
+      },
+      footerNote: `Por segurança, este link é temporário. Esta mensagem foi gerada automaticamente pelo ${project}.`,
     });
   }
 

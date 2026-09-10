@@ -287,6 +287,7 @@
                     "format": "enum",
                     "elements": [
                         "basic",
+                        "search_ready",
                         "full"
                     ]
                 },
@@ -296,6 +297,59 @@
                     "required": false,
                     "array": false,
                     "size": 1500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "searchName",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "developerIds",
+                    "type": "varchar",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "publisherIds",
+                    "type": "varchar",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "searchAliases",
+                    "type": "varchar",
+                    "required": false,
+                    "array": true,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "searchIndexVersion",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": 0,
+                    "max": 2147483647
+                },
+                {
+                    "key": "searchText",
+                    "type": "mediumtext",
+                    "required": false,
+                    "array": false,
                     "default": null,
                     "encrypt": false
                 }
@@ -354,6 +408,120 @@
                     ],
                     "columns": [
                         "ratingCount"
+                    ]
+                },
+                {
+                    "key": "games_searchName",
+                    "type": "key",
+                    "columns": [
+                        "searchName"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "games_searchText",
+                    "type": "fulltext",
+                    "columns": [
+                        "searchText"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "game_search_jobs",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Game search jobs",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "gameId",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 24,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "leaseToken",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "error",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 1000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "externalReference",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "min": 0,
+                    "max": 2147483647,
+                    "default": null
+                },
+                {
+                    "key": "attempts",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "min": 0,
+                    "max": 2147483647,
+                    "default": null
+                },
+                {
+                    "key": "availableAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "jobs_available",
+                    "type": "key",
+                    "columns": [
+                        "availableAt"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "jobs_status",
+                    "type": "key",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC"
                     ]
                 }
             ]

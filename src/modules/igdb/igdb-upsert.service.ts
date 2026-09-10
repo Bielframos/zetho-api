@@ -1,3 +1,4 @@
+import { buildSearchDocument } from '../game/game-search.utils';
 import { Injectable, Logger } from '@nestjs/common';
 import { AppwriteException, Models, Query } from 'node-appwrite';
 import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
@@ -42,9 +43,22 @@ export class IGDBUpsertService {
       preferredGameId,
     );
 
-    if (existing.checksum === (game.checksum ?? null)) {
+    if (
+      existing.syncStage === 'full' &&
+      existing.checksum === (game.checksum ?? null)
+    ) {
       return existing.$id;
     }
+
+    game = {
+      ...game,
+      ...buildSearchDocument(
+        game.name,
+        game.searchAliases ?? existing.searchAliases ?? [],
+        game.developerIds,
+        game.publisherIds,
+      ),
+    };
 
     const { updatePayload, companiesChanged, nextCompanies } =
       this.buildSafeGameUpdatePayload(game, existing);
@@ -132,10 +146,14 @@ export class IGDBUpsertService {
     $id: string;
     checksum: string | null;
     involvedCompaniesIds: string[];
+    searchAliases?: string[];
+    syncStage?: string | null;
   }> {
     const response = await this.tableDB.listRows<
       Models.Row & {
         checksum?: string | null;
+        searchAliases?: string[];
+        syncStage?: string | null;
         involvedCompanies?: Array<{ $id?: string }>;
       }
     >({
@@ -143,7 +161,13 @@ export class IGDBUpsertService {
       tableId: 'games',
       queries: [
         Query.equal('externalReference', externalReference),
-        Query.select(['$id', 'checksum', 'involvedCompanies.$id'] as any),
+        Query.select([
+          '$id',
+          'checksum',
+          'syncStage',
+          'searchAliases',
+          'involvedCompanies.$id',
+        ] as any),
         Query.limit(1),
       ],
     });
@@ -161,6 +185,8 @@ export class IGDBUpsertService {
     return {
       $id: existing.$id,
       checksum: existing.checksum ?? null,
+      searchAliases: existing.searchAliases,
+      syncStage: existing.syncStage,
       involvedCompaniesIds,
     };
   }

@@ -1,14 +1,13 @@
+import { GameSearchQueueService } from '../../igdb/game-search-queue.service';
 import {
   Injectable,
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
-import { GamesSyncStage } from 'src/infra/appwrite/appwrite.enums';
 import { AppwriteException, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
-import { IGDBGame, IGDBGenre } from '../../igdb/igdb.types';
+import { IGDBGameWebhook, IGDBGenre } from '../../igdb/igdb.types';
 import { IGDBUpsertService } from '../../igdb/igdb-upsert.service';
 
 @Injectable()
@@ -22,12 +21,13 @@ export class IGDBHandler {
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
     private readonly upsertService: IGDBUpsertService,
+    private readonly searchQueue: GameSearchQueueService,
   ) {
     this.tableDB = this.appwrite.tablesDB;
   }
 
   /** Método principal para processar o jogo recebido do webhook */
-  async upsertGame(game: IGDBGame) {
+  async upsertGame(game: IGDBGameWebhook) {
     return this.loggerContext.trackLifecycle(
       this.logger,
       {
@@ -51,8 +51,7 @@ export class IGDBHandler {
         }
 
         try {
-          const parsedGame = this.parseBasicGame(game);
-          appwriteGameId = await this.upsertService.upsertGameRow(parsedGame);
+          appwriteGameId = await this.searchQueue.registerBasic(game);
 
           await this.upsertService.ensureGameZStats(appwriteGameId);
 
@@ -121,30 +120,6 @@ export class IGDBHandler {
     );
   }
 
-  /** Métodos auxiliares */
-  private parseBasicGame(game: IGDBGame): GamesCreate {
-    return {
-      name: game.name,
-      slug: game.slug ?? '',
-      coverUrl: game.cover?.image_id
-        ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
-        : null,
-      externalReference: game.id,
-      checksum: game.checksum || null,
-      involvedCompanies: this.extractInvolvedCompanies(game),
-      syncStage: GamesSyncStage.BASIC,
-    };
-  }
-
-  private extractInvolvedCompanies(game: IGDBGame): string[] {
-    const companies = game.involved_companies ?? [];
-    const ids = companies
-      .filter((item) => item.developer && item.company?.id)
-      .map((item) => `igdb_${item.company.id}`);
-
-    return Array.from(new Set(ids));
-  }
-
   private getDurationMs(startedAt: bigint) {
     return Number((process.hrtime.bigint() - startedAt) / BigInt(1e6));
   }
@@ -171,7 +146,7 @@ export class IGDBHandler {
     return error;
   }
 
-  private shouldIgnore(game: IGDBGame) {
+  private shouldIgnore(game: IGDBGameWebhook) {
     return (
       [3, 5, 7, 12, 13, 14].includes(game.game_type ?? 0) ||
       (game.version_parent !== undefined && game.version_parent !== null)

@@ -25,6 +25,7 @@ export class GameController {
   ) {}
 
   @Get('search')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   search(@Query() dto: SearchGamesDto) {
     return this.gameService.search(dto);
   }
