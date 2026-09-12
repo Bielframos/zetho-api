@@ -14,7 +14,12 @@ import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { GameService } from './game.service';
-import { SearchGamesDto, HypedUpcomingDto, GameIdParamDto } from './game.dto';
+import {
+  SearchGamesDto,
+  HypedUpcomingDto,
+  GameIdParamDto,
+  SearchCompaniesDto,
+} from './game.dto';
 import { GameBriefingService } from './game-briefing.service';
 
 @Controller('games')
@@ -28,6 +33,12 @@ export class GameController {
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   search(@Query() dto: SearchGamesDto) {
     return this.gameService.search(dto);
+  }
+
+  @Get('companies')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  searchCompanies(@Query() dto: SearchCompaniesDto) {
+    return this.gameService.searchCompanies(dto.q);
   }
 
   @Get('hyped-upcoming')

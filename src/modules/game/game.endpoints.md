@@ -127,3 +127,11 @@ em páginas profundas. Os totais da API seguem os limites de contagem do servido
 
 Referências: [consultas Appwrite](https://appwrite.io/docs/products/databases/tablesdb/queries)
 e [transações](https://appwrite.io/docs/products/databases/tablesdb/transactions).
+
+## `GET /games/companies`
+
+Lista até 20 empresas do catálogo para seleção nos filtros de busca.
+Parâmetro opcional `q`: trecho do nome, até 128 caracteres. Sem `q`, retorna
+as primeiras empresas. Ordem estável por `$id`; não requer índice full-text.
+Resposta: `{ results: [{ $id, name, slug }] }`. Use `$id` como `developer`
+em `/games/search` (empresas sem jogos como desenvolvedora retornam busca vazia).
