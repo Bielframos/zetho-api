@@ -78,3 +78,10 @@ export class HypedUpcomingDto {
   @IsString()
   fingerprint?: string;
 }
+
+export class SearchCompaniesDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  q?: string;
+}

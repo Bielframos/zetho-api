@@ -6,6 +6,14 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-12
+
+### Added
+
+- Endpoint público `GET /games/companies?q` para sugestões de empresas no filtro de desenvolvedora da busca.
+- Busca por trecho do nome, com até 20 resultados contendo identificador, nome e slug, e validação da consulta.
+- Documentação do contrato e testes para sugestões iniciais, consulta normalizada e falhas de acesso aos dados.
+
 ## [0.8.0] - 2026-09-10
 
 ### Added

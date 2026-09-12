@@ -125,3 +125,55 @@ describe('GameService detail payload', () => {
     expect(cache.set.mock.calls[0][1]).not.toHaveProperty('searchText');
   });
 });
+
+describe('GameService.searchCompanies', () => {
+  const tablesDB = { listRows: jest.fn() };
+  const service = new GameService(
+    { tablesDB } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('limits suggestions and only exposes company selection fields', async () => {
+    tablesDB.listRows.mockResolvedValue({
+      rows: [
+        {
+          $id: 'igdb_1',
+          name: 'Studio',
+          slug: 'studio',
+          checksum: 'internal',
+        },
+      ],
+    });
+    expect(await service.searchCompanies()).toEqual({
+      results: [
+        {
+          $id: 'igdb_1',
+          name: 'Studio',
+          slug: 'studio',
+        },
+      ],
+    });
+    const queries = tablesDB.listRows.mock.calls[0][0].queries.map(JSON.parse);
+    expect(queries).toContainEqual({ method: 'limit', values: [20] });
+    expect(queries.some((query) => query.method === 'contains')).toBe(false);
+  });
+
+  it('searches the trimmed company name and propagates catalog failures', async () => {
+    tablesDB.listRows.mockResolvedValueOnce({ rows: [] });
+    await service.searchCompanies('  Studio  ');
+    const queries = tablesDB.listRows.mock.calls[0][0].queries.map(JSON.parse);
+    expect(queries).toContainEqual({
+      method: 'contains',
+      attribute: 'name',
+      values: ['Studio'],
+    });
+    tablesDB.listRows.mockRejectedValueOnce(new Error('unavailable'));
+    await expect(service.searchCompanies('Studio')).rejects.toThrow(
+      'unavailable',
+    );
+  });
+});

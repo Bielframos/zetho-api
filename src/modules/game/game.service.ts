@@ -4,6 +4,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { ID, Models, Query, MessagingProviderType } from 'node-appwrite';
 import type {
+  Companies,
   GameMedias,
   Games as Game,
   ZEntriesReadOnly,
@@ -45,6 +46,23 @@ export class GameService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
+  }
+
+  async searchCompanies(query = '') {
+    const term = query.trim();
+    const result = await this.tablesDB.listRows<Companies>({
+      databaseId: GameService.DB_ID,
+      tableId: 'companies',
+      queries: [
+        Query.select(['$id', 'name', 'slug']),
+        Query.limit(20),
+        Query.orderAsc('$id'),
+        ...(term ? [Query.contains('name', term)] : []),
+      ],
+    });
+    return {
+      results: result.rows.map(({ $id, name, slug }) => ({ $id, name, slug })),
+    };
   }
 
   async findBySlug(slug: string, select?: string, { enrich = true } = {}) {
