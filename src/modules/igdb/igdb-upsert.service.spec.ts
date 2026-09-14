@@ -34,18 +34,16 @@ describe('IGDBUpsertService search metadata', () => {
   it('does not let an unchanged checksum suppress the search_ready to full transition', async () => {
     const db = {
       createRow: jest.fn().mockRejectedValue({ code: 409 }),
-      listRows: jest
-        .fn()
-        .mockResolvedValue({
-          rows: [
-            {
-              $id: 'igdb_1',
-              checksum: 'same',
-              syncStage: 'search_ready',
-              involvedCompanies: [],
-            },
-          ],
-        }),
+      listRows: jest.fn().mockResolvedValue({
+        rows: [
+          {
+            $id: 'igdb_1',
+            checksum: 'same',
+            syncStage: 'search_ready',
+            involvedCompanies: [],
+          },
+        ],
+      }),
       updateRow: jest.fn(),
     };
     const service = new IGDBUpsertService(

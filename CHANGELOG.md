@@ -6,6 +6,23 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-14
+
+### Added
+
+- Módulo dedicado de ranking (`RankingModule`) com endpoints `/ranking/zcoins/weekly` e `/ranking/connections/completed-games`.
+- Endpoint autenticado `/ranking/connections/completed-games` com ordenação por quantidade de jogos zerados entre conexões mútuas do usuário logado.
+- Cache unificado do placar Top 100 de Z-Coins em Redis (`ranking:zcoins:weekly:v2`) com TTL de 15 minutos e controle de concorrência.
+- Rotina cron em background a cada 10 minutos (`*/10 * * * *`) para pré-aquecer o cache do ranking semanal de Z-Coins.
+
+### Changed
+
+- `ZCoinsController.weeklyLeaderboard` passa a delegar para `RankingService`, mantendo compatibilidade com clientes existentes.
+
+### Performance
+
+- Eliminação de N+1 queries na hidratação dos perfis de usuários do ranking através de busca única em batch por IDs (`Query.equal('$id', userIds)`).
+
 ## [0.9.0] - 2026-09-12
 
 ### Added

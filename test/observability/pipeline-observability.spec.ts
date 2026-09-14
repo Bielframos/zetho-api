@@ -105,16 +105,16 @@ describe('Pipeline observability contract', () => {
 
     logSpy = jest
       .spyOn(Logger.prototype, 'log')
-      .mockImplementation(() => undefined as never);
+      .mockImplementation(() => undefined);
     errorSpy = jest
       .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined as never);
+      .mockImplementation(() => undefined);
     warnSpy = jest
       .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined as never);
+      .mockImplementation(() => undefined);
     debugSpy = jest
       .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => undefined as never);
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {

@@ -25,7 +25,7 @@ describe('ContentExtractorService', () => {
           status: 200,
           headers: { 'content-type': 'text/html' },
         }),
-    ) as unknown as typeof fetch;
+    );
 
     const result = await service.extract('https://exemplo.com/post');
 
@@ -48,7 +48,7 @@ describe('ContentExtractorService', () => {
           },
         ),
     );
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     await service.extract('https://exemplo.com/post');
 
@@ -61,7 +61,7 @@ describe('ContentExtractorService', () => {
   it('lança erro quando a resposta não é ok', async () => {
     global.fetch = jest.fn(
       async () => new Response('not found', { status: 404 }),
-    ) as unknown as typeof fetch;
+    );
 
     await expect(service.extract('https://exemplo.com/x')).rejects.toThrow(
       /404/,
@@ -75,7 +75,7 @@ describe('ContentExtractorService', () => {
           status: 200,
           headers: { 'content-type': 'text/html' },
         }),
-    ) as unknown as typeof fetch;
+    );
 
     await expect(service.extract('https://exemplo.com/vazio')).rejects.toThrow(
       /conteúdo principal/i,

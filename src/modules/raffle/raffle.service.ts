@@ -440,7 +440,7 @@ export class RaffleService {
       raffleId,
       key: k.key,
       platform: k.platform,
-      status: 'available' as GameKeyStatus,
+      status: 'available',
     }));
 
     await this.tablesDB.createRows({

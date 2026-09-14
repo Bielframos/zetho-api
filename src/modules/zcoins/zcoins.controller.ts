@@ -10,17 +10,21 @@ import {
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { Roles } from 'src/common/guards/roles.decorator';
+import { RankingService } from '../ranking/ranking.service';
 import { ZCoinsService } from './zcoins.service';
 import { ZCoinInputDto, ZCoinOutputDto } from './zcoins.dto';
 
 @Controller('zcoins')
 export class ZCoinsController {
-  constructor(private readonly zCoinsService: ZCoinsService) {}
+  constructor(
+    private readonly zCoinsService: ZCoinsService,
+    private readonly rankingService: RankingService,
+  ) {}
 
   @Get('leaderboard/weekly')
   async weeklyLeaderboard(@Query('limit') limit?: string) {
     const safeLimit = this.parsePositiveInt(limit, 30);
-    return this.zCoinsService.getWeeklyLeaderboard(safeLimit);
+    return this.rankingService.getWeeklyZCoinsLeaderboard(safeLimit);
   }
 
   @Post('input')

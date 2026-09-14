@@ -14,6 +14,7 @@ import { SitemapModule } from './system/sitemap/sitemap.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { AiModule } from './infra/ai/ai.module';
 import { ZCoinsModule } from './modules/zcoins/zcoins.module';
+import { RankingModule } from './modules/ranking/ranking.module';
 import { RaffleModule } from './modules/raffle/raffle.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
@@ -43,6 +44,7 @@ import { GameRecommenderModule } from './agents/game-recommender/game-recommende
     GazethoModule,
     SitemapModule,
     ZCoinsModule,
+    RankingModule,
     RaffleModule,
     RatingsModule,
     DashboardModule,

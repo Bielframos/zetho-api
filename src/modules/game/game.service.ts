@@ -214,7 +214,7 @@ export class GameService {
         Query.notEqual('content', ''),
         Query.orderAsc('$id'),
         Query.limit(500),
-        Query.select(['$id', 'gameId', '$updatedAt'] as any),
+        Query.select(['$id', 'gameId', '$updatedAt']),
       ];
       if (cursor) queries.push(Query.cursorAfter(cursor));
 
@@ -250,7 +250,7 @@ export class GameService {
         queries: [
           Query.equal('$id', batch),
           Query.limit(batch.length),
-          Query.select(['$id', 'slug'] as any),
+          Query.select(['$id', 'slug']),
         ],
       });
 
@@ -393,7 +393,7 @@ export class GameService {
           'hypes',
           'syncStage',
           'externalReference',
-        ] as any),
+        ]),
         Query.orderDesc('hypes'),
         Query.orderAsc('releaseDate'),
         Query.limit(pageSize),
@@ -437,7 +437,7 @@ export class GameService {
     const mediasResult = await this.tablesDB.listRows<GameMedias>({
       databaseId: GameService.DB_ID,
       tableId: 'game_medias',
-      queries: [Query.equal('game' as any, game.$id as any)],
+      queries: [Query.equal('game', game.$id as any)],
     });
 
     const response = this.buildMediaDtos(mediasResult.rows);
@@ -457,7 +457,7 @@ export class GameService {
     const mediasResult = await this.tablesDB.listRows<GameMedias>({
       databaseId: GameService.DB_ID,
       tableId: 'game_medias',
-      queries: [Query.equal('game' as any, gameId as any)],
+      queries: [Query.equal('game', gameId as any)],
     });
 
     const screenshots = mediasResult.rows.filter(
@@ -514,7 +514,7 @@ export class GameService {
     const mediasResult = await this.tablesDB.listRows<GameMedias>({
       databaseId: GameService.DB_ID,
       tableId: 'game_medias',
-      queries: [Query.equal('game' as any, game.$id as any)],
+      queries: [Query.equal('game', game.$id as any)],
     });
 
     const artwork = mediasResult.rows.find(

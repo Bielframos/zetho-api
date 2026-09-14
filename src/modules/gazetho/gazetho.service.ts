@@ -72,7 +72,7 @@ export class GazethoService {
     }
 
     if (dto.authorId) {
-      filters.push(Query.equal('author' as any, dto.authorId as any));
+      filters.push(Query.equal('author', dto.authorId as any));
     }
 
     if (dto.tag?.trim()) {
@@ -110,7 +110,7 @@ export class GazethoService {
         'author.slug',
         'author.$id',
         'author.avatarUrl',
-      ] as any),
+      ]),
     ];
 
     if (filters.length > 1) {

@@ -521,12 +521,7 @@ export class IGDBService {
       tableId: 'games',
       queries: [
         Query.equal('externalReference', externalReference),
-        Query.select([
-          '$id',
-          'checksum',
-          'syncStage',
-          'involvedCompanies.$id',
-        ] as any),
+        Query.select(['$id', 'checksum', 'syncStage', 'involvedCompanies.$id']),
         Query.limit(1),
       ],
     });
