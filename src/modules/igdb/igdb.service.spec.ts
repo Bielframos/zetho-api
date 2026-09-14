@@ -68,7 +68,7 @@ describe('IGDBService outbound policy', () => {
       });
     });
 
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     const result = await (service as any).fetchIgdb('games', 'fields id;');
 
@@ -101,7 +101,7 @@ describe('IGDBService outbound policy', () => {
     const fetchMock = jest.fn(
       async () => new Response('bad request', { status: 400 }),
     );
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     await expect(
       (service as any).fetchIgdb('games', 'fields id;'),

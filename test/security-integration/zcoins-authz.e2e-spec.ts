@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ZCoinsController } from '../../src/modules/zcoins/zcoins.controller';
 import { ZCoinsService } from '../../src/modules/zcoins/zcoins.service';
+import { RankingService } from '../../src/modules/ranking/ranking.service';
 import { AppwriteSessionGuard } from '../../src/common/guards/session.guard';
 import { Roles } from '../../src/common/guards/roles.decorator';
 
@@ -72,6 +73,10 @@ describe('ZCoins authorization contract (e2e)', () => {
     applyOutput: jest.fn(),
     getWeeklyLeaderboard: jest.fn(),
   };
+  const rankingService = {
+    getWeeklyZCoinsLeaderboard: jest.fn(),
+    getConnectionsCompletedGamesLeaderboard: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -82,6 +87,10 @@ describe('ZCoins authorization contract (e2e)', () => {
         {
           provide: ZCoinsService,
           useValue: zCoinsService,
+        },
+        {
+          provide: RankingService,
+          useValue: rankingService,
         },
       ],
     })

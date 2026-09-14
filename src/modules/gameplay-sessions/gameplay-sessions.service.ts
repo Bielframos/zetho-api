@@ -742,7 +742,7 @@ export class GameplaySessionsService {
       ...result,
       rows: await Promise.all(
         result.rows.map(async (notification) => {
-          const notificationType = notification.type as string;
+          const notificationType = notification.type;
           const [sender, targetUrl] = await Promise.all([
             this.getProfileById(notification.senderProfileId),
             this.getGameCommentTargetUrl(notification),
@@ -1071,7 +1071,7 @@ export class GameplaySessionsService {
   }
 
   private async getGameCommentTargetUrl(notification: Notifications) {
-    if ((notification.type as string) !== 'game_comment') return undefined;
+    if (notification.type !== 'game_comment') return undefined;
     if (!notification.entityId) return undefined;
 
     try {

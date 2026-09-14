@@ -71,7 +71,7 @@ export class IGDBUpsertService {
           databaseId: IGDBUpsertService.DB_ID,
           tableId: 'games',
           rowId: existing.$id,
-          data: { involvedCompanies: [] } as unknown as GamesCreate,
+          data: { involvedCompanies: [] },
           transactionId: ctx.txId,
         });
 
@@ -167,7 +167,7 @@ export class IGDBUpsertService {
           'syncStage',
           'searchAliases',
           'involvedCompanies.$id',
-        ] as any),
+        ]),
         Query.limit(1),
       ],
     });

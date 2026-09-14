@@ -15,13 +15,13 @@ describe('HTTP observability contract (e2e)', () => {
   let CorrelationIdMiddleware: typeof import('../../src/common/middleware/correlation-id.middleware').CorrelationIdMiddleware;
 
   const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {
-    return undefined as never;
+    return undefined;
   });
   jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {
-    return undefined as never;
+    return undefined;
   });
   jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {
-    return undefined as never;
+    return undefined;
   });
 
   beforeAll(async () => {
