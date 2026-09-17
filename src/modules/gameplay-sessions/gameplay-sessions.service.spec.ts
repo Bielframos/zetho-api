@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { EmailTemplateService } from '../notifications/email-template.service';
 import { GameplaySessionsService } from './gameplay-sessions.service';
 
@@ -235,6 +239,32 @@ describe('GameplaySessionsService', () => {
       gamertag: 'Host',
       avatarUrl: 'host.png',
     });
+  });
+
+  it('returns a public detail without exposing pending participants', async () => {
+    const session = await createSession();
+    await service.requestToJoin('guest-user', session.$id);
+
+    const detail = await service.getPublicSessionById(undefined, session.$id);
+
+    expect(detail).toEqual(
+      expect.objectContaining({
+        $id: session.$id,
+        host: { $id: host.$id, gamertag: 'Host', avatarUrl: 'host.png' },
+        participants: [
+          expect.objectContaining({ profileId: host.$id, status: 'confirmed' }),
+        ],
+      }),
+    );
+    expect(detail.participants).toHaveLength(1);
+  });
+
+  it('does not expose private sessions through the public detail', async () => {
+    const session = await createSession('closed');
+
+    await expect(
+      service.getPublicSessionById(undefined, session.$id),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('restricts a private detail to host and related participants', async () => {

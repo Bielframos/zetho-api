@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Models } from 'node-appwrite';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
+import { OptionalAppwriteSessionGuard } from 'src/common/guards/optional-session.guard';
 import { CreateGameplaySessionDto } from './dto/create-gameplay-session.dto';
 import { InviteGameplaySessionDto } from './dto/invite-gameplay-session.dto';
 import { QueryGameplaySessionDto } from './dto/query-gameplay-session.dto';
@@ -24,13 +25,13 @@ interface RequestWithUser {
 }
 
 @Controller('api/gameplay-sessions')
-@UseGuards(AppwriteSessionGuard)
 export class GameplaySessionsController {
   constructor(
     private readonly gameplaySessionsService: GameplaySessionsService,
   ) {}
 
   @Post()
+  @UseGuards(AppwriteSessionGuard)
   async create(
     @Req() req: RequestWithUser,
     @Body() dto: CreateGameplaySessionDto,
@@ -39,6 +40,7 @@ export class GameplaySessionsController {
   }
 
   @Get()
+  @UseGuards(AppwriteSessionGuard)
   async list(
     @Req() req: RequestWithUser,
     @Query() query: QueryGameplaySessionDto,
@@ -46,17 +48,37 @@ export class GameplaySessionsController {
     return await this.gameplaySessionsService.listSessions(req.user.$id, query);
   }
 
+  /**
+   * A página compartilhável só expõe Jogatinas públicas. O guard opcional
+   * permite que visitantes vejam o conteúdo e que participantes autenticados
+   * recebam o próprio status, sem revelar pendências ou convites de terceiros.
+   */
+  @Get('public/:id')
+  @UseGuards(OptionalAppwriteSessionGuard)
+  async getPublicOne(
+    @Req() req: { user: Models.User | null },
+    @Param('id') id: string,
+  ) {
+    return await this.gameplaySessionsService.getPublicSessionById(
+      req.user?.$id,
+      id,
+    );
+  }
+
   @Get(':id')
+  @UseGuards(AppwriteSessionGuard)
   async getOne(@Req() req: RequestWithUser, @Param('id') id: string) {
     return await this.gameplaySessionsService.getSessionById(req.user.$id, id);
   }
 
   @Post(':id/join-requests')
+  @UseGuards(AppwriteSessionGuard)
   async requestToJoin(@Req() req: RequestWithUser, @Param('id') id: string) {
     return await this.gameplaySessionsService.requestToJoin(req.user.$id, id);
   }
 
   @Post(':id/invitations/respond')
+  @UseGuards(AppwriteSessionGuard)
   async respondToInvitation(
     @Req() req: RequestWithUser,
     @Param('id') id: string,
@@ -70,11 +92,13 @@ export class GameplaySessionsController {
   }
 
   @Post(':id/leave')
+  @UseGuards(AppwriteSessionGuard)
   async leave(@Req() req: RequestWithUser, @Param('id') id: string) {
     return await this.gameplaySessionsService.leave(req.user.$id, id);
   }
 
   @Patch(':id/participants/:participantId')
+  @UseGuards(AppwriteSessionGuard)
   async updateParticipant(
     @Req() req: RequestWithUser,
     @Param('id') id: string,
@@ -90,6 +114,7 @@ export class GameplaySessionsController {
   }
 
   @Post(':id/invite')
+  @UseGuards(AppwriteSessionGuard)
   async invite(
     @Req() req: RequestWithUser,
     @Param('id') id: string,
@@ -103,6 +128,7 @@ export class GameplaySessionsController {
   }
 
   @Delete(':id/cancel')
+  @UseGuards(AppwriteSessionGuard)
   async cancel(@Req() req: RequestWithUser, @Param('id') id: string) {
     return await this.gameplaySessionsService.cancelSession(req.user.$id, id);
   }

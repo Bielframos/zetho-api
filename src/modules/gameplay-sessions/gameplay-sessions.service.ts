@@ -288,6 +288,46 @@ export class GameplaySessionsService {
     };
   }
 
+  /** Conteúdo seguro para a rota pública e para SSR de links compartilhados. */
+  async getPublicSessionById(userId: string | undefined, sessionId: string) {
+    const session = await this.getSession(sessionId);
+    if (session.privacy !== 'public') {
+      throw new NotFoundException('Jogatina não encontrada');
+    }
+
+    const participants = await this.appwrite.tablesDB.listRows<GameplaySessionParticipants>({
+      databaseId: GameplaySessionsService.DB_ID,
+      tableId: GameplaySessionsService.PARTICIPANTS_TABLE,
+      queries: [
+        Query.equal('sessionId', sessionId),
+        Query.equal('status', 'confirmed'),
+        Query.limit(100),
+      ],
+    });
+    const profile = userId ? await this.getProfileByUserId(userId) : null;
+    const current = profile
+      ? await this.findParticipant(sessionId, profile.$id)
+      : undefined;
+    const [host, enrichedParticipants] = await Promise.all([
+      this.getProfileById(session.hostProfileId),
+      Promise.all(
+        participants.rows.map(async (participant) => ({
+          ...participant,
+          profile: this.publicProfile(
+            await this.getProfileById(participant.profileId),
+          ),
+        })),
+      ),
+    ]);
+
+    return {
+      ...session,
+      host: this.publicProfile(host),
+      myParticipantStatus: current?.status,
+      participants: enrichedParticipants,
+    };
+  }
+
   async requestToJoin(userId: string, sessionId: string) {
     const profile = await this.getProfileByUserId(userId);
     let session: GameplaySessions | undefined;
