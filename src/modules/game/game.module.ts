@@ -5,11 +5,12 @@ import { IGDBModule } from '../igdb/igdb.module';
 import { TranslatorModule } from 'src/agents/translator/translator.module';
 import { AiModule } from 'src/infra/ai/ai.module';
 import { GameBriefingService } from './game-briefing.service';
+import { ManualGameService } from './manual-game.service';
 
 @Module({
   imports: [TranslatorModule, IGDBModule, AiModule],
   controllers: [GameController],
-  providers: [GameService, GameBriefingService],
-  exports: [GameService],
+  providers: [GameService, GameBriefingService, ManualGameService],
+  exports: [GameService, ManualGameService],
 })
 export class GameModule {}

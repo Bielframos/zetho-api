@@ -6,6 +6,18 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-18
+
+### Added
+
+- Servidor MCP (Model Context Protocol) integrado (`McpModule`) com suporte dual a transporte Stdio (CLI local) e HTTP/SSE (clientes remotos e agentes de IA).
+- Ferramenta MCP `register_igdb_game` para busca, pré-visualização e ingestão automática de jogos diretamente do catálogo IGDB.
+- Ferramenta MCP `register_manual_game` para cadastro de jogos autorais e títulos independentes não listados no IGDB, com alocação determinística de identificadores negativos (`externalReference`), indexação e inicialização de contadores `zStats`.
+- Serviço de domínio `ManualGameService` com cadastro automatizado e resolução de identificadores de desenvolvedoras e publicadoras na tabela `companies`.
+- Utilitário `slugify` para normalização e geração de slugs seguros para URLs.
+- Endpoints remotos `/mcp/sse`, `/mcp/messages` e `/mcp/tools` protegidos por autenticação com API Key (`MCP_API_KEY` ou `SYSTEM_API_KEY`).
+- Entrypoint Stdio em `src/mcp.ts` com isolamento estrito de logs em stderr para comunicação JSON-RPC íntegra via stdout, adicionando os scripts `pnpm mcp` e `pnpm mcp:prod`.
+
 ## [0.10.0] - 2026-09-14
 
 ### Added
