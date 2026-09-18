@@ -1,6 +1,6 @@
 {
   "name": "zetho-api",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -26,11 +26,14 @@
     "email:sync-templates": "ts-node scripts/sync-email-templates.ts",
     "games:backfill": "ts-node -r tsconfig-paths/register scripts/backfill-game-search.ts",
     "games:search-audit": "ts-node -r tsconfig-paths/register scripts/audit-game-search-backfill.ts",
+    "mcp": "ts-node -r tsconfig-paths/register src/mcp.ts",
+    "mcp:prod": "node dist/mcp",
     "deploy": "dotenv -e .env -- sh -c 'curl -f -s -X GET \"$DEPLOYMENT_TRIGGER_ENDPOINT\"'"
   },
   "dependencies": {
     "@genkit-ai/compat-oai": "^1.33.0",
     "@genkit-ai/google-genai": "^1.33.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@mozilla/readability": "^0.6.0",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",
@@ -50,7 +53,8 @@
     "node-appwrite": "^29.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "valibot": "^1.2.0"
+    "valibot": "^1.2.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

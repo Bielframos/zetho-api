@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "zetho": {
+      "command": "node",
+      "args": ["/home/bielframos/zetho/zetho-api/dist/mcp.js"],
+      "cwd": "/home/bielframos/zetho/zetho-api"
+    }
+  }
+}

@@ -22,6 +22,7 @@ import { DashboardModule } from './system/dashboard/dashboard.module';
 import { ThemesModule } from './modules/themes/themes.module';
 import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-sessions.module';
 import { GameRecommenderModule } from './agents/game-recommender/game-recommender.module';
+import { McpModule } from './modules/mcp/mcp.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { GameRecommenderModule } from './agents/game-recommender/game-recommende
 
     /** Modulos do sístema */
     WebhookModule,
+    McpModule,
 
     /** Sandbox module */
     SandboxModule.register(process.env.NODE_ENV ?? 'production'),
