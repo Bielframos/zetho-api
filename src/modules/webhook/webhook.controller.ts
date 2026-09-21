@@ -16,6 +16,7 @@ import type { IGDBGameWebhook, IGDBGenre } from '../igdb/igdb.types';
 import { ZethoHandler } from './handlers/zetho.handler';
 import { IGDBHandler } from './handlers/igdb.handler';
 import { WebhookReplayService } from './replay/replay.service';
+import { TimelineService } from 'src/system/dashboard/timeline.service';
 
 @Controller('webhook')
 export class WebhookController {
@@ -23,7 +24,35 @@ export class WebhookController {
     private zethoHandler: ZethoHandler,
     private IGDBHandler: IGDBHandler,
     private readonly replayService: WebhookReplayService,
+    private readonly timelineService: TimelineService,
   ) {}
+
+  @Post('timeline')
+  @UseGuards(new AppwriteWebhookGuard('timeline'))
+  ingestTimeline(
+    @Body() row: any,
+    @Headers('x-appwrite-webhook-events') events: string,
+  ) {
+    const event = String(events ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .find((item) =>
+        /\.tables\.[^.]+\.rows\.[^.]+\.(create|update|delete)$/.test(item),
+      );
+    const match = event?.match(
+      /\.tables\.([^.]+)\.rows\.[^.]+\.(create|update|delete)$/,
+    );
+    if (!match) return { success: true, noOp: true };
+    if (match[1] === 'connections')
+      return match[2] === 'create'
+        ? this.timelineService.backfillConnection(row)
+        : this.timelineService.invalidateConnection(row);
+    return this.timelineService.ingest(
+      match[1],
+      row,
+      match[2] as 'create' | 'update' | 'delete',
+    );
+  }
 
   @Post('entry-sync')
   @UseGuards(new AppwriteWebhookGuard('entry-sync'))

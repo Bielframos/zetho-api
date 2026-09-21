@@ -1,0 +1,13 @@
+# D8 migration order
+
+1. Provision both repositories' matching `appwrite.config.json` schema in Appwrite: `annual_goals`, `completion_events`, `user_badges`, their profile/year and profile/badge unique indexes, and `games.subgenres` / `user_profiles.showcaseBadges` columns. Provision the API schema's `ratings_ownerFingerprint` and `idx_host_status` query indexes as well. Wait for indexes to become available.
+2. Deploy the API so completion events and session transitions enter the transactional outbox. Keep the existing outbox worker running.
+3. Curate Soulslike games explicitly with `npx ts-node -r tsconfig-paths/register scripts/curate-soulslike.ts reviewed-game-ids.json`. Input is a reviewed JSON array of Appwrite game IDs. IGDB genre IDs and game names do not classify games.
+4. Run `npx ts-node -r tsconfig-paths/register scripts/backfill-achievements.ts`. The script pages through profiles and chronological `z_entries` with cursors, counts only transitions into `completed`, creates deterministic completion records, and reconciles badges. It logs each completed profile ID; resume after interruption with `--after=<last-logged-profile-id>`. It is safe to rerun.
+5. Deploy the frontend widget after the backfill. Existing users' annual progress then appears immediately.
+
+After adding or correcting curated games, rerun step 4 to award qualifying profiles. Badge unlocks and Z-Coin grants are permanent; removing a review or changing a game classification does not revoke an issued badge.
+
+## Recovery
+
+The outbox worker retries a failing event five times, then marks it `FAILED`. After fixing the cause, rerun the backfill command in step 4 **without** `--after`: it reconstructs annual completions from all historical `z_entries` (including games whose current read-model status changed), checks current reviews and completed hosted Jogatinas, and credits missing badges idempotently. This also repairs progress after a worker outage or a failed enqueue after a review was saved. Inspect `outbox_events` for `D8_ENTRY_COMPLETED`, `D8_RATING_CHANGED` and `GAMEPLAY_SESSION_COMPLETED` rows with status `FAILED`; the backfill repairs their achievement effects but does not change the outbox status. Keep the outbox worker running for subsequent events.

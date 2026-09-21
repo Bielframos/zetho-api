@@ -136,6 +136,7 @@ export type Games = Models.Row & {
   ratingCount: number;
   ratingSum: number;
   genres: string[] | null;
+  subgenres?: string[] | null;
   hypes: number | null;
   zethoVersion: number;
   syncStage: GamesSyncStage | null;
@@ -168,9 +169,13 @@ export type UserProfiles = Models.Row & {
   inviteCode: string | null;
   activeThemeId: string | null;
   unlockedThemes: string[] | null;
+  showcaseBadges?: string[] | null;
 };
 
 export type ZEntries = Models.Row & {
+  playedPlatform?: string | null;
+  completionType?: string | null;
+  playtimeMinutes?: number | null;
   status: ZEntriesStatus | null;
   liked: boolean | null;
   gameId: string;
@@ -203,6 +208,8 @@ export type Companies = Models.Row & {
 };
 
 export type ZEntryCount = Models.Row & {
+  completedPlaytimeMinutes?: number | null;
+  completedPlaytimeCount?: number | null;
   completedCount: number;
   backlogCount: number;
   droppedCount: number;
@@ -263,6 +270,9 @@ export type ListItems = Models.Row & {
 };
 
 export type ZEntriesReadOnly = Models.Row & {
+  playedPlatform?: string | null;
+  completionType?: string | null;
+  playtimeMinutes?: number | null;
   status: ZEntriesReadOnlyStatus | null;
   liked: boolean | null;
   gameId: string;

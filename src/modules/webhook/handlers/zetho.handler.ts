@@ -15,6 +15,7 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
+import { OutboxService } from 'src/infra/events/outbox.service';
 
 @Injectable()
 export class ZethoHandler {
@@ -40,6 +41,7 @@ export class ZethoHandler {
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
     private readonly emailTemplateService: EmailTemplateService,
+    private readonly outbox: OutboxService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -247,6 +249,24 @@ export class ZethoHandler {
           maxStatusReached: newMaxStatusReached,
         });
 
+        const eligibleMinutes = (status: string | null, minutes: number | null | undefined) =>
+          status === 'completed' && Number.isSafeInteger(minutes) && (minutes ?? 0) > 0
+            ? minutes!
+            : 0;
+        const previousMinutes = eligibleMinutes(prevStatus, existingReadEntry?.playtimeMinutes);
+        const nextMinutes = eligibleMinutes(currentStatus, entry.playtimeMinutes);
+        const playtimeDelta = nextMinutes - previousMinutes;
+        const playtimeCountDelta = Number(nextMinutes > 0) - Number(previousMinutes > 0);
+        const playtimeOps = [
+          { column: 'completedPlaytimeMinutes', delta: playtimeDelta },
+          { column: 'completedPlaytimeCount', delta: playtimeCountDelta },
+        ].filter(({ delta }) => delta !== 0).map(({ column, delta }) =>
+          this.createCounterOp(
+            delta > 0 ? 'increment' : 'decrement', 'app', 'z_entry_count',
+            `zstats_${entry.gameId}`, column, zStatsRow?.[column], Math.abs(delta),
+          ),
+        );
+
         const statusOps = this.statuses
           .map((status) => {
             const action = this.getStatusAction(
@@ -393,6 +413,7 @@ export class ZethoHandler {
 
           const operations = [
             ...statusOps,
+            ...playtimeOps,
             likeOp,
             ...hypedOps,
             ...zcoinOps,
@@ -441,10 +462,18 @@ export class ZethoHandler {
             ],
           });
 
+          if (entry.status === 'completed' && prevStatus !== 'completed') {
+            await this.outbox.enqueue(transactionId, {
+              type: 'D8_ENTRY_COMPLETED',
+              payload: { profileId: userProfile.$id, gameId: entry.gameId, createdAt: entry.$createdAt },
+            });
+          }
+
           await this.tablesDB.updateTransaction({
             transactionId,
             commit: true,
           });
+
 
           return {
             message: `O registro de id ${entry.$id} foi processado.`,
@@ -494,6 +523,9 @@ export class ZethoHandler {
       hyped: entry.hyped ?? false,
       likedEver: derived.likedEver,
       maxStatusReached: derived.maxStatusReached,
+      playedPlatform: entry.playedPlatform ?? null,
+      completionType: entry.status === 'completed' ? (entry.completionType ?? null) : null,
+      playtimeMinutes: entry.playtimeMinutes ?? null,
     };
   }
 

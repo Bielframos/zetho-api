@@ -32,6 +32,7 @@ export class DashboardController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('scope') scope?: string,
+    @Query('cursor') cursor?: string,
   ) {
     const user = req.user as Models.User;
     return this.dashboardService.getPersonalFeed(
@@ -39,6 +40,7 @@ export class DashboardController {
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 12,
       scope === 'mine' ? 'mine' : 'connections',
+      cursor,
     );
   }
 

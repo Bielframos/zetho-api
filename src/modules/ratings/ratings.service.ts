@@ -12,6 +12,7 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { textReviewCountCacheKey } from '../game/game-seo';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
+import { OutboxService } from 'src/infra/events/outbox.service';
 import type { Games, UserProfiles } from 'src/infra/appwrite/appwrite';
 
 type RatingFeedRow = Models.Row & {
@@ -30,6 +31,7 @@ export class RatingsService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly zCoinsService: ZCoinsService,
+    private readonly outbox: OutboxService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
@@ -162,6 +164,7 @@ export class RatingsService {
     }
 
     await this.invalidateSeoCache(gameId);
+    await this.enqueueRatingChanged(profile.$id);
 
     return {
       ...result,
@@ -428,8 +431,20 @@ export class RatingsService {
 
     await this.updateGameRatingStats(gameId, -rating.rating, false, true);
     await this.invalidateSeoCache(gameId);
+    await this.enqueueRatingChanged(profile.$id);
 
     return { success: true };
+  }
+
+  private async enqueueRatingChanged(profileId: string) {
+    try {
+      await this.outbox.enqueueImmediate({
+        type: 'D8_RATING_CHANGED',
+        payload: { profileId },
+      });
+    } catch (error) {
+      this.logger.error(`Review persistida, mas falhou o registro da reavaliação de badges para ${profileId}`, error);
+    }
   }
 
   async voteRating(userId: string, ratingId: string, operation: 'up' | 'down') {

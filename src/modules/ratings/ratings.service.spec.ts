@@ -1,11 +1,35 @@
 import { Query } from 'node-appwrite';
 import { RatingsService } from './ratings.service';
 
+describe('RatingsService achievement outbox', () => {
+  it('does not fail a persisted review deletion when enqueueing the badge check fails', async () => {
+    const listRows = jest.fn().mockImplementation(({ tableId }) => {
+      if (tableId === 'user_profiles') return Promise.resolve({ rows: [{ $id: 'profile-1', fingerprint: 'fingerprint-1' }], total: 1 });
+      if (tableId === 'ratings') return Promise.resolve({ rows: [{ $id: 'rating-1', rating: 4 }], total: 1 });
+      if (tableId === 'games') return Promise.resolve({ rows: [], total: 0 });
+      throw new Error(tableId);
+    });
+    const deleteRow = jest.fn().mockResolvedValue({});
+    const enqueueImmediate = jest.fn().mockRejectedValue(new Error('outbox unavailable'));
+    const service = new RatingsService(
+      { tablesDB: { listRows, deleteRow } } as any,
+      {} as any,
+      { enqueueImmediate } as any,
+      { del: jest.fn() } as any,
+    );
+
+    await expect(service.deleteRating('user-1', 'game-1')).resolves.toEqual({ success: true });
+    expect(deleteRow).toHaveBeenCalledWith(expect.objectContaining({ tableId: 'ratings', rowId: 'rating-1' }));
+    expect(enqueueImmediate).toHaveBeenCalledWith({ type: 'D8_RATING_CHANGED', payload: { profileId: 'profile-1' } });
+  });
+});
+
 describe('RatingsService.getRatingsFeed', () => {
   const createService = (listRows: jest.Mock) =>
     new RatingsService(
       { tablesDB: { listRows } } as any,
       {} as any,
+      { enqueueImmediate: jest.fn() } as any,
       { del: jest.fn() } as any,
     );
 

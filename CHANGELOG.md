@@ -6,6 +6,18 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-21
+
+### Added
+
+- Timeline social persistida por usuário, com paginação por cursor, cache Redis de 45 segundos, sincronização por webhook e migração do histórico.
+- Registro de plataforma, tipo de conclusão e horas jogadas, com média comunitária de tempo para zerar por jogo.
+- Metas anuais, três Z-Badges desbloqueáveis, recompensas únicas em Z-Coins e API para selecionar medalhas exibidas no perfil.
+
+### Changed
+
+- O feed das conexões deixa de combinar janelas de até 100 registros por fonte a cada requisição.
+
 ## [0.11.0] - 2026-09-18
 
 ### Added

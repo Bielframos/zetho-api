@@ -7,6 +7,7 @@ import { WebhookController } from '../../src/modules/webhook/webhook.controller'
 import { ZethoHandler } from '../../src/modules/webhook/handlers/zetho.handler';
 import { IGDBHandler } from '../../src/modules/webhook/handlers/igdb.handler';
 import { WebhookReplayService } from '../../src/modules/webhook/replay/replay.service';
+import { TimelineService } from '../../src/system/dashboard/timeline.service';
 
 describe('Webhook integration contract (e2e)', () => {
   let app: INestApplication;
@@ -40,6 +41,14 @@ describe('Webhook integration contract (e2e)', () => {
         {
           provide: IGDBHandler,
           useValue: igdbHandler,
+        },
+        {
+          provide: TimelineService,
+          useValue: {
+            ingest: jest.fn(),
+            backfillConnection: jest.fn(),
+            invalidateConnection: jest.fn(),
+          },
         },
       ],
     }).compile();

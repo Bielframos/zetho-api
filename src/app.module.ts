@@ -23,6 +23,7 @@ import { ThemesModule } from './modules/themes/themes.module';
 import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-sessions.module';
 import { GameRecommenderModule } from './agents/game-recommender/game-recommender.module';
 import { McpModule } from './modules/mcp/mcp.module';
+import { AchievementsModule } from './modules/achievements/achievements.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { McpModule } from './modules/mcp/mcp.module';
     RatingsModule,
     DashboardModule,
     GameplaySessionsModule,
+    AchievementsModule,
     GameRecommenderModule,
 
     /** Modulos do sístema */
