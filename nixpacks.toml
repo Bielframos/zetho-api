@@ -1,0 +1,3 @@
+# Build once during image creation; start the compiled application directly.
+[start]
+cmd = "pnpm run start:prod"
