@@ -59,6 +59,29 @@ describe('SocialService writes', () => {
       expect.objectContaining({ type: 'SOCIAL_ENTRY_SYNC' }),
     );
   });
+  it('validates a catalog platform and preserves its ID through status changes', async () => {
+    const createRow = jest.fn().mockImplementation(async ({ data }) => ({ $id: 'entry', ...data }));
+    const getRow = jest.fn().mockResolvedValue({ $id: 'ps3', name: 'PlayStation 3' });
+    const listRows = jest.fn().mockImplementation(async ({ tableId }) => ({ rows: tableId === 'user_profiles'
+      ? [{ $id: 'p1', fingerprint: 'f1' }] : [{ status: 'playing', playedPlatformId: 'ps3', playedPlatform: null }] }));
+    const { service } = make({ createRow, getRow, listRows });
+    await service.createEntry('u1', { gameId: 'g1', playedPlatformId: 'ps3' });
+    expect(getRow).toHaveBeenCalledWith(expect.objectContaining({ tableId: 'game_platforms', rowId: 'ps3' }));
+    expect(createRow).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ playedPlatformId: 'ps3', playedPlatform: null }) }));
+    await service.createEntry('u1', { gameId: 'g1', status: 'completed' });
+    expect(createRow).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ playedPlatformId: 'ps3' }) }));
+    await service.createEntry('u1', { gameId: 'g1', playedPlatformId: null });
+    expect(createRow).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ playedPlatformId: null, playedPlatform: null }) }));
+  });
+  it('rejects an unknown platform before creating an entry', async () => {
+    const createRow = jest.fn();
+    const { service } = make({ createRow,
+      listRows: jest.fn().mockResolvedValue({ rows: [{ fingerprint: 'f1' }] }),
+      getRow: jest.fn().mockRejectedValue({ code: 404 }),
+    });
+    await expect(service.createEntry('u1', { gameId: 'g1', playedPlatformId: 'missing' })).rejects.toThrow();
+    expect(createRow).not.toHaveBeenCalled();
+  });
   it('rejects writing another owner list', async () => {
     const { service } = make({
       listRows: jest

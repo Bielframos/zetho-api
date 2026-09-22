@@ -1,3 +1,4 @@
+import { resolveStatusChangedAt } from '../../../common/utils/entry-status-date';
 import {
   ConflictException,
   Injectable,
@@ -249,6 +250,12 @@ export class ZethoHandler {
          * `document_invalid_structure`.
          */
         const readModelData = this.buildReadModelData(entry, {
+          statusChangedAt: resolveStatusChangedAt(
+            existingReadEntry ? existingReadEntry.status : prevStatus,
+            currentStatus,
+            existingReadEntry?.statusChangedAt,
+            entry.$createdAt,
+          ),
           likedEver: newLikedEver,
           maxStatusReached: newMaxStatusReached,
         });
@@ -539,17 +546,25 @@ export class ZethoHandler {
    */
   private buildReadModelData(
     entry: ZEntries,
-    derived: { likedEver: boolean; maxStatusReached: string | null },
+    derived: {
+      likedEver: boolean;
+      maxStatusReached: string | null;
+      statusChangedAt: string | null;
+    },
   ): Record<string, unknown> {
     return {
       gameId: entry.gameId,
       ownerFingerprint: entry.ownerFingerprint,
       status: entry.status ?? null,
+      statusChangedAt: derived.statusChangedAt,
       liked: entry.liked ?? null,
       hyped: entry.hyped ?? false,
       likedEver: derived.likedEver,
       maxStatusReached: derived.maxStatusReached,
       playedPlatform: entry.playedPlatform ?? null,
+      ...(entry.playedPlatformId !== undefined
+        ? { playedPlatformId: entry.playedPlatformId }
+        : {}),
       completionType:
         entry.status === 'completed' ? (entry.completionType ?? null) : null,
       playtimeMinutes: entry.playtimeMinutes ?? null,

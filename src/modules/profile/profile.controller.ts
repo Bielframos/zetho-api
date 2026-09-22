@@ -16,10 +16,30 @@ import { ProfileUpdateDto } from './profile-update.dto';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { Models } from 'node-appwrite';
 import { Roles } from 'src/common/guards/roles.decorator';
+import { ProfileEntriesService } from './profile-entries.service';
+import { ProfileEntriesQuery } from './profile-entries.dto';
 
 @Controller('profile')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly profileEntries: ProfileEntriesService,
+  ) {}
+
+  @Get(':fingerprint/entries')
+  entries(
+    @Param('fingerprint') fingerprint: string,
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    query: ProfileEntriesQuery,
+  ) {
+    return this.profileEntries.list(fingerprint, query);
+  }
 
   @Post()
   @UseGuards(AppwriteSessionGuard)

@@ -72,6 +72,7 @@ export class SocialService {
       'liked',
       'hyped',
       'playedPlatform',
+      'playedPlatformId',
       'completionType',
       'playtimeMinutes',
     ];
@@ -93,11 +94,28 @@ export class SocialService {
       'liked',
       'hyped',
       'playedPlatform',
+      'playedPlatformId',
       'completionType',
       'playtimeMinutes',
     ])
       if (clean[key] === undefined && prior?.[key] !== undefined)
         clean[key] = prior[key];
+    if (data.playedPlatformId !== undefined) {
+      if (data.playedPlatformId !== null) {
+        if (
+          typeof data.playedPlatformId !== 'string' ||
+          !data.playedPlatformId ||
+          data.playedPlatformId.length > 36
+        )
+          throw new BadRequestException('Plataforma inválida');
+        if (data.playedPlatform != null)
+          throw new BadRequestException('Informe apenas uma plataforma');
+        await this.row('game_platforms', data.playedPlatformId);
+      }
+      clean.playedPlatform = data.playedPlatform ?? null;
+    } else if (data.playedPlatform !== undefined && prior?.playedPlatformId) {
+      clean.playedPlatformId = null;
+    }
     if (data.status !== undefined)
       clean.status = data.status === prior?.status ? null : data.status;
     if (clean.status === null) delete clean.status;
