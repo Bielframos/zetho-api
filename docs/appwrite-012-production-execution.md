@@ -50,3 +50,10 @@ There were 21 pre-existing outbox events marked `FAILED` at the initial audit, i
 - Backfill final de conquistas aplicado: 46 perfis, 1.235 conclusões únicas. Diagnóstico prévio: zero candidatos a badges; dados de conclusão, badges, extrato e saldos permaneceram iguais ao backup.
 - Diagnósticos finais: contadores sociais sem nulos ou divergências; playtime sem jogos históricos com duração (55.770 linhas de contadores existentes, zero novas).
 - Os 21 outbox `FAILED` preexistentes pertencem a eventos editoriais/jogatinas; foram preservados, sem replay de notificações históricas. Nenhum pendente foi encontrado no backup.
+
+### Feed final antes dos deploys
+
+- Backfill final concluído sobre 3.283 entradas, 1.648 estados finais usuário/jogo, 14 avaliações, 46 comentários, 19 listas e 206 itens.
+- Auditoria independente: 7.242 eventos de feed, dos quais 5.701 de status; todos apontam para fontes existentes e todos os status correspondem ao evento mais recente e aos seguidores atuais. Nenhum evento esperado ausente ou obsoleto.
+- Em relação ao primeiro backfill: 24 eventos derivados adicionados e oito removidos por estados finais que deixaram de ser elegíveis para o feed. Os eventos originais de jogatina continuam preservados.
+- Configs dos dois repositórios comparados com o remoto após o corte: permissões, `rowSecurity` e `enabled` coincidem em todas as tabelas auditadas presentes em cada config. Divergências de schema anteriores e não relacionadas continuam protegidas pelo provisionador aditivo; não usar push global.
