@@ -32,7 +32,13 @@ const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   console.log(JSON.stringify({apply,tables:plan.filter(t=>!same(t.live.$permissions,t.permissions)).map(t=>t.tableId),rows:plan.reduce((n,t)=>n+t.rows.length,0)}));
   if (!apply) return;
   for (const table of plan) {
-    if (!same(table.live.$permissions,table.permissions)) await db.updateTable({databaseId:'app',tableId:table.tableId,permissions:table.permissions});
+    if (!same(table.live.$permissions,table.permissions)) {
+      // Appwrite defaults omitted rowSecurity to false even on update.
+      const updated=await db.updateTable({databaseId:'app',tableId:table.tableId,name:table.live.name,enabled:table.live.enabled,rowSecurity:table.live.rowSecurity,permissions:table.permissions});
+      for (const field of ['name','enabled','rowSecurity'])
+        if (!same(updated[field],table.live[field])) throw Error(`Table option changed: ${table.tableId}/${field}`);
+      if (!same(updated.$permissions,table.permissions)) throw Error(`Table grants mismatch: ${table.tableId}`);
+    }
     let count=0;
     for (let offset=0;offset<table.rows.length;offset+=40) {
       const batch=table.rows.slice(offset,offset+40);

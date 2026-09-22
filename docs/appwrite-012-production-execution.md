@@ -40,3 +40,13 @@ There were 21 pre-existing outbox events marked `FAILED` at the initial audit, i
 - O Appwrite materializou defaults `null → 0` ao atualizar contadores: `likes` em 55 linhas, `hypedCount` em 152, e cada agregado de playtime em 179. Todos esses defaults foram conferidos no schema remoto; a verificação mantém comparação exata para quaisquer outros campos/valores.
 - O script antigo de replay agora é somente leitura; `--apply` falha antes de acessar o Appwrite. O procedimento autorizado é o manifesto descrito em `entry-reconciliation-policy.md`.
 - Testes locais finais: 44 suítes / 247 testes passaram; build Nest concluído. Build Angular passou. Os avisos existentes de budget CSS e CommonJS permanecem.
+
+### Corte de permissões e comparação integral
+
+- Removidas concessões de escrita do cliente em 12 tabelas e 3.656 linhas; permissões de leitura mantidas. Configs locais de API e frontend refletem o destino somente leitura nas tabelas presentes em cada config.
+- A primeira atualização de tabelas revelou que Appwrite usa `rowSecurity: false` quando esse parâmetro é omitido. A opção original foi restaurada em 11 tabelas enquanto o banco permanecia fechado para clientes. O script foi corrigido para enviar e verificar explicitamente `name`, `enabled` e `rowSecurity`.
+- Alterar permissões das listas também materializou os defaults zero de `saveCount` e `likeCount` em nove linhas originalmente nulas, sem outros efeitos nos campos de negócio.
+- Nova captura integral após a correção e comparação com o backup: 72.433 linhas originais verificadas nas 21 tabelas, nenhuma linha excluída, apenas os reparos planejados e a materialização de defaults documentada. Colunas, índices, nomes, opções e leituras das tabelas preservados. Zero concessões de escrita de clientes em todas as tabelas/linhas auditadas, incluindo as duas novas projeções.
+- Backfill final de conquistas aplicado: 46 perfis, 1.235 conclusões únicas. Diagnóstico prévio: zero candidatos a badges; dados de conclusão, badges, extrato e saldos permaneceram iguais ao backup.
+- Diagnósticos finais: contadores sociais sem nulos ou divergências; playtime sem jogos históricos com duração (55.770 linhas de contadores existentes, zero novas).
+- Os 21 outbox `FAILED` preexistentes pertencem a eventos editoriais/jogatinas; foram preservados, sem replay de notificações históricas. Nenhum pendente foi encontrado no backup.
