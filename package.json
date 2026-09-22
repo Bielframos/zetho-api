@@ -29,7 +29,8 @@
     "mcp": "ts-node -r tsconfig-paths/register src/mcp.ts",
     "mcp:prod": "node dist/mcp",
     "deploy": "dotenv -e .env -- sh -c 'curl -f -s -X GET \"$DEPLOYMENT_TRIGGER_ENDPOINT\"'",
-    "social:backfill-feed": "ts-node -r tsconfig-paths/register scripts/backfill-feed-events.ts"
+    "social:backfill-feed": "ts-node -r tsconfig-paths/register scripts/backfill-feed-events.ts",
+    "appwrite:provision-012": "dotenv -e .env -- node scripts/provision-appwrite-012.js"
   },
   "dependencies": {
     "@genkit-ai/compat-oai": "^1.33.0",

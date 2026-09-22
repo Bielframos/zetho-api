@@ -48,6 +48,33 @@ describe('TimelineService', () => {
     await service.onModuleDestroy();
   });
 
+  it('removes a stale status when a newer wishlist entry replaces it', async () => {
+    const deleteRow = jest.fn().mockResolvedValue({});
+    const tablesDB = {
+      listRows: jest.fn().mockResolvedValue({ rows: [{ $id: 'actor' }] }),
+      getRow: jest.fn().mockResolvedValue({
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        sourceId: 'old',
+      }),
+      deleteRow,
+    };
+    const service = new TimelineService({ tablesDB } as any);
+    await service.ingest(
+      'z_entries',
+      {
+        $id: 'new',
+        $createdAt: '2026-02-01T00:00:00.000Z',
+        ownerFingerprint: 'fingerprint',
+        gameId: 'game',
+        status: 'wishlist',
+      },
+      'create',
+      'user',
+    );
+    expect(deleteRow).toHaveBeenCalledTimes(1);
+    await service.onModuleDestroy();
+  });
+
   it('hides previously projected activity after an unfollow', async () => {
     const tablesDB = {
       listRows: jest

@@ -18,6 +18,7 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 - O feed das conexões deixa de combinar janelas de até 100 registros por fonte a cada requisição.
 - Registros de jogos, comentários, listas, conexões e perfis passam pela API, que processa o histórico e as notificações sem depender de webhooks do Appwrite.
+- Provisionamento aditivo do schema Appwrite com verificação do remoto e backfills com dry run por padrão.
 
 ## [0.11.0] - 2026-09-18
 

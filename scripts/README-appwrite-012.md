@@ -1,0 +1,7 @@
+# Appwrite additive schema provisioner (API 0.12.0 / frontend 1.29.0)
+
+Run `npm run appwrite:provision-012` to read the live schema and print a dry-run plan against the bundled metadata baseline captured on 2026-09-22. This mode makes read-only network calls. Run `npm run appwrite:provision-012 -- --offline` for a baseline-only dry run without network access. The plan contains four tables, ten optional columns on existing tables, and three indexes on existing tables. New tables also receive their configured columns and indexes.
+
+To apply after reviewing the plan, set `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT`, and `APPWRITE_API_KEY` to the baseline project values and run `npm run appwrite:provision-012 -- --apply`. Apply reads the live tables, columns and indexes before any writes. A changed or conflicting baseline object causes the preflight to fail. New columns and indexes that already match are skipped. The script only calls individual create endpoints; it never updates, deletes, or pushes a resource group. It checks the resulting schema after all create calls. A failure during create can leave a partial schema; rerun the same command after resolving the error.
+
+The bundled baseline contains only table, column, and index metadata plus endpoint and project ID. `--snapshot PATH` can select another baseline for local dry runs, though an apply still requires the configured project to match it. Review any changed baseline before use.

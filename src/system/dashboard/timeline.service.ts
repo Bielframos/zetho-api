@@ -243,7 +243,12 @@ export class TimelineService implements OnModuleDestroy {
           .catch(() => null);
         if (
           existing &&
-          (sourceType !== 'status' || existing.sourceId === row.$id)
+          (sourceType !== 'status' ||
+            existing.sourceId === row.$id ||
+            (action !== 'delete' &&
+              (existing.occurredAt < row.$createdAt ||
+                (existing.occurredAt === row.$createdAt &&
+                  existing.sourceId < row.$id))))
         )
           await this.appwrite.tablesDB
             .deleteRow({ databaseId: 'app', tableId: 'feed_events', rowId })
