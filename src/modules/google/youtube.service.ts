@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { google } from 'googleapis';
+import { youtube } from 'googleapis/build/src/apis/youtube';
 
 @Injectable()
 export class YoutubeService {
-  private youtube: ReturnType<typeof google.youtube>;
+  private youtube: ReturnType<typeof youtube>;
 
   constructor() {
-    this.youtube = google.youtube({
+    this.youtube = youtube({
       version: 'v3',
       auth: process.env.GOOGLE_API_KEY,
     });
