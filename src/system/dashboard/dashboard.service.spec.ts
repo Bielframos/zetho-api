@@ -2,7 +2,37 @@ import { DashboardService } from './dashboard.service';
 
 describe('DashboardService', () => {
   const makeService = (tablesDB: any) =>
-    new DashboardService({ tablesDB } as any);
+    new DashboardService(
+      { tablesDB } as any,
+      {} as any,
+      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+
+  it('passes viewer identity and cursor to the persisted timeline', async () => {
+    const tablesDB = {
+      listRows: jest
+        .fn()
+        .mockResolvedValue({ rows: [{ $id: 'viewer-profile' }] }),
+    };
+    const page = jest
+      .fn()
+      .mockResolvedValue({ items: [], hasMore: false, nextCursor: null });
+    const service = new DashboardService(
+      { tablesDB } as any,
+      { page } as any,
+      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+    await expect(
+      service.getPersonalFeed('viewer', 3, 12, 'connections', 'event-cursor'),
+    ).resolves.toEqual({ items: [], hasMore: false, nextCursor: null });
+    expect(page).toHaveBeenCalledWith(
+      'viewer',
+      'viewer-profile',
+      3,
+      12,
+      'event-cursor',
+    );
+  });
 
   it('returns deterministic public-list pagination with covers, authors and viewer state', async () => {
     const latestAdditions = [
@@ -125,24 +155,6 @@ describe('DashboardService', () => {
     expect(query.queries[4]).toContain('0');
   });
 
-  it('returns an empty feed when the user follows nobody', async () => {
-    const tablesDB = {
-      listRows: jest
-        .fn()
-        .mockResolvedValueOnce({
-          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
-        })
-        .mockResolvedValueOnce({ rows: [], total: 0 }),
-    };
-
-    const service = makeService(tablesDB);
-
-    await expect(service.getPersonalFeed('user-1')).resolves.toEqual({
-      items: [],
-      hasMore: false,
-    });
-  });
-
   it('returns only the current user status entries for the mine scope', async () => {
     const tablesDB = {
       listRows: jest
@@ -208,157 +220,6 @@ describe('DashboardService', () => {
           userProfile: expect.objectContaining({ gamertag: 'Player' }),
           game: expect.objectContaining({ name: 'Hades' }),
         }),
-      ],
-      hasMore: false,
-    });
-  });
-
-  it('adds direct parent comment context and viewer vote to reply feed items', async () => {
-    const tablesDB = {
-      listRows: jest
-        .fn()
-        .mockResolvedValueOnce({
-          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
-        })
-        .mockResolvedValueOnce({
-          rows: [{ targetProfileId: 'profile-2' }],
-          total: 1,
-        })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'profile-2',
-              userId: 'user-2',
-              fingerprint: 'friend',
-              gamertag: 'Friend',
-              avatarUrl: null,
-            },
-          ],
-        })
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'comment-3',
-              $createdAt: '2026-01-02T00:00:00.000Z',
-              gameId: null,
-              userProfile: 'profile-2',
-              content: 'Resposta final',
-              parentId: 'comment-2',
-              voteCount: 3,
-            },
-          ],
-          total: 1,
-        })
-        // lists
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // z_entries (marcos de status)
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // getParentCommentMap → game_comments
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'comment-2',
-              $createdAt: '2026-01-01T00:00:00.000Z',
-              content: 'Pai direto',
-              parentId: 'comment-1',
-              userProfile: 'profile-2',
-            },
-          ],
-          total: 1,
-        })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'vote-1',
-              comment: 'comment-3',
-              userId: 'user-1',
-              type: 'up',
-            },
-          ],
-          total: 1,
-        }),
-    };
-
-    const service = makeService(tablesDB);
-
-    await expect(service.getPersonalFeed('user-1')).resolves.toMatchObject({
-      items: [
-        {
-          $id: 'comment-3',
-          type: 'comment',
-          content: 'Resposta final',
-          viewerVote: 'up',
-          parentComment: {
-            $id: 'comment-2',
-            content: 'Pai direto',
-            userProfile: {
-              $id: 'profile-2',
-              gamertag: 'Friend',
-              avatarUrl: null,
-            },
-          },
-        },
-      ],
-      hasMore: false,
-    });
-  });
-
-  it('keeps parent comment null for root feed comments without viewer vote', async () => {
-    const tablesDB = {
-      listRows: jest
-        .fn()
-        .mockResolvedValueOnce({
-          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
-        })
-        .mockResolvedValueOnce({
-          rows: [{ targetProfileId: 'profile-2' }],
-          total: 1,
-        })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'profile-2',
-              userId: 'user-2',
-              fingerprint: 'friend',
-              gamertag: 'Friend',
-              avatarUrl: null,
-            },
-          ],
-        })
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'comment-1',
-              $createdAt: '2026-01-01T00:00:00.000Z',
-              gameId: null,
-              userProfile: 'profile-2',
-              content: 'Comentário original',
-              parentId: null,
-              voteCount: 0,
-            },
-          ],
-          total: 1,
-        })
-        // lists
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // z_entries (marcos de status)
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // getCommentVoteMap → game_comment_votes
-        .mockResolvedValueOnce({ rows: [], total: 0 }),
-    };
-
-    const service = makeService(tablesDB);
-
-    await expect(service.getPersonalFeed('user-1')).resolves.toMatchObject({
-      items: [
-        {
-          $id: 'comment-1',
-          type: 'comment',
-          parentComment: null,
-          viewerVote: null,
-        },
       ],
       hasMore: false,
     });
@@ -653,121 +514,6 @@ describe('DashboardService', () => {
       }),
     );
     expect(tablesDB.updateRow).not.toHaveBeenCalled();
-  });
-
-  it('merges status milestones and list additions into the personal feed', async () => {
-    const tablesDB = {
-      listRows: jest
-        .fn()
-        // caller profile
-        .mockResolvedValueOnce({
-          rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
-        })
-        // connections
-        .mockResolvedValueOnce({
-          rows: [{ targetProfileId: 'profile-2' }],
-          total: 1,
-        })
-        // followed profiles
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'profile-2',
-              userId: 'user-2',
-              fingerprint: 'friend',
-              gamertag: 'Friend',
-              avatarUrl: null,
-            },
-          ],
-        })
-        // ratings
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // comments
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // lists (uma lista pública do seguido, serve de janela p/ list_items)
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'list-1',
-              $createdAt: '2026-01-01T00:00:00.000Z',
-              title: 'Top RPGs',
-              slug: 'top-rpgs',
-              ownerFingerprint: 'friend',
-              isPublic: true,
-            },
-          ],
-          total: 1,
-        })
-        // z_entries: backlog→completed no mesmo jogo colapsa para completed
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'entry-2',
-              $createdAt: '2026-01-04T00:00:00.000Z',
-              ownerFingerprint: 'friend',
-              gameId: 'game-1',
-              status: 'completed',
-            },
-            {
-              $id: 'entry-1',
-              $createdAt: '2026-01-02T00:00:00.000Z',
-              ownerFingerprint: 'friend',
-              gameId: 'game-1',
-              status: 'backlog',
-            },
-          ],
-          total: 2,
-        })
-        // list_items (janela das listas acima)
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'item-1',
-              $createdAt: '2026-01-03T00:00:00.000Z',
-              list: 'list-1',
-              game: {
-                $id: 'game-2',
-                name: 'Baldur',
-                slug: 'baldur',
-                coverUrl: 'cover.jpg',
-              },
-            },
-          ],
-        })
-        // getGameMap (game-1 do status)
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              $id: 'game-1',
-              name: 'Hades',
-              slug: 'hades',
-              coverUrl: 'hades.jpg',
-            },
-          ],
-        })
-        // getParentCommentMap → game_comments (sem comentários)
-        .mockResolvedValueOnce({ rows: [], total: 0 })
-        // getCommentVoteMap → game_comment_votes
-        .mockResolvedValueOnce({ rows: [], total: 0 }),
-    };
-
-    const service = makeService(tablesDB);
-    const result = await service.getPersonalFeed('user-1');
-
-    // Ordem por data desc: status completed (04) > list_item (03) > list (01)
-    expect(result.items.map((item: any) => [item.type, item.$id])).toEqual([
-      ['status', 'entry-2'],
-      ['list_item', 'item-1'],
-      ['list', 'list-1'],
-    ]);
-
-    const status = result.items[0];
-    expect(status.status).toBe('completed');
-    expect(status.game).toMatchObject({ $id: 'game-1', name: 'Hades' });
-
-    const listItem = result.items[1];
-    expect(listItem.list).toMatchObject({ $id: 'list-1', slug: 'top-rpgs' });
-    expect(listItem.game).toMatchObject({ $id: 'game-2', name: 'Baldur' });
   });
 
   it('suggests unfollowed players who rated the same games', async () => {

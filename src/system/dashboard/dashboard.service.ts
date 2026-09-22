@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { TimelineService } from './timeline.service';
+import { OutboxService } from 'src/infra/events/outbox.service';
 
 type ProfileSummary = {
   $id: string;
@@ -42,13 +44,18 @@ export class DashboardService {
     'dropped',
   ];
 
-  constructor(private readonly appwrite: Appwrite) {}
+  constructor(
+    private readonly appwrite: Appwrite,
+    private readonly timeline: TimelineService,
+    private readonly outbox: OutboxService,
+  ) {}
 
   async getPersonalFeed(
     userId: string,
     page = 1,
     pageSize = 12,
     scope: 'connections' | 'mine' = 'connections',
+    cursor?: string,
   ) {
     const profile = await this.getProfileByUserId(userId);
     const safePage = Math.max(1, page);
@@ -59,201 +66,13 @@ export class DashboardService {
       return this.getOwnEntryFeed(userId, profile, offset, safePageSize);
     }
 
-    const connections = await this.appwrite.tablesDB.listRows<any>({
-      databaseId: DashboardService.DB_ID,
-      tableId: 'connections',
-      queries: [
-        Query.equal('requesterProfileId', profile.$id),
-        Query.limit(100),
-      ],
-    });
-
-    const followedProfileIds = connections.rows
-      .map((connection) => connection.targetProfileId)
-      .filter(Boolean);
-
-    if (followedProfileIds.length === 0) {
-      return { items: [], hasMore: false };
-    }
-
-    const followedProfiles = await this.getProfilesByIds(followedProfileIds);
-    const followedFingerprints = followedProfiles.map((p) => p.fingerprint);
-
-    if (followedFingerprints.length === 0) {
-      return { items: [], hasMore: false };
-    }
-
-    const [ratings, comments, lists, statusEntries] = await Promise.all([
-      this.appwrite.tablesDB.listRows<any>({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'ratings',
-        queries: [
-          Query.equal('ownerFingerprint', followedFingerprints),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100),
-        ],
-      }),
-      this.appwrite.tablesDB.listRows<any>({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'game_comments',
-        queries: [
-          Query.equal('userProfile', followedProfileIds),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100),
-          Query.select([
-            '*',
-            'userProfile.$id',
-            'userProfile.gamertag',
-            'userProfile.avatarUrl',
-          ]),
-        ],
-      }),
-      this.appwrite.tablesDB.listRows<any>({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'lists',
-        queries: [
-          Query.equal('ownerFingerprint', followedFingerprints),
-          Query.equal('isPublic', true),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100),
-        ],
-      }),
-      this.appwrite.tablesDB.listRows<any>({
-        databaseId: DashboardService.DB_ID,
-        tableId: 'z_entries',
-        queries: [
-          Query.equal('ownerFingerprint', followedFingerprints),
-          Query.equal('status', DashboardService.FEED_STATUS_MILESTONES),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100),
-        ],
-      }),
-    ]);
-
-    const profileByFingerprint = new Map(
-      followedProfiles.map((p) => [p.fingerprint, p]),
+    return this.timeline.page(
+      userId,
+      profile.$id,
+      safePage,
+      safePageSize,
+      cursor,
     );
-    const profileById = new Map(followedProfiles.map((p) => [p.$id, p]));
-
-    // z_entries é um log append-only; colapsa para o registro mais recente de
-    // cada par (dono, jogo) — assim backlog→playing→completed vira só o último.
-    const seenStatusKeys = new Set<string>();
-    const dedupedStatusEntries = statusEntries.rows.filter((entry) => {
-      const key = `${entry.ownerFingerprint}:${entry.gameId}`;
-      if (seenStatusKeys.has(key)) return false;
-      seenStatusKeys.add(key);
-      return true;
-    });
-
-    // list_items dos seguidos: reutiliza as listas públicas já buscadas acima
-    // como janela; hidrata jogo via `game.*`.
-    const listById = new Map(lists.rows.map((list) => [list.$id, list]));
-    const listItemRows = await this.getFollowedListItems(lists.rows);
-
-    const gameIds = Array.from(
-      new Set(
-        [...ratings.rows, ...comments.rows, ...dedupedStatusEntries]
-          .map((item) => item.gameId)
-          .filter(Boolean),
-      ),
-    );
-    const gameMap = await this.getGameMap(gameIds);
-    const [parentCommentMap, commentVoteMap, entryLikeMap] = await Promise.all([
-      this.getParentCommentMap(comments.rows),
-      this.getCommentVoteMap(
-        userId,
-        comments.rows.map((comment) => comment.$id).filter(Boolean),
-      ),
-      this.getEntryLikeMap(
-        userId,
-        dedupedStatusEntries.map((entry) => entry.$id).filter(Boolean),
-      ),
-    ]);
-    const parentProfileById = await this.getParentCommentProfileMap(
-      parentCommentMap,
-      profileById,
-    );
-
-    const items = [
-      ...ratings.rows.map((rating) => ({
-        ...rating,
-        type: 'rating' as const,
-        userProfile: profileByFingerprint.get(rating.ownerFingerprint) ?? null,
-        game: rating.gameId ? (gameMap.get(rating.gameId) ?? null) : null,
-      })),
-      ...comments.rows.map((comment) => {
-        const profileId =
-          typeof comment.userProfile === 'string'
-            ? comment.userProfile
-            : comment.userProfile?.$id;
-
-        return {
-          ...comment,
-          type: 'comment' as const,
-          userProfile: profileId ? (profileById.get(profileId) ?? null) : null,
-          game: comment.gameId ? (gameMap.get(comment.gameId) ?? null) : null,
-          parentComment: this.toParentCommentSummary(
-            parentCommentMap.get(comment.$id),
-            parentProfileById,
-          ),
-          viewerVote: commentVoteMap.get(comment.$id) ?? null,
-        };
-      }),
-      ...lists.rows.map((list) => ({
-        ...this.normalizeList(list),
-        type: 'list' as const,
-        userProfile: profileByFingerprint.get(list.ownerFingerprint) ?? null,
-      })),
-      ...dedupedStatusEntries.map((entry) => ({
-        $id: entry.$id,
-        $createdAt: entry.$createdAt,
-        type: 'status' as const,
-        status: entry.status,
-        likeCount: entry.likeCount ?? 0,
-        commentCount: entry.commentCount ?? 0,
-        likedByMe: entryLikeMap.has(entry.$id),
-        userProfile: profileByFingerprint.get(entry.ownerFingerprint) ?? null,
-        game: entry.gameId ? (gameMap.get(entry.gameId) ?? null) : null,
-      })),
-      ...listItemRows.map((item) => {
-        const listId = this.getRelationId(item.list);
-        const list = listId ? listById.get(listId) : null;
-        const game =
-          typeof item.game === 'object' && item.game
-            ? {
-                $id: item.game.$id,
-                name: item.game.name,
-                slug: item.game.slug,
-                coverUrl: item.game.coverUrl ?? null,
-              }
-            : null;
-
-        return {
-          $id: item.$id,
-          $createdAt: item.$createdAt,
-          type: 'list_item' as const,
-          userProfile: list
-            ? (profileByFingerprint.get(list.ownerFingerprint) ?? null)
-            : null,
-          game,
-          list: list
-            ? { $id: list.$id, title: list.title, slug: list.slug }
-            : null,
-        };
-      }),
-    ]
-      .filter((item) => item.userProfile)
-      // status e list_item exigem jogo hidratado para renderizar
-      .filter(
-        (item) =>
-          (item.type !== 'status' && item.type !== 'list_item') || item.game,
-      )
-      .sort((a, b) => b.$createdAt.localeCompare(a.$createdAt));
-
-    return {
-      items: items.slice(offset, offset + safePageSize),
-      hasMore: offset + safePageSize < items.length,
-    };
   }
 
   private async getOwnEntryFeed(
@@ -606,6 +425,11 @@ export class DashboardService {
       });
     }
 
+    if (newVoteCount !== previousVoteCount)
+      await this.outbox.enqueueImmediate({
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: 'game_comments', row: comment, action: 'update' },
+      });
     return { success: true, delta, operation, newVoteCount, viewerVote };
   }
 
@@ -881,6 +705,10 @@ export class DashboardService {
       data: { [counter]: nextCount },
     });
 
+    await this.outbox.enqueueImmediate({
+      type: 'SOCIAL_TIMELINE',
+      payload: { table: 'lists', row: updatedList, action: 'update' },
+    });
     return {
       listId,
       likedByMe:
@@ -1236,32 +1064,57 @@ export class DashboardService {
     delta: number,
   ): Promise<CounterRow> {
     if (currentValue === null || currentValue === undefined) {
-      return this.appwrite.tablesDB.updateRow<CounterRow>({
-        databaseId: DashboardService.DB_ID,
+      return this.withTimeline(
         tableId,
-        rowId,
-        data: { [column]: Math.max(0, delta) },
-      });
+        this.appwrite.tablesDB.updateRow<CounterRow>({
+          databaseId: DashboardService.DB_ID,
+          tableId,
+          rowId,
+          data: { [column]: Math.max(0, delta) },
+        }),
+      );
     }
 
     if (delta >= 0) {
-      return this.appwrite.tablesDB.incrementRowColumn<CounterRow>({
+      return this.withTimeline(
+        tableId,
+        this.appwrite.tablesDB.incrementRowColumn<CounterRow>({
+          databaseId: DashboardService.DB_ID,
+          tableId,
+          rowId,
+          column,
+          value: delta,
+        }),
+      );
+    }
+
+    return this.withTimeline(
+      tableId,
+      this.appwrite.tablesDB.decrementRowColumn<CounterRow>({
         databaseId: DashboardService.DB_ID,
         tableId,
         rowId,
         column,
-        value: delta,
+        value: Math.abs(delta),
+        min: 0,
+      }),
+    );
+  }
+  private async withTimeline<T extends CounterRow>(
+    tableId: string,
+    pending: Promise<T>,
+  ): Promise<T> {
+    const row = await pending;
+    if (
+      tableId === 'z_entries' ||
+      tableId === 'game_comments' ||
+      tableId === 'lists'
+    )
+      await this.outbox.enqueueImmediate({
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: tableId, row, action: 'update' },
       });
-    }
-
-    return this.appwrite.tablesDB.decrementRowColumn<CounterRow>({
-      databaseId: DashboardService.DB_ID,
-      tableId,
-      rowId,
-      column,
-      value: Math.abs(delta),
-      min: 0,
-    });
+    return row;
   }
 
   private async getEntryById(entryId: string) {

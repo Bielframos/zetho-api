@@ -23,6 +23,7 @@ import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 import crypto from 'node:crypto';
 import type {
   UserProfiles,
+  UserProfilesStatus,
   ZEntriesReadOnly,
 } from 'src/infra/appwrite/appwrite';
 
@@ -51,6 +52,57 @@ export class ProfileService {
     this.tablesDB = this.appwrite.tablesDB;
   }
 
+  async updateMe(userId: string, data: any) {
+    const profiles = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: 'app',
+      tableId: 'user_profiles',
+      queries: [Query.equal('userId', userId), Query.limit(1)],
+    });
+    const profile = profiles.rows[0];
+    if (!profile) throw new NotFoundException('Perfil não encontrado');
+    const allowed = [
+      'gamertag',
+      'avatarUrl',
+      'bio',
+      'socialXbox',
+      'socialSteam',
+      'socialPsn',
+      'socialNintendo',
+    ];
+    const clean = Object.fromEntries(
+      allowed
+        .filter((key) => data[key] !== undefined)
+        .map((key) => [key, data[key]]),
+    );
+    if (!Object.keys(clean).length)
+      throw new BadRequestException('Nenhum campo editável');
+    return this.tablesDB.updateRow<UserProfiles>({
+      databaseId: 'app',
+      tableId: 'user_profiles',
+      rowId: profile.$id,
+      data: clean,
+    });
+  }
+
+  async requestDeletion(userId: string) {
+    const profiles = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: 'app',
+      tableId: 'user_profiles',
+      queries: [Query.equal('userId', userId), Query.limit(1)],
+    });
+    const profile = profiles.rows[0];
+    if (!profile) throw new NotFoundException('Perfil não encontrado');
+    return this.tablesDB.updateRow<UserProfiles>({
+      databaseId: 'app',
+      tableId: 'user_profiles',
+      rowId: profile.$id,
+      data: {
+        status: 'pending_deletion' as UserProfilesStatus,
+        deletedAt: new Date().toISOString(),
+      },
+    });
+  }
+
   async create(user: Models.User, gamertag: string, inviteCode?: string) {
     const fingerprint = this.generateFingerprint(user.email);
 
@@ -77,7 +129,7 @@ export class ProfileService {
           gamertag,
           inviteCode: currProfile.inviteCode ?? this.generateInviteCode(),
         },
-        permissions: [Permission.update(Role.user(user.$id))],
+        permissions: [Permission.read(Role.any())],
       });
 
       return updatedProfile;
@@ -100,7 +152,7 @@ export class ProfileService {
         gamertag,
         inviteCode: this.generateInviteCode(),
       },
-      permissions: [Permission.update(Role.user(user.$id))],
+      permissions: [Permission.read(Role.any())],
     });
 
     await this.applyWelcomeBonus(user.$id);

@@ -1,0 +1,3404 @@
+{
+  "capturedAt": "2026-09-22T14:46:59.788026+00:00",
+  "endpoint": "https://appwrite.adstrito.com/v1",
+  "projectId": "690a16460002c718253a",
+  "tables": [
+    {
+      "$id": "igdb_tokens",
+      "name": "IGDB Tokens",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "secret",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": true
+        },
+        {
+          "key": "expiresAt",
+          "type": "datetime",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": ""
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "games",
+      "name": "Games",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 295,
+          "encrypt": false
+        },
+        {
+          "key": "coverUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "releaseYear",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 12,
+          "encrypt": false
+        },
+        {
+          "key": "summary",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 1500,
+          "encrypt": false
+        },
+        {
+          "key": "externalReference",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "gameType",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "similarGames",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "checksum",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 56,
+          "encrypt": false
+        },
+        {
+          "key": "releaseDate",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "involvedCompanies",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "zStats",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "ratingAvg",
+          "type": "double",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 5
+        },
+        {
+          "key": "ratingCount",
+          "type": "double",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 1.7976931348623157e+308
+        },
+        {
+          "key": "ratingSum",
+          "type": "double",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 1.7976931348623157e+308
+        },
+        {
+          "key": "genres",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "hypes",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "zethoVersion",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "syncStage",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "basic",
+            "full",
+            "search_ready"
+          ]
+        },
+        {
+          "key": "summaryPt",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 1500,
+          "encrypt": false
+        },
+        {
+          "key": "searchName",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "searchAliases",
+          "type": "varchar",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "developerIds",
+          "type": "varchar",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "publisherIds",
+          "type": "varchar",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "searchText",
+          "type": "mediumtext",
+          "required": false,
+          "array": false,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "searchIndexVersion",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 9223372036854776000
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_game",
+          "type": "unique",
+          "columns": [
+            "externalReference"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "search",
+          "type": "fulltext",
+          "columns": [
+            "name"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "hypes_order",
+          "type": "key",
+          "columns": [
+            "hypes"
+          ],
+          "orders": [
+            "DESC"
+          ]
+        },
+        {
+          "key": "slug_search",
+          "type": "key",
+          "columns": [
+            "slug"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "games_ratingCount",
+          "type": "key",
+          "columns": [
+            "ratingCount"
+          ],
+          "orders": [
+            "DESC"
+          ]
+        },
+        {
+          "key": "games_searchName",
+          "type": "key",
+          "columns": [
+            "searchName"
+          ],
+          "orders": []
+        },
+        {
+          "key": "games_searchText",
+          "type": "fulltext",
+          "columns": [
+            "searchText"
+          ],
+          "orders": []
+        }
+      ]
+    },
+    {
+      "$id": "game_types",
+      "name": "Game Types",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "checksum",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "user_profiles",
+      "name": "User Profiles",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "read(\"any\")",
+        "create(\"team:zerei\")",
+        "read(\"team:zerei\")",
+        "update(\"team:zerei\")",
+        "delete(\"team:zerei\")"
+      ],
+      "columns": [
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "gamertag",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "avatarUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "bio",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 512,
+          "encrypt": false
+        },
+        {
+          "key": "totalsCompleted",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "totalsBacklog",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "totalsDropped",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "totalsPlaying",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "totalsWishlist",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "fingerprint",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "active",
+          "format": "enum",
+          "elements": [
+            "active",
+            "pending_deletion"
+          ]
+        },
+        {
+          "key": "deletedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "socialXbox",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        },
+        {
+          "key": "socialSteam",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        },
+        {
+          "key": "socialPsn",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        },
+        {
+          "key": "totalsHyped",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "zcoinBalance",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "inviteCode",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "activeThemeId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "unlockedThemes",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_user",
+          "type": "unique",
+          "columns": [
+            "userId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "unique_username",
+          "type": "unique",
+          "columns": [
+            "gamertag"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "unique_fingerprint",
+          "type": "unique",
+          "columns": [
+            "fingerprint"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "z_entries",
+      "name": "Z Entries",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"any\")",
+        "create(\"team:zerei\")",
+        "read(\"team:zerei\")",
+        "update(\"team:zerei\")",
+        "delete(\"team:zerei\")"
+      ],
+      "columns": [
+        {
+          "key": "status",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "completed",
+            "backlog",
+            "dropped",
+            "playing",
+            "wishlist"
+          ]
+        },
+        {
+          "key": "liked",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "ownerFingerprint",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "processedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "hyped",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "likeCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "commentCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "companies",
+      "name": "Companies",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        },
+        {
+          "key": "checksum",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 120,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "z_entry_count",
+      "name": "Z Entry Count",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "completedCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "backlogCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "droppedCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "playingCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "wishlistCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "game",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "likes",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "hypedCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "game_comments",
+      "name": "Game Comments",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"users\")",
+        "update(\"users\")",
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "userProfile",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "content",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 350,
+          "encrypt": false
+        },
+        {
+          "key": "parentId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "voteCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "replyCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "depth",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "votes",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "game_comment_votes",
+      "name": "Game Comment Votes",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")"
+      ],
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "up",
+            "down"
+          ]
+        },
+        {
+          "key": "comment",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "lists",
+      "name": "Lists",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "ownerFingerprint",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "isPublic",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "itemCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "latestAdditions",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 240,
+          "encrypt": false
+        },
+        {
+          "key": "lastOrderKey",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "saveCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "likeCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "coverImageUrls",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 2048,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "list_items",
+      "name": "List Items",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "list",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "game",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "orderKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "z_entries_read",
+      "name": "Z Entries (Read-only)",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"any\")",
+        "create(\"team:zerei\")",
+        "read(\"team:zerei\")",
+        "update(\"team:zerei\")",
+        "delete(\"team:zerei\")"
+      ],
+      "columns": [
+        {
+          "key": "status",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "completed",
+            "backlog",
+            "dropped",
+            "playing",
+            "wishlist"
+          ]
+        },
+        {
+          "key": "liked",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "ownerFingerprint",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "hyped",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "likedEver",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "maxStatusReached",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "completed",
+            "backlog",
+            "dropped",
+            "playing",
+            "wishlist"
+          ]
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_entry",
+          "type": "unique",
+          "columns": [
+            "ownerFingerprint",
+            "gameId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "entries_owner_updated",
+          "type": "key",
+          "columns": [
+            "ownerFingerprint",
+            "$updatedAt"
+          ],
+          "orders": [
+            "ASC",
+            "DESC"
+          ]
+        },
+        {
+          "key": "entries_owner_status_updated",
+          "type": "key",
+          "columns": [
+            "ownerFingerprint",
+            "status",
+            "$updatedAt"
+          ],
+          "orders": [
+            "ASC",
+            "ASC",
+            "DESC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "game_platforms",
+      "name": "Game Platforms",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 100,
+          "encrypt": false
+        },
+        {
+          "key": "shortName",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "manufacturer",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "console",
+            "pc",
+            "mobile"
+          ]
+        },
+        {
+          "key": "generation",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "releasedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "ratings",
+      "name": "Avaliações",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "ownerFingerprint",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "rating",
+          "type": "double",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 5
+        },
+        {
+          "key": "content",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 8000,
+          "encrypt": false
+        },
+        {
+          "key": "comment",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "voteCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "votes",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "ratings_gameId",
+          "type": "key",
+          "columns": [
+            "gameId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "ratings_gameId_created",
+          "type": "key",
+          "columns": [
+            "gameId",
+            "$createdAt"
+          ],
+          "orders": [
+            "ASC",
+            "DESC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "connections",
+      "name": "Conexões",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "read(\"any\")",
+        "create(\"users\")"
+      ],
+      "columns": [
+        {
+          "key": "requesterProfileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "targetProfileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "connection_idx",
+          "type": "key",
+          "columns": [
+            "requesterProfileId",
+            "targetProfileId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "unique_connection_idx",
+          "type": "unique",
+          "columns": [
+            "requesterProfileId",
+            "targetProfileId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "genres",
+      "name": "Genres",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 120,
+          "encrypt": false
+        },
+        {
+          "key": "checksum",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "namePt",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 98,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "game_medias",
+      "name": "Game Medias",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "game",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "key_art",
+            "screenshot",
+            "video"
+          ]
+        },
+        {
+          "key": "mediaId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "authors",
+      "name": "Autores",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "bio",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 512,
+          "encrypt": false
+        },
+        {
+          "key": "avatarUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "websiteUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_author_slug",
+          "type": "unique",
+          "columns": [
+            "slug"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "posts",
+      "name": "Posts",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "subtitle",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "slug",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "body",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 8000,
+          "encrypt": false
+        },
+        {
+          "key": "mainImage",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 1024,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "draft",
+            "published"
+          ]
+        },
+        {
+          "key": "tags",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "relatedGameIds",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "seo",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 1024,
+          "encrypt": false
+        },
+        {
+          "key": "originalSourceUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "url"
+        },
+        {
+          "key": "author",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "postType",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "article",
+          "format": "enum",
+          "elements": [
+            "article",
+            "review"
+          ]
+        },
+        {
+          "key": "reviewMeta",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 2048,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_post_slug",
+          "type": "unique",
+          "columns": [
+            "slug"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "post_search_title",
+          "type": "fulltext",
+          "columns": [
+            "title"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "post_search_subtitle",
+          "type": "fulltext",
+          "columns": [
+            "subtitle"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "post_search_body",
+          "type": "fulltext",
+          "columns": [
+            "body"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "post_status_idx",
+          "type": "key",
+          "columns": [
+            "status"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "post_tags_idx",
+          "type": "key",
+          "columns": [
+            "tags"
+          ],
+          "orders": [
+            null
+          ]
+        },
+        {
+          "key": "post_related_games_idx",
+          "type": "key",
+          "columns": [
+            "relatedGameIds"
+          ],
+          "orders": [
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "zcoin_transactions",
+      "name": "Z Coin Transactions",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"team:zerei\")",
+        "read(\"team:zerei\")",
+        "update(\"team:zerei\")",
+        "delete(\"team:zerei\")"
+      ],
+      "columns": [
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "amount",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 16,
+          "encrypt": false
+        },
+        {
+          "key": "reason",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "userId_idx",
+          "type": "key",
+          "columns": [
+            "userId"
+          ],
+          "orders": []
+        }
+      ]
+    },
+    {
+      "$id": "raffles",
+      "name": "Sorteios",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "game",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "rewardPolicy",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "one_key",
+          "format": "enum",
+          "elements": [
+            "one_key",
+            "all_keys"
+          ]
+        },
+        {
+          "key": "basicProbability",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 10000,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "ticketPrice",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 30,
+          "min": -2147483647,
+          "max": 2147483647
+        },
+        {
+          "key": "active",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": false
+        },
+        {
+          "key": "activatedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "closedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        }
+      ],
+      "indexes": [
+        {
+          "key": "active_raffles_idx",
+          "type": "key",
+          "columns": [
+            "active"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "raffle_entries",
+      "name": "Entradas de Sorteio",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "raffleId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "ticketCount",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 1,
+          "max": 2147483647
+        },
+        {
+          "key": "totalCost",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "luckyNumbers",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "won",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "default": false
+        },
+        {
+          "key": "drawNumber",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "raffle_user_idx",
+          "type": "key",
+          "columns": [
+            "raffleId",
+            "userId"
+          ],
+          "orders": []
+        }
+      ]
+    },
+    {
+      "$id": "game_keys",
+      "name": "Chaves de Jogos",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "raffleId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "key",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "available",
+          "format": "enum",
+          "elements": [
+            "available",
+            "delivered"
+          ]
+        },
+        {
+          "key": "platform",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "steam",
+          "format": "enum",
+          "elements": [
+            "steam",
+            "xbox"
+          ]
+        },
+        {
+          "key": "userWinnerId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "game_key_idx",
+          "type": "key",
+          "columns": [
+            "gameId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "raffle_key_idx",
+          "type": "key",
+          "columns": [
+            "raffleId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "app_logs",
+      "name": "Logs do Aplicativo",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "relatedUserId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "metadata",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 640,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "type_idx",
+          "type": "key",
+          "columns": [
+            "type"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "relatedUserId_idx",
+          "type": "key",
+          "columns": [
+            "relatedUserId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "outbox_events",
+      "name": "Outbox Events",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "payload",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 1000000,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": "PENDING",
+          "format": "enum",
+          "elements": [
+            "PENDING",
+            "COMPLETED",
+            "FAILED"
+          ]
+        },
+        {
+          "key": "retries",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 100
+        }
+      ],
+      "indexes": [
+        {
+          "key": "status_index",
+          "type": "key",
+          "columns": [
+            "status"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "rating_votes",
+      "name": "Rating Votes",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"any\")",
+        "update(\"users\")",
+        "delete(\"users\")"
+      ],
+      "columns": [
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "up",
+            "down"
+          ]
+        },
+        {
+          "key": "rating",
+          "type": "relationship",
+          "required": false,
+          "array": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "saved_lists",
+      "name": "Saved Lists",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"users\")",
+        "delete(\"users\")"
+      ],
+      "columns": [
+        {
+          "key": "listId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "profileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "saved_lists_list_user_unique",
+          "type": "unique",
+          "columns": [
+            "listId",
+            "userId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "saved_lists_user_idx",
+          "type": "key",
+          "columns": [
+            "userId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "list_likes",
+      "name": "List Likes",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [
+        "create(\"users\")",
+        "read(\"users\")",
+        "delete(\"users\")"
+      ],
+      "columns": [
+        {
+          "key": "listId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "profileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "list_likes_list_user_unique",
+          "type": "unique",
+          "columns": [
+            "listId",
+            "userId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "list_likes_user_idx",
+          "type": "key",
+          "columns": [
+            "userId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "profile_themes",
+      "name": "Profile Themes",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [
+        "read(\"any\")"
+      ],
+      "columns": [
+        {
+          "key": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "price",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": -9223372036854776000,
+          "max": 9223372036854776000
+        },
+        {
+          "key": "backgroundImageId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "backgroundColor",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "primaryColor",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "secondaryColor",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "tertiaryColor",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "gameplay_session_participants",
+      "name": "Gameplay Session Participants",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "sessionId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "profileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 16,
+          "encrypt": false
+        },
+        {
+          "key": "invitedAt",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "respondedAt",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "isHost",
+          "type": "boolean",
+          "required": true,
+          "array": false,
+          "default": null
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_session",
+          "type": "key",
+          "columns": [
+            "sessionId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_profile",
+          "type": "key",
+          "columns": [
+            "profileId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "uniq_session_profile",
+          "type": "unique",
+          "columns": [
+            "sessionId",
+            "profileId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_status",
+          "type": "key",
+          "columns": [
+            "status"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "notifications",
+      "name": "Notifications",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "recipientProfileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "senderProfileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "type",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 32,
+          "encrypt": false
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "body",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 1000,
+          "encrypt": false
+        },
+        {
+          "key": "entityId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "read",
+          "type": "boolean",
+          "required": true,
+          "array": false,
+          "default": null
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_recipient",
+          "type": "key",
+          "columns": [
+            "recipientProfileId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "gameplay_sessions",
+      "name": "Gameplay Sessions",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "hostProfileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "gameName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "gameCoverUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 500,
+          "encrypt": false
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 255,
+          "encrypt": false
+        },
+        {
+          "key": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 2000,
+          "encrypt": false
+        },
+        {
+          "key": "scheduledAt",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "privacy",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 16,
+          "encrypt": false
+        },
+        {
+          "key": "maxPlayers",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 2,
+          "max": 100
+        },
+        {
+          "key": "confirmedCount",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 16,
+          "encrypt": false
+        },
+        {
+          "key": "tags",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_privacy",
+          "type": "key",
+          "columns": [
+            "privacy"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_host",
+          "type": "key",
+          "columns": [
+            "hostProfileId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_game",
+          "type": "key",
+          "columns": [
+            "gameId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_status",
+          "type": "key",
+          "columns": [
+            "status"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        },
+        {
+          "key": "idx_scheduled_at",
+          "type": "key",
+          "columns": [
+            "scheduledAt"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "z_entry_comments",
+      "name": "Z Entry Comments",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "entryId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "profileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "content",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 350,
+          "encrypt": false
+        },
+        {
+          "key": "parentId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "depth",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2
+        },
+        {
+          "key": "replyCount",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": 0,
+          "min": 0,
+          "max": 2147483647
+        }
+      ],
+      "indexes": [
+        {
+          "key": "z_entry_comments_entry_parent_idx",
+          "type": "key",
+          "columns": [
+            "entryId",
+            "parentId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "z_entry_comments_profile_idx",
+          "type": "key",
+          "columns": [
+            "profileId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "z_entry_likes",
+      "name": "Z Entry Likes",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "entryId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "userId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "profileId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "z_entry_likes_entry_user_unique",
+          "type": "unique",
+          "columns": [
+            "entryId",
+            "userId"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "z_entry_likes_user_idx",
+          "type": "key",
+          "columns": [
+            "userId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "game_ai_briefings",
+      "name": "Game AI Briefings",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "gameId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "overview",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 1000,
+          "encrypt": false
+        },
+        {
+          "key": "highlights",
+          "type": "string",
+          "required": true,
+          "array": true,
+          "default": null,
+          "size": 220,
+          "encrypt": false
+        },
+        {
+          "key": "bestFor",
+          "type": "string",
+          "required": true,
+          "array": true,
+          "default": null,
+          "size": 160,
+          "encrypt": false
+        },
+        {
+          "key": "contentWarning",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 500,
+          "encrypt": false
+        },
+        {
+          "key": "generatedAt",
+          "type": "datetime",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "model",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 100,
+          "encrypt": false
+        },
+        {
+          "key": "promptVersion",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 1,
+          "max": 2147483647
+        }
+      ],
+      "indexes": [
+        {
+          "key": "unique_game",
+          "type": "unique",
+          "columns": [
+            "gameId"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "game_recommendations",
+      "name": "Game Recommendations",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "userId",
+          "type": "varchar",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 48,
+          "encrypt": false
+        },
+        {
+          "key": "ownerFingerprint",
+          "type": "varchar",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "idempotencyKey",
+          "type": "varchar",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 128,
+          "encrypt": false
+        },
+        {
+          "key": "gameId",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "reason",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 300,
+          "encrypt": false
+        },
+        {
+          "key": "matchSignals",
+          "type": "varchar",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 140,
+          "encrypt": false
+        },
+        {
+          "key": "basedOnGameIds",
+          "type": "varchar",
+          "required": false,
+          "array": true,
+          "default": null,
+          "size": 96,
+          "encrypt": false
+        },
+        {
+          "key": "cost",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "refunded",
+          "type": "boolean",
+          "required": true,
+          "array": false,
+          "default": null
+        },
+        {
+          "key": "model",
+          "type": "varchar",
+          "required": true,
+          "array": false,
+          "default": null,
+          "size": 100,
+          "encrypt": false
+        },
+        {
+          "key": "promptVersion",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "default": null,
+          "min": 1,
+          "max": 2147483647
+        },
+        {
+          "key": "generatedAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        },
+        {
+          "key": "balance",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "key": "failureCode",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 64,
+          "encrypt": false
+        },
+        {
+          "key": "scope",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "any",
+            "library",
+            "new"
+          ]
+        },
+        {
+          "key": "source",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "library",
+            "new"
+          ]
+        },
+        {
+          "key": "state",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "default": null,
+          "format": "enum",
+          "elements": [
+            "pending",
+            "completed",
+            "failed"
+          ]
+        },
+        {
+          "key": "dailyKey",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 40,
+          "encrypt": false
+        }
+      ],
+      "indexes": [
+        {
+          "key": "recommendations_idempotency_unique",
+          "type": "unique",
+          "columns": [
+            "userId",
+            "idempotencyKey"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "recommendations_user_state_created",
+          "type": "key",
+          "columns": [
+            "userId",
+            "state",
+            "$createdAt"
+          ],
+          "orders": [
+            "ASC",
+            "ASC",
+            "DESC"
+          ]
+        },
+        {
+          "key": "recommendations_recovery",
+          "type": "key",
+          "columns": [
+            "state",
+            "$createdAt"
+          ],
+          "orders": [
+            "ASC",
+            "ASC"
+          ]
+        },
+        {
+          "key": "recommendations_daily_unique",
+          "type": "unique",
+          "columns": [
+            "dailyKey"
+          ],
+          "orders": [
+            "ASC"
+          ]
+        }
+      ]
+    },
+    {
+      "$id": "game_search_jobs",
+      "name": "Game search jobs",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": [],
+      "columns": [
+        {
+          "key": "gameId",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "status",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 24,
+          "encrypt": false
+        },
+        {
+          "key": "leaseToken",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 36,
+          "encrypt": false
+        },
+        {
+          "key": "error",
+          "type": "varchar",
+          "required": false,
+          "array": false,
+          "default": null,
+          "size": 1000,
+          "encrypt": false
+        },
+        {
+          "key": "externalReference",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 9223372036854776000
+        },
+        {
+          "key": "attempts",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "default": null,
+          "min": 0,
+          "max": 9223372036854776000
+        },
+        {
+          "key": "availableAt",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "format": ""
+        }
+      ],
+      "indexes": [
+        {
+          "key": "jobs_available",
+          "type": "key",
+          "columns": [
+            "availableAt"
+          ],
+          "orders": []
+        },
+        {
+          "key": "jobs_status",
+          "type": "key",
+          "columns": [
+            "status"
+          ],
+          "orders": []
+        }
+      ]
+    }
+  ]
+}

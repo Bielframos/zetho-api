@@ -5,10 +5,19 @@ import { WebhookController } from './webhook.controller';
 import { IGDBHandler } from './handlers/igdb.handler';
 import { WebhookReplayModule } from './replay/replay.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { DashboardModule } from 'src/system/dashboard/dashboard.module';
+import { AchievementsModule } from '../achievements/achievements.module';
 
 @Module({
-  imports: [IGDBModule, WebhookReplayModule, NotificationsModule],
+  imports: [
+    IGDBModule,
+    WebhookReplayModule,
+    NotificationsModule,
+    DashboardModule,
+    AchievementsModule,
+  ],
   controllers: [WebhookController],
   providers: [ZethoHandler, IGDBHandler],
+  exports: [ZethoHandler],
 })
 export class WebhookModule {}

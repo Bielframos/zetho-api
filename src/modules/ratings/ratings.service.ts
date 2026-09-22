@@ -12,6 +12,7 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { textReviewCountCacheKey } from '../game/game-seo';
 import { ZCoinsService } from '../zcoins/zcoins.service';
 import { CreateRatingDto } from './ratings.dto';
+import { OutboxService } from 'src/infra/events/outbox.service';
 import type { Games, UserProfiles } from 'src/infra/appwrite/appwrite';
 
 type RatingFeedRow = Models.Row & {
@@ -30,6 +31,7 @@ export class RatingsService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly zCoinsService: ZCoinsService,
+    private readonly outbox: OutboxService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
@@ -109,19 +111,19 @@ export class RatingsService {
     let result: any;
     try {
       if (hasPriorRating) {
-        result = await this.tablesDB.updateRow({
-          databaseId: RatingsService.DB_ID,
-          tableId: RatingsService.TABLE_ID,
-          rowId: prior.$id,
+        result = await this.ratingMutationWithTimeline(
+          'update',
+          prior.$id,
           data,
-        });
+          profile.$id,
+        );
       } else {
-        result = await this.tablesDB.createRow({
-          databaseId: RatingsService.DB_ID,
-          tableId: RatingsService.TABLE_ID,
-          rowId: ID.unique(),
+        result = await this.ratingMutationWithTimeline(
+          'create',
+          ID.unique(),
           data,
-        });
+          profile.$id,
+        );
 
         // Se for uma nova avaliação, conceder Z-Coins
         try {
@@ -420,16 +422,72 @@ export class RatingsService {
       throw new NotFoundException('Avaliação não encontrada');
     }
 
-    await this.tablesDB.deleteRow({
-      databaseId: RatingsService.DB_ID,
-      tableId: RatingsService.TABLE_ID,
-      rowId: rating.$id,
-    });
+    await this.ratingMutationWithTimeline(
+      'delete',
+      rating.$id,
+      rating,
+      profile.$id,
+    );
 
     await this.updateGameRatingStats(gameId, -rating.rating, false, true);
     await this.invalidateSeoCache(gameId);
 
     return { success: true };
+  }
+
+  private async ratingMutationWithTimeline(
+    action: 'create' | 'update' | 'delete',
+    rowId: string,
+    data: any,
+    profileId: string,
+  ) {
+    const tx = await this.tablesDB.createTransaction();
+    try {
+      let row: any = data;
+      if (action === 'create')
+        row = await this.tablesDB.createRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          data,
+          transactionId: tx.$id,
+        });
+      else if (action === 'update')
+        row = await this.tablesDB.updateRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          data,
+          transactionId: tx.$id,
+        });
+      else
+        await this.tablesDB.deleteRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          transactionId: tx.$id,
+        });
+      await this.outbox.enqueue(tx.$id, {
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: 'ratings', row: { ...row, $id: rowId }, action },
+      });
+      await this.outbox.enqueue(tx.$id, {
+        type: 'D8_RATING_CHANGED',
+        payload: { profileId },
+      });
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        commit: true,
+      });
+      void this.outbox.processOutbox().catch(() => undefined);
+      return row;
+    } catch (error) {
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        rollback: true,
+      });
+      throw error;
+    }
   }
 
   async voteRating(userId: string, ratingId: string, operation: 'up' | 'down') {

@@ -15,6 +15,7 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
+import { OutboxService } from 'src/infra/events/outbox.service';
 
 @Injectable()
 export class ZethoHandler {
@@ -40,6 +41,7 @@ export class ZethoHandler {
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
     private readonly emailTemplateService: EmailTemplateService,
+    private readonly outbox: OutboxService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -157,18 +159,22 @@ export class ZethoHandler {
                   Query.equal('ownerFingerprint', entry.ownerFingerprint),
                   Query.notEqual('$id', entry.$id),
                   Query.equal('gameId', entry.gameId),
+                  Query.lessThanEqual('$createdAt', entry.$createdAt),
                   Query.orderDesc('$createdAt'),
+                  Query.orderDesc('$id'),
                   Query.limit(pageLimit),
                   Query.offset(offset),
                   Query.select(['status', 'liked', 'hyped']),
                 ],
               });
 
-            if (!fallbackPreviousEntry) {
-              fallbackPreviousEntry = legacyPage.rows[0] ?? null;
-            }
+            const earlierRows = legacyPage.rows.filter((candidate) =>
+              candidate.$createdAt < entry.$createdAt ||
+              (candidate.$createdAt === entry.$createdAt && candidate.$id < entry.$id),
+            );
+            if (!fallbackPreviousEntry) fallbackPreviousEntry = earlierRows[0] ?? null;
 
-            for (const legacyEntry of legacyPage.rows) {
+            for (const legacyEntry of earlierRows) {
               if (legacyEntry.liked === true) {
                 legacyLikedEver = true;
               }
@@ -246,6 +252,43 @@ export class ZethoHandler {
           likedEver: newLikedEver,
           maxStatusReached: newMaxStatusReached,
         });
+
+        const eligibleMinutes = (
+          status: string | null,
+          minutes: number | null | undefined,
+        ) =>
+          status === 'completed' &&
+          Number.isSafeInteger(minutes) &&
+          (minutes ?? 0) > 0
+            ? minutes!
+            : 0;
+        const previousMinutes = eligibleMinutes(
+          prevStatus,
+          existingReadEntry?.playtimeMinutes,
+        );
+        const nextMinutes = eligibleMinutes(
+          currentStatus,
+          entry.playtimeMinutes,
+        );
+        const playtimeDelta = nextMinutes - previousMinutes;
+        const playtimeCountDelta =
+          Number(nextMinutes > 0) - Number(previousMinutes > 0);
+        const playtimeOps = [
+          { column: 'completedPlaytimeMinutes', delta: playtimeDelta },
+          { column: 'completedPlaytimeCount', delta: playtimeCountDelta },
+        ]
+          .filter(({ delta }) => delta !== 0)
+          .map(({ column, delta }) =>
+            this.createCounterOp(
+              delta > 0 ? 'increment' : 'decrement',
+              'app',
+              'z_entry_count',
+              `zstats_${entry.gameId}`,
+              column,
+              zStatsRow?.[column],
+              Math.abs(delta),
+            ),
+          );
 
         const statusOps = this.statuses
           .map((status) => {
@@ -393,6 +436,7 @@ export class ZethoHandler {
 
           const operations = [
             ...statusOps,
+            ...playtimeOps,
             likeOp,
             ...hypedOps,
             ...zcoinOps,
@@ -440,6 +484,17 @@ export class ZethoHandler {
               },
             ],
           });
+
+          if (entry.status === 'completed' && prevStatus !== 'completed') {
+            await this.outbox.enqueue(transactionId, {
+              type: 'D8_ENTRY_COMPLETED',
+              payload: {
+                profileId: userProfile.$id,
+                gameId: entry.gameId,
+                createdAt: entry.$createdAt,
+              },
+            });
+          }
 
           await this.tablesDB.updateTransaction({
             transactionId,
@@ -494,6 +549,10 @@ export class ZethoHandler {
       hyped: entry.hyped ?? false,
       likedEver: derived.likedEver,
       maxStatusReached: derived.maxStatusReached,
+      playedPlatform: entry.playedPlatform ?? null,
+      completionType:
+        entry.status === 'completed' ? (entry.completionType ?? null) : null,
+      playtimeMinutes: entry.playtimeMinutes ?? null,
     };
   }
 
@@ -730,7 +789,11 @@ export class ZethoHandler {
             await this.tablesDB.createRow({
               databaseId: ZethoHandler.DB_ID,
               tableId: 'notifications',
-              rowId: ID.unique(),
+              rowId: crypto
+                .createHash('sha256')
+                .update(`reply:${comment.$id}`)
+                .digest('hex')
+                .slice(0, 32),
               data: {
                 recipientProfileId: parentProfileId,
                 senderProfileId: replyProfileId,
@@ -744,10 +807,7 @@ export class ZethoHandler {
               },
             });
           } catch (error) {
-            this.logger.error(
-              `Falha ao criar notificação de resposta ao comentário ${comment.$id}`,
-              error,
-            );
+            if ((error as any)?.code !== 409) throw error;
           }
         }
 
@@ -776,19 +836,27 @@ export class ZethoHandler {
           gameUrl,
         });
 
-        await this.appwrite.messaging.createEmail(
-          ID.unique(),
-          emailSubject,
-          emailContent,
-          [], // topics
-          [parentProfile.userId], // users
-          [], // targets
-          [], // cc
-          [], // bcc
-          [], // attachments
-          false, // draft
-          true, // html
-        );
+        try {
+          await this.appwrite.messaging.createEmail(
+            crypto
+              .createHash('sha256')
+              .update(`reply-email:${comment.$id}`)
+              .digest('hex')
+              .slice(0, 32),
+            emailSubject,
+            emailContent,
+            [], // topics
+            [parentProfile.userId], // users
+            [], // targets
+            [], // cc
+            [], // bcc
+            [], // attachments
+            false, // draft
+            true, // html
+          );
+        } catch (error: any) {
+          if (error?.code !== 409) throw error;
+        }
 
         return { success: true, message: 'E-mail de resposta enviado.' };
       },

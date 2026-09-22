@@ -1,11 +1,59 @@
 import { Query } from 'node-appwrite';
 import { RatingsService } from './ratings.service';
 
+describe('RatingsService achievement outbox', () => {
+  it('reports an outbox failure after a persisted review deletion', async () => {
+    const listRows = jest.fn().mockImplementation(({ tableId }) => {
+      if (tableId === 'user_profiles')
+        return Promise.resolve({
+          rows: [{ $id: 'profile-1', fingerprint: 'fingerprint-1' }],
+          total: 1,
+        });
+      if (tableId === 'ratings')
+        return Promise.resolve({
+          rows: [{ $id: 'rating-1', rating: 4 }],
+          total: 1,
+        });
+      if (tableId === 'games') return Promise.resolve({ rows: [], total: 0 });
+      throw new Error(tableId);
+    });
+    const deleteRow = jest.fn().mockResolvedValue({});
+    const enqueueImmediate = jest
+      .fn()
+      .mockRejectedValue(new Error('outbox unavailable'));
+    const createTransaction = jest.fn().mockResolvedValue({ $id: 'tx-1' });
+    const updateTransaction = jest.fn().mockResolvedValue({});
+    const service = new RatingsService(
+      {
+        tablesDB: { listRows, deleteRow, createTransaction, updateTransaction },
+      } as any,
+      {} as any,
+      {
+        enqueueImmediate,
+        enqueue: jest.fn().mockRejectedValue(new Error('outbox unavailable')),
+      } as any,
+      { del: jest.fn() } as any,
+    );
+
+    await expect(service.deleteRating('user-1', 'game-1')).rejects.toThrow(
+      'outbox unavailable',
+    );
+    expect(deleteRow).toHaveBeenCalledWith(
+      expect.objectContaining({ tableId: 'ratings', rowId: 'rating-1' }),
+    );
+    expect(updateTransaction).toHaveBeenCalledWith({
+      transactionId: 'tx-1',
+      rollback: true,
+    });
+  });
+});
+
 describe('RatingsService.getRatingsFeed', () => {
   const createService = (listRows: jest.Mock) =>
     new RatingsService(
       { tablesDB: { listRows } } as any,
       {} as any,
+      { enqueueImmediate: jest.fn() } as any,
       { del: jest.fn() } as any,
     );
 

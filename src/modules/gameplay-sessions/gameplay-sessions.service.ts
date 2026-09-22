@@ -59,19 +59,18 @@ export class GameplaySessionsService {
       });
 
       for (const session of response.rows) {
-        await this.appwrite.tablesDB.updateRow<GameplaySessions>({
-          databaseId: GameplaySessionsService.DB_ID,
-          tableId: GameplaySessionsService.SESSIONS_TABLE,
-          rowId: session.$id,
-          data: { status: 'completed' },
-        });
-        await this.outbox.enqueueImmediate({
-          type: 'GAMEPLAY_SESSION_COMPLETED',
-          payload: {
-            sessionId: session.$id,
-            hostProfileId: session.hostProfileId,
-            gameId: session.gameId,
-          },
+        await this.transactions.runInTransaction(async ({ txId }) => {
+          await this.appwrite.tablesDB.updateRow<GameplaySessions>({
+            databaseId: GameplaySessionsService.DB_ID,
+            tableId: GameplaySessionsService.SESSIONS_TABLE,
+            rowId: session.$id,
+            data: { status: 'completed' },
+            transactionId: txId,
+          });
+          await this.outbox.enqueue(txId, {
+            type: 'GAMEPLAY_SESSION_COMPLETED',
+            payload: { sessionId: session.$id, hostProfileId: session.hostProfileId, gameId: session.gameId },
+          });
         });
       }
     } catch (error) {
