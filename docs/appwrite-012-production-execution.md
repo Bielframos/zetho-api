@@ -19,6 +19,8 @@ A read-only snapshot found 37 existing tables. The API config described four add
 
 The entry reconciliation dry run found 718 rows without `processedAt`, including 85 older than an already processed entry for the same owner/game. It exited before writes. Replaying those 85 directly could regress `z_entries_read` and misstate counters or Z-Coins. Repair requires chronological per-owner/game reconstruction and ledger audit. The remaining 633 entries are only replay candidates after isolation and a write pause.
 
+A separate [read-only reconciliation audit](entry-reconciliation-audit.md) found that 705 of 708 affected owner/game pairs already match the latest source event in current status, like, and hype fields. Two read-model rows are missing and one like change is not projected. These findings reinforce the need for a reviewed repair plan before any replay.
+
 There were 21 pre-existing outbox events marked `FAILED` at audit time, including two `GAMEPLAY_SESSION_COMPLETED` events. The achievements backfill recomputed completed-session progress, but it did not change outbox statuses.
 
 The API/frontend release, revocation of client write permissions, and disabling of the three Appwrite webhooks have not been performed. Repeat feed and achievements backfills after the coordinated cutover to include activity created in the interim.
