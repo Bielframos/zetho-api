@@ -70,6 +70,7 @@ test('legacy pending already reflected leaves coin data and projection alone', (
       gameId: 'g',
       status: 'completed',
       liked: true,
+      statusChangedAt: '2025-01-01T00:00:00.000Z',
       hyped: false,
       likedEver: true,
       maxStatusReached: 'completed',
@@ -217,4 +218,30 @@ test('missing profile and game counter block repair', () => {
       expect.stringContaining('Game counter missing'),
     ]),
   );
+});
+
+test('reconciliation dates the actual transition, not a later liked snapshot', () => {
+  const s = base();
+  s.entries = [
+    row('a', {
+      ownerFingerprint: 'u',
+      gameId: 'g',
+      status: 'completed',
+      $createdAt: '2024-12-31T12:00:00Z',
+      processedAt: '2024-12-31',
+    }),
+    row('b', {
+      ownerFingerprint: 'u',
+      gameId: 'g',
+      status: 'completed',
+      liked: true,
+      $createdAt: '2026-01-01T12:00:00Z',
+      processedAt: null,
+    }),
+  ];
+  const plan = planSnapshot(s);
+  expect(
+    plan.changes.find((c) => c.table === 'z_entries_read')?.data
+      .statusChangedAt,
+  ).toBe('2024-12-31T12:00:00.000Z');
 });

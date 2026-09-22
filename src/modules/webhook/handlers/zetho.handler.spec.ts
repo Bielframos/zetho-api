@@ -1,6 +1,7 @@
 import { ZethoHandler } from './zetho.handler';
 
 const READ_MODEL_COLUMNS = [
+  'statusChangedAt',
   'gameId',
   'ownerFingerprint',
   'status',
@@ -153,6 +154,14 @@ const makeComment = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('ZethoHandler.syncEntry', () => {
+  it.each(['ps3', null])('preserves catalog selection %s in the persisted read model', async (playedPlatformId) => {
+    const tablesDB = makeTablesDB(null);
+    await makeHandler(tablesDB).syncEntry(makeEntry({ playedPlatformId }) as any);
+    expect(tablesDB.upsertRow).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ playedPlatformId }),
+    }));
+  });
+
   it('ignora eventos posteriores ao reconstruir o estado legado', async () => {
     const tablesDB = makeTablesDB(null);
     const entry = makeEntry({ status: 'playing', liked: false });
@@ -476,4 +485,25 @@ describe('ZethoHandler.handleCommentCreate', () => {
     );
     expect(messaging.createEmail).not.toHaveBeenCalled();
   });
+});
+
+ describe('status registration date', () => {
+  it.each([
+    ['playing', undefined, '2026-08-09T05:43:37.519Z'],
+    ['completed', '2025-12-31T20:00:00.000Z', '2025-12-31T20:00:00.000Z'],
+    ['completed', undefined, null],
+  ])('preserves dates on edits and changes dates only on transitions (%s)', async (status, previousDate, expected) => {
+    const db = makeTablesDB({ status, statusChangedAt: previousDate, likedEver: true, maxStatusReached: 'completed' });
+    await makeHandler(db).syncEntry(makeEntry() as any);
+    expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe(expected);
+  });
+ });
+
+it('dates null -> completed from the event despite a completed legacy fallback', async () => {
+  const db = makeTablesDB({ status: null, likedEver: null, maxStatusReached: null, statusChangedAt: '2024-01-01T00:00:00Z' });
+  db.listRows.mockImplementation((async ({ tableId }: any) => tableId === 'user_profiles'
+    ? { rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }], total: 1 }
+    : { rows: [{ ...makeEntry(), $id: 'old', $createdAt: '2024-01-01T00:00:00Z' }], total: 1 }) as any);
+  await makeHandler(db).syncEntry(makeEntry() as any);
+  expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe('2026-08-09T05:43:37.519Z');
 });

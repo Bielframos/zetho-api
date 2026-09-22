@@ -6,6 +6,29 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-22
+
+### Added
+
+- Endpoint público de biblioteca do perfil, com agrupamento por lançamento ou A–Z, ordenação antes da paginação e recentes como padrão.
+- Suporte ao ID do catálogo de plataformas nos registros, com validação e projeção no modelo de leitura.
+- Data estável de mudança de status no modelo de leitura, com provisionamento aditivo e recuperação histórica transacional.
+
+### Changed
+
+- A reconciliação mantém a data da última transição efetiva, sem alterá-la por curtidas ou edições.
+- Endpoint de readiness informa a versão 0.13.0.
+
+### Fixed
+
+- Paginação dos perfis considera toda a biblioteca antes de ordenar e separa anos desconhecidos e iniciais numéricas/símbolos.
+
+## [0.12.1] - 2026-09-22
+
+### Fixed
+
+- Redução do consumo de memória no build e inicialização usando o código compilado, sem recompilar no startup.
+
 ## [0.12.0] - 2026-09-21
 
 ### Added

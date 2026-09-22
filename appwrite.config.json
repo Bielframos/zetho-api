@@ -887,6 +887,15 @@
                     "max": 2147483647
                 },
                 {
+                    "key": "playedPlatformId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
                     "key": "playedPlatform",
                     "type": "string",
                     "required": false,
@@ -1668,6 +1677,14 @@
             "rowSecurity": true,
             "columns": [
                 {
+                    "key": "statusChangedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
                     "key": "status",
                     "type": "string",
                     "required": false,
@@ -1735,6 +1752,15 @@
                         "playing",
                         "wishlist"
                     ]
+                },
+                {
+                    "key": "playedPlatformId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "playedPlatform",

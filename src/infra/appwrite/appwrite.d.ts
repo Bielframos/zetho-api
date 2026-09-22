@@ -173,6 +173,7 @@ export type UserProfiles = Models.Row & {
 };
 
 export type ZEntries = Models.Row & {
+  playedPlatformId?: string | null;
   playedPlatform?: string | null;
   completionType?: string | null;
   playtimeMinutes?: number | null;
@@ -270,6 +271,8 @@ export type ListItems = Models.Row & {
 };
 
 export type ZEntriesReadOnly = Models.Row & {
+  statusChangedAt?: string | null;
+  playedPlatformId?: string | null;
   playedPlatform?: string | null;
   completionType?: string | null;
   playtimeMinutes?: number | null;

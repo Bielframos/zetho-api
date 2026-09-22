@@ -1,3 +1,4 @@
+import { statusChangedAtFromHistory } from '../src/common/utils/entry-status-date';
 import crypto from 'node:crypto';
 
 export type Row = Record<string, any> & {
@@ -62,6 +63,7 @@ export const canonical = (s: Snapshot) =>
   );
 export const snapshotHash = (s: Snapshot) => hash(canonical(s));
 const fields = [
+  'statusChangedAt',
   'status',
   'liked',
   'hyped',
@@ -160,6 +162,7 @@ export function planSnapshot(s: Snapshot): Plan {
       ownerFingerprint: latest.ownerFingerprint,
       gameId: latest.gameId,
       status: latest.status ?? null,
+      statusChangedAt: statusChangedAtFromHistory(history),
       liked: latest.liked ?? null,
       hyped: latest.hyped ?? false,
       playedPlatform: latest.playedPlatform ?? null,

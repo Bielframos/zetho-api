@@ -28,6 +28,12 @@ export class EntryInput {
   ])
   playedPlatform?: string | null;
   @ValidateIf(
+    (o) => o.playedPlatformId !== null && o.playedPlatformId !== undefined,
+  )
+  @IsString()
+  @MaxLength(36)
+  playedPlatformId?: string | null;
+  @ValidateIf(
     (o) => o.completionType !== null && o.completionType !== undefined,
   )
   @IsIn(['Campanha Principal', 'História + Extras', '100%/Platina/Mestre'])
