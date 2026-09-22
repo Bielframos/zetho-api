@@ -1483,9 +1483,7 @@
         {
             "$id": "saved_lists",
             "$permissions": [
-                "create(\"users\")",
-                "read(\"users\")",
-                "delete(\"users\")"
+                "read(\"users\")"
             ],
             "databaseId": "app",
             "name": "Saved Lists",
@@ -1550,9 +1548,7 @@
         {
             "$id": "list_likes",
             "$permissions": [
-                "create(\"users\")",
-                "read(\"users\")",
-                "delete(\"users\")"
+                "read(\"users\")"
             ],
             "databaseId": "app",
             "name": "List Likes",
@@ -2029,10 +2025,7 @@
         {
             "$id": "rating_votes",
             "$permissions": [
-                "create(\"users\")",
-                "read(\"any\")",
-                "update(\"users\")",
-                "delete(\"users\")"
+                "read(\"any\")"
             ],
             "databaseId": "app",
             "name": "Rating Votes",

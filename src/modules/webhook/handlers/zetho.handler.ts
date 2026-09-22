@@ -159,18 +159,22 @@ export class ZethoHandler {
                   Query.equal('ownerFingerprint', entry.ownerFingerprint),
                   Query.notEqual('$id', entry.$id),
                   Query.equal('gameId', entry.gameId),
+                  Query.lessThanEqual('$createdAt', entry.$createdAt),
                   Query.orderDesc('$createdAt'),
+                  Query.orderDesc('$id'),
                   Query.limit(pageLimit),
                   Query.offset(offset),
                   Query.select(['status', 'liked', 'hyped']),
                 ],
               });
 
-            if (!fallbackPreviousEntry) {
-              fallbackPreviousEntry = legacyPage.rows[0] ?? null;
-            }
+            const earlierRows = legacyPage.rows.filter((candidate) =>
+              candidate.$createdAt < entry.$createdAt ||
+              (candidate.$createdAt === entry.$createdAt && candidate.$id < entry.$id),
+            );
+            if (!fallbackPreviousEntry) fallbackPreviousEntry = earlierRows[0] ?? null;
 
-            for (const legacyEntry of legacyPage.rows) {
+            for (const legacyEntry of earlierRows) {
               if (legacyEntry.liked === true) {
                 legacyLikedEver = true;
               }

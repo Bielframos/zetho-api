@@ -153,6 +153,32 @@ const makeComment = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('ZethoHandler.syncEntry', () => {
+  it('ignora eventos posteriores ao reconstruir o estado legado', async () => {
+    const tablesDB = makeTablesDB(null);
+    const entry = makeEntry({ status: 'playing', liked: false });
+    tablesDB.listRows.mockImplementation((async ({ tableId }: any) => {
+      if (tableId === 'user_profiles') return {
+        total: 1, rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }],
+      };
+      return {
+        total: 3,
+        rows: [
+          { ...entry, $id: 'future', $createdAt: '2027-01-01T00:00:00Z', status: 'completed', liked: true },
+          { ...entry, $id: 'entry-2', status: 'completed', liked: true },
+          { ...entry, $id: 'past', $createdAt: '2026-01-01T00:00:00Z', status: 'backlog' },
+        ],
+      };
+    }) as any);
+    await makeHandler(tablesDB).syncEntry(entry as any);
+    expect(tablesDB.upsertRow.mock.calls[0][0].data).toMatchObject({
+      status: 'playing', maxStatusReached: 'playing', likedEver: false,
+    });
+    expect(tablesDB.createRow).toHaveBeenCalledWith(expect.objectContaining({
+      tableId: 'zcoin_transactions',
+      data: expect.objectContaining({ reason: 'playing_game', amount: 4 }),
+    }));
+  });
+
   it('projeta apenas as colunas existentes em z_entries_read', async () => {
     const tablesDB = makeTablesDB({
       $id: 'read-1',

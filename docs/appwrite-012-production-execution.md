@@ -15,14 +15,28 @@ A read-only snapshot found 37 existing tables. The API config described four add
 - Playtime: dry run found zero games with historical completed playtime; no apply was needed. The script scanned 55,770 existing `z_entry_count` rows without writing to them.
 - Social counters: dry run found zero corrections; no apply was needed.
 
-## Deferred repair and cutover
+## Historical reconciliation policy and reviewed plan
 
-The entry reconciliation dry run found 718 rows without `processedAt`, including 85 older than an already processed entry for the same owner/game. It exited before writes. Replaying those 85 directly could regress `z_entries_read` and misstate counters or Z-Coins. Repair requires chronological per-owner/game reconstruction and ledger audit. The remaining 633 entries are only replay candidates after isolation and a write pause.
+The original audit found 718 entries without `processedAt`, including 85 older than an already processed entry for the same owner/game. These are not replay candidates. The later backup contains 3,283 source entries and 1,645 read models. Of the pending entries, 701 predate the API synchronization implementation recorded in Git; 705 of 708 affected pairs already match the latest source state. Two read-model rows are missing and one like change is not projected.
 
-A further read-only preflight on 2026-09-22 used `npx ts-node -r tsconfig-paths/register scripts/reconcile-entry-history.ts`. It rebuilt the chronology for 708 affected owner/game pairs and detected 361 blockers across existing counters and Z-Coin ledger totals. The ledger cannot reliably attribute credits to entries; for one affected user the computed `finished_game` total across all games was 564 while the recorded total was 32. These differences are diagnostic, not authorization to credit the difference. All 3,276 source entries still grant row-level client writes, there is no verified write freeze or backup available from this workspace, and the available Appwrite key cannot read webhook configuration. No reconciliation writes were made. The planner has no `--apply` mode.
+The earlier `scripts/reconcile-entry-history.ts` diagnostic reported 361 differences by comparing historical counters and ledger totals against today's reward rules. That comparison is superseded as a release gate: reward rules changed in May 2026, and the ledger cannot attribute credits to individual source entries. The correct treatment is [the historical reconciliation policy](entry-reconciliation-policy.md), which preserves every existing ledger entry and balance. It neither grants assumed missing credits nor debits historical rewards.
 
-A separate [read-only reconciliation audit](entry-reconciliation-audit.md) found that 705 of 708 affected owner/game pairs already match the latest source event in current status, like, and hype fields. Two read-model rows are missing and one like change is not projected. These findings reinforce the need for a reviewed repair plan before any replay.
+The verified backup at `.ops-backups/reconciliation-20260922-before-v2` covers 21 tables, including 55,770 game-counter rows and 1,799 ledger rows. The reviewed `scripts/apply-entry-reconciliation.ts` plan contains 845 projection/counter patches: 664 read models, 2 profiles and 179 game counters, followed by marking the 718 reconciled source entries. Its preflight has zero blockers and no financial changes. The manifest and journal are stored under `.ops-backups/reconciliation-preacl-plan.json`; these private backup artifacts must not be committed.
 
-There were 21 pre-existing outbox events marked `FAILED` at audit time, including two `GAMEPLAY_SESSION_COMPLETED` events. The achievements backfill recomputed completed-session progress, but it did not change outbox statuses.
+Apply completion must be established from the script's final verification, not from the plan or an intermediate batch checkpoint. The script verifies source content, existing `processedAt` values, ledger, balances, expected projections and derived counters. Appwrite expands the `game` relationship in transactional reads; the baseline comparison normalizes only this relationship to its ID. The journal allows a verified checkpoint to resume; an uncheckpointed commit requires manual inspection.
 
-The API/frontend release, revocation of client write permissions, and disabling of the three Appwrite webhooks have not been performed. Repeat feed and achievements backfills after the coordinated cutover to include activity created in the interim.
+## Cutover and subsequent checks
+
+Follow [the rollout procedure](feed-timeline-rollout.md) for permission revocation, repeat backfills, API/frontend publishing and release-readiness gating. The temporary frontend alone does not stop old browser tabs or API-key writers. Permission changes run after reconciliation's final verification because they update row metadata and would invalidate its baseline.
+
+There were 21 pre-existing outbox events marked `FAILED` at the initial audit, including two `GAMEPLAY_SESSION_COMPLETED` events. The achievements backfill recomputes their achievement effects but does not change outbox statuses. Classify and record those separately from new release failures. Final deployment and reconciliation results must be appended after their actual verification.
+
+## Reconciliação aplicada — 22/09/2026
+
+- Backup integral com checksums de 21 tabelas salvo fora dos repositórios, com acesso restrito. Banco `app` temporariamente desabilitado para clientes durante o corte; o acesso por chave administrativa continua disponível.
+- Manifesto revisado: 3.283 eventos, 718 pendentes, 708 pares com pendências. Aplicados 41 lotes transacionais: 664 reparos/criações de projeções, dois totais de perfis e 179 contadores de jogos. Duas projeções ausentes foram criadas; total final: 1.647.
+- Verificação final do reconciliador: `status: verified`; snapshot SHA-256 `57d403416ca03ae7915b0141eb0ae44c54e4ac47552104f044006885a981cd56`. Novo plano sem pendências, mudanças ou bloqueios.
+- Conteúdo dos eventos preservado, exceto marcação dos 718 `processedAt` e metadados de atualização. As 1.799 transações financeiras e os saldos dos 46 perfis foram preservados integralmente; nenhuma recompensa histórica foi reproduzida.
+- O Appwrite materializou defaults `null → 0` ao atualizar contadores: `likes` em 55 linhas, `hypedCount` em 152, e cada agregado de playtime em 179. Todos esses defaults foram conferidos no schema remoto; a verificação mantém comparação exata para quaisquer outros campos/valores.
+- O script antigo de replay agora é somente leitura; `--apply` falha antes de acessar o Appwrite. O procedimento autorizado é o manifesto descrito em `entry-reconciliation-policy.md`.
+- Testes locais finais: 44 suítes / 247 testes passaram; build Nest concluído. Build Angular passou. Os avisos existentes de budget CSS e CommonJS permanecem.

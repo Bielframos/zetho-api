@@ -1,4 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { Appwrite } from '../../infra/appwrite/appwrite.provider';
 import {
   HealthCheck,
   HealthCheckService,
@@ -30,6 +36,7 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly memory: MemoryHealthIndicator,
     private readonly appwriteHealthIndicator: AppwriteHealthIndicator,
+    private readonly appwrite: Appwrite,
   ) {}
 
   @Get('health')
@@ -46,6 +53,20 @@ export class HealthController {
       () => this.memory.checkHeap('memory_heap', 350 * 1024 * 1024),
       () => this.appwriteHealthIndicator.isHealthy('appwrite'),
     ]);
+  }
+
+  @Get('health/release')
+  @Header('Cache-Control', 'no-store')
+  async checkRelease() {
+    await this.checkReadiness();
+    const database = await this.appwrite.tablesDB.get({ databaseId: 'app' });
+    if (!database.enabled)
+      throw new ServiceUnavailableException('Manutenção em andamento');
+    return {
+      status: 'ok',
+      version: '0.12.0',
+      capabilities: ['social-writes-v1'],
+    };
   }
 
   @Get('health/slo')
