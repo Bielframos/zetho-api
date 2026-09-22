@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Query } from 'node-appwrite';
 import { Appwrite } from '../src/infra/appwrite/appwrite.provider';
 
-// Execute after the optional columns exist and webhook writes are paused.
+// Execute after the optional columns exist and API writes are paused.
 // Rebuilds aggregate totals from the current one-row-per-user read model.
 async function main() {
   const db = new Appwrite().tablesDB;

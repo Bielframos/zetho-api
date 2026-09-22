@@ -18,7 +18,12 @@ const makeHandler = (tablesDB: any) => {
     trackLifecycle: jest.fn((_logger, _context, run) => run()),
   };
 
-  return new ZethoHandler({ tablesDB } as any, loggerContext as any, {} as any, { enqueue: jest.fn() } as any);
+  return new ZethoHandler(
+    { tablesDB } as any,
+    loggerContext as any,
+    {} as any,
+    { enqueue: jest.fn() } as any,
+  );
 };
 
 const makeTablesDB = (readEntry: any) => ({
@@ -186,29 +191,64 @@ describe('ZethoHandler.syncEntry', () => {
   });
 
   it.each([
-    { previous: { status: 'playing', playtimeMinutes: null }, next: { status: 'completed', playtimeMinutes: 120 }, minutes: 120, count: 1 },
-    { previous: { status: 'completed', playtimeMinutes: 120 }, next: { status: 'completed', playtimeMinutes: 180 }, minutes: 60, count: 0 },
-    { previous: { status: 'completed', playtimeMinutes: 120 }, next: { status: 'dropped', playtimeMinutes: 120 }, minutes: -120, count: -1 },
-    { previous: { status: 'completed', playtimeMinutes: 120 }, next: { status: 'completed', playtimeMinutes: null }, minutes: -120, count: -1 },
-  ])('ajusta a média por delta entre estado anterior e novo: $minutes minutos', async ({ previous, next, minutes, count }) => {
-    const tablesDB = makeTablesDB({
-      $id: 'read-1', gameId: 'igdb_1', ownerFingerprint: 'fingerprint-1',
-      liked: true, hyped: false, likedEver: true, maxStatusReached: 'completed',
-      ...previous,
-    });
-    await makeHandler(tablesDB).syncEntry(makeEntry(next) as any);
-    const ops = tablesDB.createOperations.mock.calls.flatMap(([arg]: any[]) => arg.operations);
-    const byColumn = (column: string) => ops.find((op: any) => op.tableId === 'z_entry_count' && (op.data?.column === column || op.data?.[column] !== undefined));
-    const minuteOp = byColumn('completedPlaytimeMinutes');
-    expect(minuteOp.action).toBe(minutes > 0 ? 'increment' : 'decrement');
-    expect(minuteOp.data.value).toBe(Math.abs(minutes));
-    const countOp = byColumn('completedPlaytimeCount');
-    if (count === 0) expect(countOp).toBeUndefined();
-    else {
-      expect(countOp.action).toBe(count > 0 ? 'increment' : 'decrement');
-      expect(countOp.data.value).toBe(1);
-    }
-  });
+    {
+      previous: { status: 'playing', playtimeMinutes: null },
+      next: { status: 'completed', playtimeMinutes: 120 },
+      minutes: 120,
+      count: 1,
+    },
+    {
+      previous: { status: 'completed', playtimeMinutes: 120 },
+      next: { status: 'completed', playtimeMinutes: 180 },
+      minutes: 60,
+      count: 0,
+    },
+    {
+      previous: { status: 'completed', playtimeMinutes: 120 },
+      next: { status: 'dropped', playtimeMinutes: 120 },
+      minutes: -120,
+      count: -1,
+    },
+    {
+      previous: { status: 'completed', playtimeMinutes: 120 },
+      next: { status: 'completed', playtimeMinutes: null },
+      minutes: -120,
+      count: -1,
+    },
+  ])(
+    'ajusta a média por delta entre estado anterior e novo: $minutes minutos',
+    async ({ previous, next, minutes, count }) => {
+      const tablesDB = makeTablesDB({
+        $id: 'read-1',
+        gameId: 'igdb_1',
+        ownerFingerprint: 'fingerprint-1',
+        liked: true,
+        hyped: false,
+        likedEver: true,
+        maxStatusReached: 'completed',
+        ...previous,
+      });
+      await makeHandler(tablesDB).syncEntry(makeEntry(next) as any);
+      const ops = tablesDB.createOperations.mock.calls.flatMap(
+        ([arg]: any[]) => arg.operations,
+      );
+      const byColumn = (column: string) =>
+        ops.find(
+          (op: any) =>
+            op.tableId === 'z_entry_count' &&
+            (op.data?.column === column || op.data?.[column] !== undefined),
+        );
+      const minuteOp = byColumn('completedPlaytimeMinutes');
+      expect(minuteOp.action).toBe(minutes > 0 ? 'increment' : 'decrement');
+      expect(minuteOp.data.value).toBe(Math.abs(minutes));
+      const countOp = byColumn('completedPlaytimeCount');
+      if (count === 0) expect(countOp).toBeUndefined();
+      else {
+        expect(countOp.action).toBe(count > 0 ? 'increment' : 'decrement');
+        expect(countOp.data.value).toBe(1);
+      }
+    },
+  );
 
   it('não vaza colunas novas de z_entries para o read model', async () => {
     const tablesDB = makeTablesDB({
@@ -256,9 +296,15 @@ describe('ZethoHandler.syncEntry', () => {
 
   it('não registra conclusão anual por edição de detalhes ou like em jogo já zerado', async () => {
     const tablesDB = makeTablesDB({
-      $id: 'read-1', gameId: 'igdb_1', ownerFingerprint: 'fingerprint-1',
-      status: 'completed', liked: false, hyped: false,
-      likedEver: false, maxStatusReached: 'completed', playtimeMinutes: 120,
+      $id: 'read-1',
+      gameId: 'igdb_1',
+      ownerFingerprint: 'fingerprint-1',
+      status: 'completed',
+      liked: false,
+      hyped: false,
+      likedEver: false,
+      maxStatusReached: 'completed',
+      playtimeMinutes: 120,
     });
     const outbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
     const handler = new ZethoHandler(
@@ -267,12 +313,17 @@ describe('ZethoHandler.syncEntry', () => {
       {} as any,
       outbox as any,
     );
-    await handler.syncEntry(makeEntry({
-      $createdAt: '2027-01-02T00:00:00Z', status: 'completed',
-      liked: true, playtimeMinutes: 180,
-    }) as any);
+    await handler.syncEntry(
+      makeEntry({
+        $createdAt: '2027-01-02T00:00:00Z',
+        status: 'completed',
+        liked: true,
+        playtimeMinutes: 180,
+      }) as any,
+    );
     expect(outbox.enqueue).not.toHaveBeenCalledWith(
-      expect.anything(), expect.objectContaining({ type: 'D8_ENTRY_COMPLETED' }),
+      expect.anything(),
+      expect.objectContaining({ type: 'D8_ENTRY_COMPLETED' }),
     );
   });
 });
@@ -386,7 +437,7 @@ describe('ZethoHandler.handleCommentCreate', () => {
     expect(messaging.createEmail).not.toHaveBeenCalled();
   });
 
-  it('still sends the email when in-app notification creation fails', async () => {
+  it('retries when in-app notification creation fails', async () => {
     const { handler, messaging } = makeCommentHandler({
       notificationError: new Error('notification unavailable'),
     });
@@ -394,12 +445,9 @@ describe('ZethoHandler.handleCommentCreate', () => {
       .spyOn((handler as any).logger, 'error')
       .mockImplementation(() => undefined);
 
-    await expect(handler.handleCommentCreate(makeComment())).resolves.toEqual({
-      success: true,
-      message: 'E-mail de resposta enviado.',
-    });
-
-    expect(loggerError).toHaveBeenCalled();
-    expect(messaging.createEmail).toHaveBeenCalledTimes(1);
+    await expect(handler.handleCommentCreate(makeComment())).rejects.toThrow(
+      'notification unavailable',
+    );
+    expect(messaging.createEmail).not.toHaveBeenCalled();
   });
 });

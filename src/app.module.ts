@@ -24,6 +24,7 @@ import { GameplaySessionsModule } from './modules/gameplay-sessions/gameplay-ses
 import { GameRecommenderModule } from './agents/game-recommender/game-recommender.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { AchievementsModule } from './modules/achievements/achievements.module';
+import { SocialModule } from './modules/social/social.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { AchievementsModule } from './modules/achievements/achievements.module';
     DashboardModule,
     GameplaySessionsModule,
     AchievementsModule,
+    SocialModule,
     GameRecommenderModule,
 
     /** Modulos do sístema */

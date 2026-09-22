@@ -131,6 +131,7 @@ export class OutboxService implements OnModuleDestroy {
         queries: [
           Query.equal('status', 'PENDING'),
           Query.orderAsc('$createdAt'),
+          Query.orderAsc('$id'),
           Query.limit(50),
         ],
       });

@@ -1,10 +1,10 @@
 # D8 migration order
 
 1. Provision both repositories' matching `appwrite.config.json` schema in Appwrite: `annual_goals`, `completion_events`, `user_badges`, their profile/year and profile/badge unique indexes, and `games.subgenres` / `user_profiles.showcaseBadges` columns. Provision the API schema's `ratings_ownerFingerprint` and `idx_host_status` query indexes as well. Wait for indexes to become available.
-2. Deploy the API so completion events and session transitions enter the transactional outbox. Keep the existing outbox worker running.
+2. Deploy the API and frontend together after revoking client write permissions and running `scripts/revoke-client-row-writes.ts --apply`. API writes now enqueue completion events and session transitions in the transactional outbox; keep its worker running. Run `scripts/reconcile-unprocessed-entries.ts` to inspect historical `z_entries` and use `--apply` with API writes paused. It refuses to replay an older pending entry when a newer entry for the same owner/game was processed; repair that history with a full chronological rebuild or manual correction first.
 3. Curate Soulslike games explicitly with `npx ts-node -r tsconfig-paths/register scripts/curate-soulslike.ts reviewed-game-ids.json`. Input is a reviewed JSON array of Appwrite game IDs. IGDB genre IDs and game names do not classify games.
 4. Run `npx ts-node -r tsconfig-paths/register scripts/backfill-achievements.ts`. The script pages through profiles and chronological `z_entries` with cursors, counts only transitions into `completed`, creates deterministic completion records, and reconciles badges. It logs each completed profile ID; resume after interruption with `--after=<last-logged-profile-id>`. It is safe to rerun.
-5. Deploy the frontend widget after the backfill. Existing users' annual progress then appears immediately.
+5. Verify the frontend widget after the backfill. Existing users' annual progress then appears immediately.
 
 After adding or correcting curated games, rerun step 4 to award qualifying profiles. Badge unlocks and Z-Coin grants are permanent; removing a review or changing a game classification does not revoke an issued badge.
 

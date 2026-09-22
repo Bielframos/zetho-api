@@ -249,23 +249,42 @@ export class ZethoHandler {
           maxStatusReached: newMaxStatusReached,
         });
 
-        const eligibleMinutes = (status: string | null, minutes: number | null | undefined) =>
-          status === 'completed' && Number.isSafeInteger(minutes) && (minutes ?? 0) > 0
+        const eligibleMinutes = (
+          status: string | null,
+          minutes: number | null | undefined,
+        ) =>
+          status === 'completed' &&
+          Number.isSafeInteger(minutes) &&
+          (minutes ?? 0) > 0
             ? minutes!
             : 0;
-        const previousMinutes = eligibleMinutes(prevStatus, existingReadEntry?.playtimeMinutes);
-        const nextMinutes = eligibleMinutes(currentStatus, entry.playtimeMinutes);
+        const previousMinutes = eligibleMinutes(
+          prevStatus,
+          existingReadEntry?.playtimeMinutes,
+        );
+        const nextMinutes = eligibleMinutes(
+          currentStatus,
+          entry.playtimeMinutes,
+        );
         const playtimeDelta = nextMinutes - previousMinutes;
-        const playtimeCountDelta = Number(nextMinutes > 0) - Number(previousMinutes > 0);
+        const playtimeCountDelta =
+          Number(nextMinutes > 0) - Number(previousMinutes > 0);
         const playtimeOps = [
           { column: 'completedPlaytimeMinutes', delta: playtimeDelta },
           { column: 'completedPlaytimeCount', delta: playtimeCountDelta },
-        ].filter(({ delta }) => delta !== 0).map(({ column, delta }) =>
-          this.createCounterOp(
-            delta > 0 ? 'increment' : 'decrement', 'app', 'z_entry_count',
-            `zstats_${entry.gameId}`, column, zStatsRow?.[column], Math.abs(delta),
-          ),
-        );
+        ]
+          .filter(({ delta }) => delta !== 0)
+          .map(({ column, delta }) =>
+            this.createCounterOp(
+              delta > 0 ? 'increment' : 'decrement',
+              'app',
+              'z_entry_count',
+              `zstats_${entry.gameId}`,
+              column,
+              zStatsRow?.[column],
+              Math.abs(delta),
+            ),
+          );
 
         const statusOps = this.statuses
           .map((status) => {
@@ -465,7 +484,11 @@ export class ZethoHandler {
           if (entry.status === 'completed' && prevStatus !== 'completed') {
             await this.outbox.enqueue(transactionId, {
               type: 'D8_ENTRY_COMPLETED',
-              payload: { profileId: userProfile.$id, gameId: entry.gameId, createdAt: entry.$createdAt },
+              payload: {
+                profileId: userProfile.$id,
+                gameId: entry.gameId,
+                createdAt: entry.$createdAt,
+              },
             });
           }
 
@@ -473,7 +496,6 @@ export class ZethoHandler {
             transactionId,
             commit: true,
           });
-
 
           return {
             message: `O registro de id ${entry.$id} foi processado.`,
@@ -524,7 +546,8 @@ export class ZethoHandler {
       likedEver: derived.likedEver,
       maxStatusReached: derived.maxStatusReached,
       playedPlatform: entry.playedPlatform ?? null,
-      completionType: entry.status === 'completed' ? (entry.completionType ?? null) : null,
+      completionType:
+        entry.status === 'completed' ? (entry.completionType ?? null) : null,
       playtimeMinutes: entry.playtimeMinutes ?? null,
     };
   }
@@ -762,7 +785,11 @@ export class ZethoHandler {
             await this.tablesDB.createRow({
               databaseId: ZethoHandler.DB_ID,
               tableId: 'notifications',
-              rowId: ID.unique(),
+              rowId: crypto
+                .createHash('sha256')
+                .update(`reply:${comment.$id}`)
+                .digest('hex')
+                .slice(0, 32),
               data: {
                 recipientProfileId: parentProfileId,
                 senderProfileId: replyProfileId,
@@ -776,10 +803,7 @@ export class ZethoHandler {
               },
             });
           } catch (error) {
-            this.logger.error(
-              `Falha ao criar notificação de resposta ao comentário ${comment.$id}`,
-              error,
-            );
+            if ((error as any)?.code !== 409) throw error;
           }
         }
 
@@ -808,19 +832,27 @@ export class ZethoHandler {
           gameUrl,
         });
 
-        await this.appwrite.messaging.createEmail(
-          ID.unique(),
-          emailSubject,
-          emailContent,
-          [], // topics
-          [parentProfile.userId], // users
-          [], // targets
-          [], // cc
-          [], // bcc
-          [], // attachments
-          false, // draft
-          true, // html
-        );
+        try {
+          await this.appwrite.messaging.createEmail(
+            crypto
+              .createHash('sha256')
+              .update(`reply-email:${comment.$id}`)
+              .digest('hex')
+              .slice(0, 32),
+            emailSubject,
+            emailContent,
+            [], // topics
+            [parentProfile.userId], // users
+            [], // targets
+            [], // cc
+            [], // bcc
+            [], // attachments
+            false, // draft
+            true, // html
+          );
+        } catch (error: any) {
+          if (error?.code !== 409) throw error;
+        }
 
         return { success: true, message: 'E-mail de resposta enviado.' };
       },

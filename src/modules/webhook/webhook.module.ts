@@ -18,5 +18,6 @@ import { AchievementsModule } from '../achievements/achievements.module';
   ],
   controllers: [WebhookController],
   providers: [ZethoHandler, IGDBHandler],
+  exports: [ZethoHandler],
 })
 export class WebhookModule {}

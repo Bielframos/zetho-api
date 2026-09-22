@@ -7,6 +7,7 @@ import {
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { TimelineService } from './timeline.service';
+import { OutboxService } from 'src/infra/events/outbox.service';
 
 type ProfileSummary = {
   $id: string;
@@ -46,6 +47,7 @@ export class DashboardService {
   constructor(
     private readonly appwrite: Appwrite,
     private readonly timeline: TimelineService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async getPersonalFeed(
@@ -423,6 +425,11 @@ export class DashboardService {
       });
     }
 
+    if (newVoteCount !== previousVoteCount)
+      await this.outbox.enqueueImmediate({
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: 'game_comments', row: comment, action: 'update' },
+      });
     return { success: true, delta, operation, newVoteCount, viewerVote };
   }
 
@@ -698,6 +705,10 @@ export class DashboardService {
       data: { [counter]: nextCount },
     });
 
+    await this.outbox.enqueueImmediate({
+      type: 'SOCIAL_TIMELINE',
+      payload: { table: 'lists', row: updatedList, action: 'update' },
+    });
     return {
       listId,
       likedByMe:
@@ -1053,32 +1064,57 @@ export class DashboardService {
     delta: number,
   ): Promise<CounterRow> {
     if (currentValue === null || currentValue === undefined) {
-      return this.appwrite.tablesDB.updateRow<CounterRow>({
-        databaseId: DashboardService.DB_ID,
+      return this.withTimeline(
         tableId,
-        rowId,
-        data: { [column]: Math.max(0, delta) },
-      });
+        this.appwrite.tablesDB.updateRow<CounterRow>({
+          databaseId: DashboardService.DB_ID,
+          tableId,
+          rowId,
+          data: { [column]: Math.max(0, delta) },
+        }),
+      );
     }
 
     if (delta >= 0) {
-      return this.appwrite.tablesDB.incrementRowColumn<CounterRow>({
+      return this.withTimeline(
+        tableId,
+        this.appwrite.tablesDB.incrementRowColumn<CounterRow>({
+          databaseId: DashboardService.DB_ID,
+          tableId,
+          rowId,
+          column,
+          value: delta,
+        }),
+      );
+    }
+
+    return this.withTimeline(
+      tableId,
+      this.appwrite.tablesDB.decrementRowColumn<CounterRow>({
         databaseId: DashboardService.DB_ID,
         tableId,
         rowId,
         column,
-        value: delta,
+        value: Math.abs(delta),
+        min: 0,
+      }),
+    );
+  }
+  private async withTimeline<T extends CounterRow>(
+    tableId: string,
+    pending: Promise<T>,
+  ): Promise<T> {
+    const row = await pending;
+    if (
+      tableId === 'z_entries' ||
+      tableId === 'game_comments' ||
+      tableId === 'lists'
+    )
+      await this.outbox.enqueueImmediate({
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: tableId, row, action: 'update' },
       });
-    }
-
-    return this.appwrite.tablesDB.decrementRowColumn<CounterRow>({
-      databaseId: DashboardService.DB_ID,
-      tableId,
-      rowId,
-      column,
-      value: Math.abs(delta),
-      min: 0,
-    });
+    return row;
   }
 
   private async getEntryById(entryId: string) {

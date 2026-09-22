@@ -111,19 +111,19 @@ export class RatingsService {
     let result: any;
     try {
       if (hasPriorRating) {
-        result = await this.tablesDB.updateRow({
-          databaseId: RatingsService.DB_ID,
-          tableId: RatingsService.TABLE_ID,
-          rowId: prior.$id,
+        result = await this.ratingMutationWithTimeline(
+          'update',
+          prior.$id,
           data,
-        });
+          profile.$id,
+        );
       } else {
-        result = await this.tablesDB.createRow({
-          databaseId: RatingsService.DB_ID,
-          tableId: RatingsService.TABLE_ID,
-          rowId: ID.unique(),
+        result = await this.ratingMutationWithTimeline(
+          'create',
+          ID.unique(),
           data,
-        });
+          profile.$id,
+        );
 
         // Se for uma nova avaliação, conceder Z-Coins
         try {
@@ -164,7 +164,6 @@ export class RatingsService {
     }
 
     await this.invalidateSeoCache(gameId);
-    await this.enqueueRatingChanged(profile.$id);
 
     return {
       ...result,
@@ -423,27 +422,71 @@ export class RatingsService {
       throw new NotFoundException('Avaliação não encontrada');
     }
 
-    await this.tablesDB.deleteRow({
-      databaseId: RatingsService.DB_ID,
-      tableId: RatingsService.TABLE_ID,
-      rowId: rating.$id,
-    });
+    await this.ratingMutationWithTimeline(
+      'delete',
+      rating.$id,
+      rating,
+      profile.$id,
+    );
 
     await this.updateGameRatingStats(gameId, -rating.rating, false, true);
     await this.invalidateSeoCache(gameId);
-    await this.enqueueRatingChanged(profile.$id);
 
     return { success: true };
   }
 
-  private async enqueueRatingChanged(profileId: string) {
+  private async ratingMutationWithTimeline(
+    action: 'create' | 'update' | 'delete',
+    rowId: string,
+    data: any,
+    profileId: string,
+  ) {
+    const tx = await this.tablesDB.createTransaction();
     try {
-      await this.outbox.enqueueImmediate({
+      let row: any = data;
+      if (action === 'create')
+        row = await this.tablesDB.createRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          data,
+          transactionId: tx.$id,
+        });
+      else if (action === 'update')
+        row = await this.tablesDB.updateRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          data,
+          transactionId: tx.$id,
+        });
+      else
+        await this.tablesDB.deleteRow({
+          databaseId: RatingsService.DB_ID,
+          tableId: RatingsService.TABLE_ID,
+          rowId,
+          transactionId: tx.$id,
+        });
+      await this.outbox.enqueue(tx.$id, {
+        type: 'SOCIAL_TIMELINE',
+        payload: { table: 'ratings', row: { ...row, $id: rowId }, action },
+      });
+      await this.outbox.enqueue(tx.$id, {
         type: 'D8_RATING_CHANGED',
         payload: { profileId },
       });
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        commit: true,
+      });
+      void this.outbox.processOutbox().catch(() => undefined);
+      return row;
     } catch (error) {
-      this.logger.error(`Review persistida, mas falhou o registro da reavaliação de badges para ${profileId}`, error);
+      await this.tablesDB.updateTransaction({
+        transactionId: tx.$id,
+        rollback: true,
+      });
+      throw error;
     }
   }
 

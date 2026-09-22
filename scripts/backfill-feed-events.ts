@@ -3,7 +3,7 @@ import { Query } from 'node-appwrite';
 import { Appwrite } from '../src/infra/appwrite/appwrite.provider';
 import { TimelineService } from '../src/system/dashboard/timeline.service';
 
-/** Run after the feed_events table/index and signed timeline webhook are active. */
+/** Run after the feed_events table/index and API outbox worker are active. */
 async function main() {
   const apply = process.argv.includes('--apply');
   const appwrite = new Appwrite();

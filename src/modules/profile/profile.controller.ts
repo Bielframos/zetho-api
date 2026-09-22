@@ -2,13 +2,17 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Param,
   Post,
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ProfileService } from './profile.service';
+import { ProfileUpdateDto } from './profile-update.dto';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { Models } from 'node-appwrite';
 import { Roles } from 'src/common/guards/roles.decorator';
@@ -26,6 +30,25 @@ export class ProfileController {
   ) {
     const user = req.user as Models.User;
     return await this.profileService.create(user, gamertag, inviteCode);
+  }
+
+  @Patch('me')
+  @UseGuards(AppwriteSessionGuard)
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  )
+  updateMe(@Req() req: any, @Body() data: ProfileUpdateDto) {
+    return this.profileService.updateMe(req.user.$id, data);
+  }
+
+  @Post('me/deletion')
+  @UseGuards(AppwriteSessionGuard)
+  requestDeletion(@Req() req: any) {
+    return this.profileService.requestDeletion(req.user.$id);
   }
 
   @Get('me/bonus')

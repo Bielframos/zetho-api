@@ -570,10 +570,7 @@
             "$id": "user_profiles",
             "$permissions": [
                 "read(\"any\")",
-                "create(\"team:zerei\")",
-                "read(\"team:zerei\")",
-                "update(\"team:zerei\")",
-                "delete(\"team:zerei\")"
+                "read(\"team:zerei\")"
             ],
             "databaseId": "app",
             "name": "User Profiles",
@@ -808,12 +805,8 @@
         {
             "$id": "z_entries",
             "$permissions": [
-                "create(\"users\")",
                 "read(\"any\")",
-                "create(\"team:zerei\")",
-                "read(\"team:zerei\")",
-                "update(\"team:zerei\")",
-                "delete(\"team:zerei\")"
+                "read(\"team:zerei\")"
             ],
             "databaseId": "app",
             "name": "Z Entries",
@@ -932,7 +925,15 @@
                     "max": 2147483647
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "owner_game_pending_chronological",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["ownerFingerprint", "gameId", "processedAt", "$createdAt"],
+                    "orders": ["ASC", "ASC", "ASC", "ASC"]
+                }
+            ]
         },
         {
             "$id": "z_entry_likes",
@@ -1236,9 +1237,7 @@
         {
             "$id": "game_comments",
             "$permissions": [
-                "create(\"users\")",
                 "read(\"users\")",
-                "update(\"users\")",
                 "read(\"any\")"
             ],
             "databaseId": "app",
@@ -1329,9 +1328,7 @@
         },
         {
             "$id": "game_comment_votes",
-            "$permissions": [
-                "create(\"users\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "Game Comment Votes",
             "enabled": true,
@@ -1376,7 +1373,6 @@
         {
             "$id": "lists",
             "$permissions": [
-                "create(\"users\")",
                 "read(\"any\")"
             ],
             "databaseId": "app",
@@ -1621,7 +1617,6 @@
         {
             "$id": "list_items",
             "$permissions": [
-                "create(\"users\")",
                 "read(\"any\")"
             ],
             "databaseId": "app",
@@ -1668,12 +1663,8 @@
         {
             "$id": "z_entries_read",
             "$permissions": [
-                "create(\"users\")",
                 "read(\"any\")",
-                "create(\"team:zerei\")",
-                "read(\"team:zerei\")",
-                "update(\"team:zerei\")",
-                "delete(\"team:zerei\")"
+                "read(\"team:zerei\")"
             ],
             "databaseId": "app",
             "name": "Z Entries (Read-only)",
@@ -2087,8 +2078,7 @@
         {
             "$id": "connections",
             "$permissions": [
-                "read(\"any\")",
-                "create(\"users\")"
+                "read(\"any\")"
             ],
             "databaseId": "app",
             "name": "Conexões",
@@ -2533,10 +2523,7 @@
         {
             "$id": "zcoin_transactions",
             "$permissions": [
-                "create(\"team:zerei\")",
-                "read(\"team:zerei\")",
-                "update(\"team:zerei\")",
-                "delete(\"team:zerei\")"
+                "read(\"team:zerei\")"
             ],
             "databaseId": "app",
             "name": "Z Coin Transactions",

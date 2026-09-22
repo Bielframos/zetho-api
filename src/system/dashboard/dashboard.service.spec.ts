@@ -2,7 +2,11 @@ import { DashboardService } from './dashboard.service';
 
 describe('DashboardService', () => {
   const makeService = (tablesDB: any) =>
-    new DashboardService({ tablesDB } as any, {} as any);
+    new DashboardService(
+      { tablesDB } as any,
+      {} as any,
+      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+    );
 
   it('passes viewer identity and cursor to the persisted timeline', async () => {
     const tablesDB = {
@@ -13,7 +17,11 @@ describe('DashboardService', () => {
     const page = jest
       .fn()
       .mockResolvedValue({ items: [], hasMore: false, nextCursor: null });
-    const service = new DashboardService({ tablesDB } as any, { page } as any);
+    const service = new DashboardService(
+      { tablesDB } as any,
+      { page } as any,
+      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+    );
     await expect(
       service.getPersonalFeed('viewer', 3, 12, 'connections', 'event-cursor'),
     ).resolves.toEqual({ items: [], hasMore: false, nextCursor: null });
