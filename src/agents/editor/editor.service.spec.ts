@@ -110,9 +110,34 @@ describe('EditorService.generateGuidedArticle', () => {
 
   const setup = () => {
     const ai = buildAi();
-    ai.prompt.mockReturnValue(
-      jest.fn().mockResolvedValue({ output: buildArticleOutput() }),
+    const writer = jest
+      .fn()
+      .mockResolvedValue({ output: buildArticleOutput() });
+    ai.prompt.mockImplementation((name: string) =>
+      name === 'editor/eligibility'
+        ? jest.fn().mockResolvedValue({
+            output: {
+              eligible: true,
+              category: 'announcement',
+              reason: 'Concrete game news',
+            },
+          })
+        : name === 'editor/verify_article'
+          ? jest
+              .fn()
+              .mockResolvedValue({ output: { supported: true, issues: [] } })
+          : name === 'editor/trend_analysis'
+            ? jest.fn().mockResolvedValue({
+                output: {
+                  id: 'selected',
+                  title: 'Announcement',
+                  publisher: 'Source',
+                  why: 'New event',
+                },
+              })
+            : writer,
     );
+
     const contentExtractor = {
       extract: jest.fn().mockResolvedValue({
         title: 'Manchete',
@@ -159,7 +184,12 @@ describe('EditorService.generateGuidedArticle', () => {
       'https://fonte.com/post',
     );
 
-    const promptFn = ai.prompt.mock.results[0].value;
+    const promptFn =
+      ai.prompt.mock.results[
+        ai.prompt.mock.calls.findIndex(
+          ([name]: string[]) => name === 'editor/write_article',
+        )
+      ].value;
     expect(promptFn).toHaveBeenCalledWith(
       expect.objectContaining({
         humanInstructions: 'Foque no modo cooperativo.',
@@ -179,6 +209,37 @@ describe('EditorService.generateGuidedArticle', () => {
     );
     expect(outboxService.enqueueImmediate).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ skipped: false });
+  });
+
+  it('retains unsupported generated claims as drafts without notifications', async () => {
+    const { service, ai, appwrite, outboxService } = setup();
+    const original = ai.prompt.getMockImplementation()!;
+    ai.prompt.mockImplementation((name: string) =>
+      name === 'editor/verify_article'
+        ? jest
+            .fn()
+            .mockResolvedValue({
+              output: {
+                supported: false,
+                issues: ['Brazilian launch date absent from source'],
+              },
+            })
+        : original(name),
+    );
+    appwrite.tablesDB.createRow.mockImplementation(async ({ data }: any) => ({
+      ...data,
+      $id: 'draft',
+    }));
+    await service.generateGuidedArticle({ url: 'https://fonte.com/post' });
+    expect(appwrite.tablesDB.createRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'draft',
+          originalSourceUrl: 'https://fonte.com/post',
+        }),
+      }),
+    );
+    expect(outboxService.enqueueImmediate).not.toHaveBeenCalled();
   });
 
   it('pula quando a URL de origem já foi publicada', async () => {
