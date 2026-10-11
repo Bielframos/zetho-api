@@ -34,3 +34,11 @@ Frontend detail renders an approved image responsively with alt and source credi
 - Writer preserves Brazilian Portuguese, source attribution, actual dates/platforms/regions; a separate grounding check retains unverified articles as drafts without notifications.
 - Tests cover excluded topics, invalid classification, source sanitization, private IPs, missing image approvals and fallback.
 - Remaining live-model evidence must be attached before treating #100 as fully verified.
+
+## Audit output and limitations
+
+The local result file includes the exact truncated text supplied to both pipelines, its SHA-256 and capture timestamp, and recent-event context. Keep these full source snapshots local; commit only derived findings and references. Each case distinguishes baseline selection, proposed eligibility, proposed selection and whether the generated draft passed the automated factual verifier. A verifier approval is not a completed manual factual review.
+
+The summary separates extraction/model errors, ambiguous labels and duplicate-event cases from classification false-positive/false-negative denominators. At least 30 successful curation comparisons are required; source or curation failures do not meet that gate. Later writing/verifier failures retain the completed curation decisions and are reported separately; fully successful cases are counted independently. Report sample counts with all rates and inspect source labels before interpreting disagreements. The same-game/different-event control is article 18 with article 17 supplied as recent context; it should remain eligible despite the shared game.
+
+Calls contain one candidate each. They measure rejection and deduplication, not competitive ranking among several news stories. Only curation has a frozen historical baseline; proposed prose receives a factual audit, without claiming a measured improvement over historical writing.

@@ -164,7 +164,10 @@
       "feed": "https://feeds.feedburner.com/ign/games-all",
       "id": 18,
       "expected": "accept",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "recent_article_ids": [
+        17
+      ]
     },
     {
       "title": "Wardogs Dev Holding Back Certain Features Because of Xbox Series S, but Working to 'Very Low-End Hardware' Has Its Benefits",
