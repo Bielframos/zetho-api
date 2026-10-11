@@ -64,7 +64,15 @@ export type GameRecommendationRow = Models.Row & {
   failureCode: string | null;
 };
 
+export type RecommendationQuota = {
+  cost: number;
+  limit: number;
+  remaining: number;
+  nextAvailableAt: string;
+};
+
 export type GameRecommendationResponse = {
+  quota?: RecommendationQuota;
   id: string;
   source: RecommendationSource;
   game: Pick<
