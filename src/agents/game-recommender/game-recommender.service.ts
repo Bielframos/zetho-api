@@ -22,6 +22,7 @@ import type {
   RecommendationCandidate,
   RecommendationContext,
   RecommendationScope,
+  RecommendationQuota,
   RecommenderGame,
 } from './game-recommender.types';
 
@@ -50,7 +51,8 @@ class CompletedRecommendationReplay extends Error {
 export class GameRecommenderService {
   private static readonly DB_ID = 'app';
   private static readonly TABLE_ID = 'game_recommendations';
-  private static readonly COST = 10;
+  private static readonly COST = 5;
+  private static readonly DAILY_LIMIT = 5;
   private static readonly PROMPT_VERSION = 3;
   private static readonly DEFAULT_MODEL = 'openai/gpt-5.4';
   private static readonly DEFAULT_TIMEOUT_MS = 8_000;
@@ -91,7 +93,10 @@ export class GameRecommenderService {
       }
 
       const recommendationDay = this.getRecommendationDay(userId);
-      if (await this.findRecommendationForDay(userId, recommendationDay)) {
+      if (
+        (await this.recommendationsForDay(userId, recommendationDay)).length >=
+        GameRecommenderService.DAILY_LIMIT
+      ) {
         result = 'daily_limit';
         throw this.dailyLimitExceeded(recommendationDay);
       }
@@ -105,7 +110,7 @@ export class GameRecommenderService {
           context,
           scope,
           idempotencyKey,
-          recommendationDay,
+          this.getRecommendationDay(userId),
         );
         chargeResult = 'reserved';
       } catch (error) {
@@ -144,24 +149,37 @@ export class GameRecommenderService {
         ].slice(0, 3);
         const generatedAt = new Date().toISOString();
 
-        const completed =
-          await this.appwrite.tablesDB.updateRow<GameRecommendationRow>({
-            databaseId: GameRecommenderService.DB_ID,
-            tableId: GameRecommenderService.TABLE_ID,
-            rowId: reservation.row.$id,
-            data: {
-              gameId: candidate.game.id,
-              source: candidate.source,
-              reason: choice.reason,
-              matchSignals: choice.matchSignals,
-              basedOnGameIds,
-              state: 'completed',
-              generatedAt,
-              balance: reservation.balance,
-              failureCode: null,
-            },
-          });
-
+        const completed = await this.transactionService.runInTransaction(
+          async ({ txId }) => {
+            const active =
+              await this.appwrite.tablesDB.getRow<GameRecommendationRow>({
+                databaseId: GameRecommenderService.DB_ID,
+                tableId: GameRecommenderService.TABLE_ID,
+                rowId: reservation.row.$id,
+                transactionId: txId,
+              });
+            if (active.state !== 'pending' || active.refunded) {
+              throw new Error('reservation no longer active');
+            }
+            return this.appwrite.tablesDB.updateRow<GameRecommendationRow>({
+              transactionId: txId,
+              databaseId: GameRecommenderService.DB_ID,
+              tableId: GameRecommenderService.TABLE_ID,
+              rowId: reservation.row.$id,
+              data: {
+                gameId: candidate.game.id,
+                source: candidate.source,
+                reason: choice.reason,
+                matchSignals: choice.matchSignals,
+                basedOnGameIds,
+                state: 'completed',
+                generatedAt,
+                balance: reservation.balance,
+                failureCode: null,
+              },
+            });
+          },
+        );
         result = 'completed';
         return await this.toResponse(
           completed,
@@ -228,6 +246,7 @@ export class GameRecommenderService {
       rows.flatMap((row) => [row.gameId ?? '', ...(row.basedOnGameIds ?? [])]),
     );
     const gameMap = new Map(games.map((game) => [game.id, game]));
+    const quota = await this.quota(userId);
     const items = await Promise.all(
       rows.map(async (row) => {
         const game = gameMap.get(row.gameId ?? '');
@@ -236,6 +255,7 @@ export class GameRecommenderService {
           row,
           { game, source: row.source, score: 0, basedOnGameIds: [] },
           games,
+          quota,
         );
       }),
     );
@@ -244,6 +264,7 @@ export class GameRecommenderService {
         (item): item is GameRecommendationResponse => item !== null,
       ),
       nextCursor: page.rows.length > limit ? rows[rows.length - 1].$id : null,
+      quota,
     };
   }
 
@@ -411,7 +432,74 @@ export class GameRecommenderService {
     }
   }
 
+  private slotKeys(day: RecommendationDay) {
+    return Array.from(
+      { length: GameRecommenderService.DAILY_LIMIT },
+      (_, slot) =>
+        slot === 0
+          ? day.dailyKey
+          : this.stableId('gday', `${day.dailyKey}:${slot}`),
+    );
+  }
+
+  async quota(userId: string) {
+    const day = this.getRecommendationDay(userId);
+    const used = (await this.recommendationsForDay(userId, day)).length;
+    return {
+      cost: GameRecommenderService.COST,
+      limit: GameRecommenderService.DAILY_LIMIT,
+      remaining: Math.max(0, GameRecommenderService.DAILY_LIMIT - used),
+      nextAvailableAt: day.nextAvailableAt,
+    };
+  }
+
   private async reserve(
+    context: RecommendationContext,
+    scope: RecommendationScope,
+    idempotencyKey: string,
+    day: RecommendationDay,
+  ): Promise<{ row: GameRecommendationRow; balance: number }> {
+    // Five unique keys enforce the cap in the database, across API instances.
+    // Slot zero retains the original daily key, counting pre-release records.
+    const keys = this.slotKeys(day);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const rows = await this.recommendationsForDay(
+        context.profile.userId,
+        day,
+      );
+      if (rows.length >= GameRecommenderService.DAILY_LIMIT)
+        throw this.dailyLimitExceeded(day);
+      const occupied = new Set(
+        rows
+          .map((row) => row.dailyKey)
+          .filter((key) => keys.includes(key ?? '')),
+      );
+      // Older completed rows without a key still consume a slot for that day.
+      for (const row of rows) {
+        if (!row.dailyKey || !keys.includes(row.dailyKey)) {
+          const free = keys.find((key) => !occupied.has(key));
+          if (free) occupied.add(free);
+        }
+      }
+      const dailyKey = keys.find((key) => !occupied.has(key));
+      if (!dailyKey) throw this.dailyLimitExceeded(day);
+      try {
+        return await this.reserveSlot(context, scope, idempotencyKey, {
+          ...day,
+          dailyKey,
+        });
+      } catch (error) {
+        if (error instanceof CompletedRecommendationReplay) throw error;
+        // Retry only database/slot conflicts; idempotent pending attempts stay pending.
+        if ((error as { code?: number }).code !== 409) throw error;
+      }
+    }
+    throw new ConflictException(
+      'Muitas solicitações simultâneas. Consulte esta solicitação novamente.',
+    );
+  }
+
+  private async reserveSlot(
     context: RecommendationContext,
     scope: RecommendationScope,
     idempotencyKey: string,
@@ -437,20 +525,14 @@ export class GameRecommenderService {
 
     try {
       await this.transactionService.runInTransaction(async ({ txId }) => {
-        await this.appwrite.tablesDB.createOperations({
+        await this.appwrite.tablesDB.decrementRowColumn({
           transactionId: txId,
-          operations: [
-            {
-              action: 'decrement',
-              databaseId: GameRecommenderService.DB_ID,
-              tableId: 'user_profiles',
-              rowId: context.profile.id,
-              data: {
-                value: GameRecommenderService.COST,
-                column: 'zcoinBalance',
-              },
-            },
-          ],
+          databaseId: GameRecommenderService.DB_ID,
+          tableId: 'user_profiles',
+          rowId: context.profile.id,
+          column: 'zcoinBalance',
+          value: GameRecommenderService.COST,
+          min: 0,
         });
         await this.appwrite.tablesDB.createRow<GameRecommendationRow>({
           transactionId: txId,
@@ -499,7 +581,7 @@ export class GameRecommenderService {
       if (existing) return this.resolveReservationCollision(existing);
 
       if (await this.findByDailyKey(recommendationDay.dailyKey)) {
-        throw this.dailyLimitExceeded(recommendationDay);
+        throw Object.assign(new Error('daily slot occupied'), { code: 409 });
       }
 
       const latestProfile = await this.appwrite.tablesDB.getRow<
@@ -568,48 +650,58 @@ export class GameRecommenderService {
 
     const refundId = this.stableId('gf', recommendationId);
     try {
-      await this.transactionService.runInTransaction(async ({ txId }) => {
-        await this.appwrite.tablesDB.createOperations({
-          transactionId: txId,
-          operations: [
-            {
-              action: 'increment',
+      return await this.transactionService.runInTransaction(
+        async ({ txId }) => {
+          const active =
+            await this.appwrite.tablesDB.getRow<GameRecommendationRow>({
               databaseId: GameRecommenderService.DB_ID,
-              tableId: 'user_profiles',
-              rowId: profile.$id,
-              data: {
-                value: current.cost,
-                column: 'zcoinBalance',
+              tableId: GameRecommenderService.TABLE_ID,
+              rowId: recommendationId,
+              transactionId: txId,
+            });
+          if (active.state !== 'pending' || active.refunded) return false;
+          await this.appwrite.tablesDB.createOperations({
+            transactionId: txId,
+            operations: [
+              {
+                action: 'increment',
+                databaseId: GameRecommenderService.DB_ID,
+                tableId: 'user_profiles',
+                rowId: profile.$id,
+                data: {
+                  value: current.cost,
+                  column: 'zcoinBalance',
+                },
               },
+            ],
+          });
+          await this.appwrite.tablesDB.createRow({
+            transactionId: txId,
+            databaseId: GameRecommenderService.DB_ID,
+            tableId: 'zcoin_transactions',
+            rowId: refundId,
+            data: {
+              userId: current.userId,
+              amount: current.cost,
+              type: 'input',
+              reason: 'game_recommendation_refund',
             },
-          ],
-        });
-        await this.appwrite.tablesDB.createRow({
-          transactionId: txId,
-          databaseId: GameRecommenderService.DB_ID,
-          tableId: 'zcoin_transactions',
-          rowId: refundId,
-          data: {
-            userId: current.userId,
-            amount: current.cost,
-            type: 'input',
-            reason: 'game_recommendation_refund',
-          },
-        });
-        await this.appwrite.tablesDB.updateRow({
-          transactionId: txId,
-          databaseId: GameRecommenderService.DB_ID,
-          tableId: GameRecommenderService.TABLE_ID,
-          rowId: recommendationId,
-          data: {
-            state: 'failed',
-            refunded: true,
-            dailyKey: null,
-            failureCode,
-          },
-        });
-      });
-      return true;
+          });
+          await this.appwrite.tablesDB.updateRow({
+            transactionId: txId,
+            databaseId: GameRecommenderService.DB_ID,
+            tableId: GameRecommenderService.TABLE_ID,
+            rowId: recommendationId,
+            data: {
+              state: 'failed',
+              refunded: true,
+              dailyKey: null,
+              failureCode,
+            },
+          });
+          return true;
+        },
+      );
     } catch (error) {
       const latest = await this.appwrite.tablesDB.getRow<GameRecommendationRow>(
         {
@@ -636,22 +728,25 @@ export class GameRecommenderService {
     return page.rows[0] ?? null;
   }
 
-  private async findRecommendationForDay(
-    userId: string,
-    day: RecommendationDay,
-  ) {
+  private async recommendationsForDay(userId: string, day: RecommendationDay) {
     const page = await this.appwrite.tablesDB.listRows<GameRecommendationRow>({
       databaseId: GameRecommenderService.DB_ID,
       tableId: GameRecommenderService.TABLE_ID,
       queries: [
         Query.equal('userId', userId),
         Query.equal('state', ['pending', 'completed']),
-        Query.greaterThanEqual('$createdAt', day.startAt),
-        Query.lessThan('$createdAt', day.nextAvailableAt),
-        Query.limit(1),
+        Query.or([
+          Query.equal('dailyKey', this.slotKeys(day)),
+          Query.and([
+            Query.isNull('dailyKey'),
+            Query.greaterThanEqual('$createdAt', day.startAt),
+            Query.lessThan('$createdAt', day.nextAvailableAt),
+          ]),
+        ]),
+        Query.limit(GameRecommenderService.DAILY_LIMIT),
       ],
     });
-    return page.rows[0] ?? null;
+    return page.rows;
   }
 
   private async findByDailyKey(dailyKey: string) {
@@ -691,7 +786,10 @@ export class GameRecommenderService {
       {
         statusCode: HttpStatus.TOO_MANY_REQUESTS,
         code: 'GAME_RECOMMENDATION_DAILY_LIMIT',
-        message: 'Você já gerou sua recomendação de hoje.',
+        message: 'Você já usou suas cinco recomendações de hoje.',
+        cost: GameRecommenderService.COST,
+        limit: GameRecommenderService.DAILY_LIMIT,
+        remaining: 0,
         nextAvailableAt: day.nextAvailableAt,
       },
       HttpStatus.TOO_MANY_REQUESTS,
@@ -716,6 +814,7 @@ export class GameRecommenderService {
     row: GameRecommendationRow,
     selectedCandidate?: RecommendationCandidate,
     knownBaseGames: RecommenderGame[] = [],
+    knownQuota?: RecommendationQuota,
   ): Promise<GameRecommendationResponse> {
     if (
       !row.gameId ||
@@ -768,6 +867,15 @@ export class GameRecommenderService {
       cost: row.cost,
       balance: row.balance,
       generatedAt: row.generatedAt,
+      quota:
+        knownQuota ??
+        (await this.quota(row.userId).catch(() => {
+          // A metadata read failure must not turn a completed, paid result into a failure.
+          this.logger.warn(
+            'Quota temporarily unavailable for completed recommendation',
+          );
+          return undefined;
+        })),
     };
   }
 

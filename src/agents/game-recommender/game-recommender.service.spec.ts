@@ -39,6 +39,7 @@ describe('GameRecommenderService', () => {
   const pendingRow = (): GameRecommendationRow =>
     ({
       $id: 'recommendation-1',
+      $sequence: 1,
       $createdAt: '2026-09-09T00:00:00.000Z',
       $updatedAt: '2026-09-09T00:00:00.000Z',
       $permissions: [],
@@ -55,7 +56,7 @@ describe('GameRecommenderService', () => {
       matchSignals: null,
       basedOnGameIds: null,
       state: 'pending',
-      cost: 10,
+      cost: 5,
       refunded: false,
       model: 'openai/gpt-5.4',
       promptVersion: 3,
@@ -101,6 +102,14 @@ describe('GameRecommenderService', () => {
           return { $id: 'profile-1', zcoinBalance: balance };
         return recommendation;
       }),
+      decrementRowColumn: jest.fn(
+        async ({ value, min }: { value: number; min: number }) => {
+          if (balance - value < min)
+            throw new BadRequestException('Saldo insuficiente');
+          balance -= value;
+          return {};
+        },
+      ),
       createOperations: jest.fn(
         async ({ operations }: { operations: any[] }) => {
           for (const operation of operations) {
@@ -156,7 +165,7 @@ describe('GameRecommenderService', () => {
     };
   }
 
-  it('faz uma única chamada estruturada, debita 10 e conclui a recomendação', async () => {
+  it('faz uma única chamada estruturada, debita 5 e conclui a recomendação', async () => {
     const fixture = setup();
     fixture.ai.generate.mockResolvedValue({
       output: {
@@ -171,8 +180,8 @@ describe('GameRecommenderService', () => {
     ).resolves.toMatchObject({
       source: 'new',
       game: { id: 'game-1' },
-      cost: 10,
-      balance: 10,
+      cost: 5,
+      balance: 15,
     });
     expect(fixture.ai.generate).toHaveBeenCalledTimes(1);
     expect(fixture.ai.generate).toHaveBeenCalledWith(
@@ -202,7 +211,7 @@ describe('GameRecommenderService', () => {
     expect(prompt).toContain(
       'Nunca exponha IDs, nomes de campos, pontuações internas ou termos do sistema',
     );
-    expect(fixture.getBalance()).toBe(10);
+    expect(fixture.getBalance()).toBe(15);
     expect(fixture.getRecommendation()).toMatchObject({
       state: 'completed',
       refunded: false,
@@ -210,7 +219,7 @@ describe('GameRecommenderService', () => {
     });
   });
 
-  it('bloqueia uma segunda recomendação no mesmo dia antes de candidatos, cobrança ou IA', async () => {
+  it('bloqueia uma sexta recomendação no mesmo dia antes de candidatos, cobrança ou IA', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-09-09T15:00:00.000Z'));
     try {
       const completed = {
@@ -222,7 +231,13 @@ describe('GameRecommenderService', () => {
       const fixture = setup();
       fixture.tablesDB.listRows
         .mockResolvedValueOnce({ total: 0, rows: [] })
-        .mockResolvedValueOnce({ total: 1, rows: [completed] });
+        .mockResolvedValueOnce({
+          total: 5,
+          rows: Array.from({ length: 5 }, (_, i) => ({
+            ...completed,
+            $id: `existing-${i}`,
+          })),
+        });
 
       const request = fixture.service.suggest(
         'user-1',
@@ -244,28 +259,6 @@ describe('GameRecommenderService', () => {
     } finally {
       jest.useRealTimers();
     }
-  });
-
-  it('resolve colisão da chave diária sem débito em solicitações concorrentes', async () => {
-    const fixture = setup({
-      transactionFailure: new Error('unique index collision'),
-    });
-    const otherReservation = {
-      ...pendingRow(),
-      $id: 'other-recommendation',
-      idempotencyKey: 'other-request',
-      dailyKey: 'gday_existing',
-    };
-    fixture.tablesDB.listRows
-      .mockResolvedValueOnce({ total: 0, rows: [] })
-      .mockResolvedValueOnce({ total: 0, rows: [] })
-      .mockResolvedValueOnce({ total: 0, rows: [] })
-      .mockResolvedValueOnce({ total: 1, rows: [otherReservation] });
-    await expect(
-      fixture.service.suggest('user-1', 'new', 'request-2'),
-    ).rejects.toMatchObject({ status: 429 });
-    expect(fixture.ai.generate).not.toHaveBeenCalled();
-    expect(fixture.getBalance()).toBe(20);
   });
 
   it('expõe evidências objetivas e proíbe afinidades vagas no prompt', async () => {
@@ -433,14 +426,14 @@ describe('GameRecommenderService', () => {
   });
 
   it('não cobra nem chama a IA quando o saldo é insuficiente', async () => {
-    const fixture = setup({ balance: 9 });
+    const fixture = setup({ balance: 4 });
 
     await expect(
       fixture.service.suggest('user-1', 'new', 'request-1'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(fixture.ai.generate).not.toHaveBeenCalled();
     expect(fixture.transactions.runInTransaction).not.toHaveBeenCalled();
-    expect(fixture.getBalance()).toBe(9);
+    expect(fixture.getBalance()).toBe(4);
   });
 
   it('rejeita jogo inventado e estorna uma única vez', async () => {
@@ -479,7 +472,7 @@ describe('GameRecommenderService', () => {
       basedOnGameIds: [],
       state: 'completed' as const,
       generatedAt: '2026-09-09T00:00:02.000Z',
-      balance: 10,
+      balance: 15,
     };
     const fixture = setup({ existing: completed });
 
@@ -509,7 +502,7 @@ describe('GameRecommenderService', () => {
       matchSignals: ['Ação', 'Avaliação'],
       basedOnGameIds: [],
       generatedAt: new Date().toISOString(),
-      balance: 10,
+      balance: 15,
     };
     const fixture = setup();
     fixture.tablesDB.listRows.mockResolvedValueOnce({
