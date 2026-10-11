@@ -1,35 +1,6 @@
 import { AchievementsService } from './achievements.service';
 
 describe('AchievementsService', () => {
-  it('counts distinct completed games in the annual goal from materialized events', async () => {
-    const listRows = jest.fn().mockImplementation(({ tableId }) => {
-      if (tableId === 'annual_goals')
-        return Promise.resolve({ rows: [{ target: 12 }], total: 1 });
-      if (tableId === 'completion_events')
-        return Promise.resolve({ rows: [{ $id: 'one' }], total: 7 });
-      throw new Error(`unexpected ${tableId}`);
-    });
-    const service = new AchievementsService(
-      {
-        tablesDB: {
-          listRows,
-          getRow: jest.fn().mockResolvedValue({ $id: 'p' }),
-        },
-      } as any,
-      {} as any,
-      {} as any,
-    );
-    expect(await service.getAnnualGoal('p', 2026)).toEqual({
-      profileId: 'p',
-      year: 2026,
-      target: 12,
-      completed: 7,
-    });
-    expect(listRows).not.toHaveBeenCalledWith(
-      expect.objectContaining({ tableId: 'z_entries' }),
-    );
-  });
-
   it('does not duplicate a materialized completion on replay', async () => {
     const createRow = jest.fn().mockRejectedValue({ code: 409 });
     const service = new AchievementsService(
@@ -55,15 +26,12 @@ describe('AchievementsService awards and access', () => {
     showcaseBadges: [],
     zcoinBalance: 10,
   };
-  it('rejects another user changing a goal or showcase', async () => {
+  it('rejects another user changing a showcase', async () => {
     const service = new AchievementsService(
       { tablesDB: { getRow: jest.fn().mockResolvedValue(profile) } } as any,
       {} as any,
       {} as any,
     );
-    await expect(
-      service.setAnnualGoal('stranger', 'p', 2026, 10),
-    ).rejects.toThrow('Perfil não pertence');
     await expect(service.setShowcase('stranger', 'p', [])).rejects.toThrow(
       'Perfil não pertence',
     );

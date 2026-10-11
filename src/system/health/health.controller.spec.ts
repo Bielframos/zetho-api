@@ -19,7 +19,7 @@ describe('release readiness', () => {
   it('advertises social writes only after readiness and database access succeed', async () => {
     await expect(controller(true).checkRelease()).resolves.toEqual({
       status: 'ok',
-      version: '0.13.0',
+      version: '0.14.0',
       capabilities: ['social-writes-v1'],
     });
   });

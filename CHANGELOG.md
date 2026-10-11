@@ -6,6 +6,30 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-11
+
+### Added
+
+- Comparação autenticada entre jogadores, com jogos em comum, diferenças entre notas e descobertas paginadas; consultas usam a sessão do visitante e respeitam permissões em linhas e contagens.
+- Classificação editorial e verificação factual separadas para notícias automáticas, sugestões humanas e URLs, com motivos de rejeição registrados.
+- Experimento documentado com 60 matérias e 16 imagens reais; publicação de imagens depende de aprovação específica e permanece desativada. A comparação real antes/depois dos modelos ainda aguarda credencial de avaliação.
+
+### Changed
+
+- Próximo jogo custa 5 Zcoins por recomendação concluída e permite 5 usos diários no fuso America/Sao_Paulo, incluindo reservas pendentes e usos anteriores à implantação.
+- Cota, usos restantes e próxima liberação acompanham respostas e histórico de recomendações.
+- Curadoria prioriza anúncios e novidades concretas de jogos; exclui preços, promoções, mercado e reviews, preservando fonte, região e fatos verificáveis. Artigos sem verificação positiva permanecem em rascunho.
+
+### Removed
+
+- Operações de leitura e escrita de Meta do ano retiradas após o frontend 1.31.0. Endpoints legados retornam 410 para clientes em cache; dados históricos, conclusões e conquistas são preservados.
+
+### Fixed
+
+- Reservas de Zcoins e cota usam slots únicos e transações; falhas e reservas abandonadas liberam cota e estornam o valor histórico, com proteção contra conclusão concorrente.
+- Downloads editoriais restringem destinos públicos HTTPS, redirecionamentos, tempo, tamanho e formato; HTML gerado é sanitizado.
+- Endpoint de release informa a versão 0.14.0.
+
 ## [0.13.0] - 2026-09-22
 
 ### Added

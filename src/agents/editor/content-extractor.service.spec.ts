@@ -1,84 +1,55 @@
 import { ContentExtractorService } from './content-extractor.service';
-
+import { safeEditorialFetch, isPublicAddress } from './safe-editorial-fetch';
+jest.mock('./safe-editorial-fetch', () => ({
+  ...jest.requireActual('./safe-editorial-fetch'),
+  safeEditorialFetch: jest.fn(),
+}));
+const fetchSource = jest.mocked(safeEditorialFetch);
 describe('ContentExtractorService', () => {
-  const service = new ContentExtractorService();
-  const originalFetch = global.fetch;
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-    jest.restoreAllMocks();
-  });
-
-  const buildHtml = (body: string) =>
-    `<!DOCTYPE html><html><head><title>Título da Página</title></head><body>${body}</body></html>`;
-
-  it('extrai título e texto principal de um HTML válido', async () => {
-    const article = `
-      <article>
-        <h1>Manchete do Artigo</h1>
-        <p>Primeiro parágrafo com conteúdo relevante e suficiente para o Readability identificar o corpo principal do texto sem problemas.</p>
-        <p>Segundo parágrafo reforçando o conteúdo principal com mais frases densas para passar no heurístico de extração.</p>
-      </article>`;
-    global.fetch = jest.fn(
-      async () =>
-        new Response(buildHtml(article), {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        }),
+  afterEach(() => jest.resetAllMocks());
+  it('extracts article text through the bounded public-source downloader', async () => {
+    fetchSource.mockResolvedValue({
+      bytes: Buffer.from(
+        '<html><head><title>Game revealed</title></head><body><article><p>A new adventure was announced today with a trailer and gameplay details. The studio shared the release date and confirmed platforms for the next chapter.</p></article></body></html>',
+      ),
+      contentType: 'text/html',
+      url: 'https://example.com/news',
+      elapsedMs: 2,
+    });
+    const result = await new ContentExtractorService().extract(
+      'https://example.com/news',
     );
-
-    const result = await service.extract('https://exemplo.com/post');
-
-    expect(result.title).toEqual(expect.any(String));
-    expect(result.title.length).toBeGreaterThan(0);
-    expect(result.text).toContain('conteúdo relevante');
+    expect(result.text).toContain('adventure');
     expect(result.text).not.toContain('<p>');
   });
-
-  it('envia User-Agent de browser no fetch', async () => {
-    const fetchMock = jest.fn(
-      async () =>
-        new Response(
-          buildHtml(
-            '<article><p>Conteúdo denso o suficiente para o Readability extrair o corpo principal da página de teste.</p></article>',
-          ),
-          {
-            status: 200,
-            headers: { 'content-type': 'text/html' },
-          },
-        ),
-    );
-    global.fetch = fetchMock;
-
-    await service.extract('https://exemplo.com/post');
-
-    const [, init] = fetchMock.mock.calls[0];
-    expect((init as RequestInit).headers).toMatchObject({
-      'User-Agent': expect.stringContaining('Mozilla/5.0'),
+  it('rejects non-HTML sources', async () => {
+    fetchSource.mockResolvedValue({
+      bytes: Buffer.from('abc'),
+      contentType: 'application/pdf',
+      url: 'https://example.com/a',
+      elapsedMs: 1,
     });
+    await expect(
+      new ContentExtractorService().extract('https://example.com/a'),
+    ).rejects.toThrow('not HTML');
   });
-
-  it('lança erro quando a resposta não é ok', async () => {
-    global.fetch = jest.fn(
-      async () => new Response('not found', { status: 404 }),
-    );
-
-    await expect(service.extract('https://exemplo.com/x')).rejects.toThrow(
-      /404/,
-    );
-  });
-
-  it('lança erro quando o Readability não encontra conteúdo principal', async () => {
-    global.fetch = jest.fn(
-      async () =>
-        new Response('<html><body></body></html>', {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        }),
-    );
-
-    await expect(service.extract('https://exemplo.com/vazio')).rejects.toThrow(
-      /conteúdo principal/i,
-    );
-  });
+  it.each([
+    '127.0.0.1',
+    '10.1.1.1',
+    '169.254.169.254',
+    '172.16.0.1',
+    '192.168.1.1',
+    '100.64.0.1',
+    '::1',
+    '::ffff:127.0.0.1',
+    'fd00::1',
+    'fe80::1',
+    '2001:db8::1',
+  ])('rejects reserved address %s', (address) =>
+    expect(isPublicAddress(address)).toBe(false),
+  );
+  it.each(['8.8.8.8', '1.1.1.1', '2606:4700:4700::1111'])(
+    'allows public address %s',
+    (address) => expect(isPublicAddress(address)).toBe(true),
+  );
 });
