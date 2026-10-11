@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import {
+  evaluationFailure,
   selectedByTrend,
   summarize,
   EvaluationResult,
@@ -70,6 +71,7 @@ async function main() {
   for (const item of samples) {
     const started = Date.now();
     let stage = 'source';
+    let fatal = false;
     let source: unknown;
     const evidence: Record<string, unknown> & {
       decisions?: EvaluationResult['decisions'];
@@ -196,6 +198,8 @@ async function main() {
         usage: baseline.usage,
       });
     } catch (error) {
+      const failure = evaluationFailure(error, stage);
+      fatal = failure.fatal;
       results.push({
         id: item.id,
         url: item.url,
@@ -203,7 +207,7 @@ async function main() {
         source,
         ...evidence,
         stage,
-        error: error instanceof Error ? error.message : 'failed',
+        error: failure.error,
       });
     }
     writeFileSync(
@@ -219,9 +223,14 @@ async function main() {
       ),
     );
     console.log(`Evaluated ${results.length}/${samples.length}`);
+    if (fatal) {
+      console.error('Evaluation stopped: model credentials were rejected.');
+      process.exitCode = 1;
+      return;
+    }
   }
 }
 void main().catch((error) => {
-  console.error(error.message);
+  console.error(evaluationFailure(error, 'startup').error);
   process.exitCode = 1;
 });

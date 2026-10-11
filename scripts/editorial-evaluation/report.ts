@@ -78,3 +78,13 @@ export function summarize(results: EvaluationResult[]) {
     factualWritingReview: 'pending_manual_review',
   };
 }
+
+export function evaluationFailure(error: unknown, stage: string) {
+  const message = error instanceof Error ? error.message : 'failed';
+  return {
+    error: message.replace(/sk-[A-Za-z0-9_*\-]+/g, '[redacted]'),
+    fatal:
+      stage !== 'source' &&
+      /\b401\b|UNAUTHENTICATED|incorrect api key/i.test(message),
+  };
+}

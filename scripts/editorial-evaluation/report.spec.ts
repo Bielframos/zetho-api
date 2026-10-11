@@ -1,4 +1,9 @@
-import { selectedByTrend, summarize, EvaluationResult } from './report';
+import {
+  evaluationFailure,
+  selectedByTrend,
+  summarize,
+  EvaluationResult,
+} from './report';
 
 describe('editorial evaluation evidence', () => {
   it('accepts only the supplied candidate and respects both rejection sentinels', () => {
@@ -69,5 +74,26 @@ describe('editorial evaluation evidence', () => {
   it('reports absent denominators as unknown rather than perfect scores', () => {
     expect(summarize([]).proposed.falsePositiveRate).toBeNull();
     expect(summarize([]).proposed.falseNegativeRate).toBeNull();
+  });
+});
+
+describe('evaluation credential failures', () => {
+  it('redacts provider key fragments and stops on invalid model credentials', () => {
+    const failure = evaluationFailure(
+      new Error('401 Incorrect API key provided: sk-proj-***abcd'),
+      'baseline',
+    );
+    expect(failure).toEqual({
+      error: '401 Incorrect API key provided: [redacted]',
+      fatal: true,
+    });
+  });
+  it('does not confuse publisher access denial with model authentication', () => {
+    expect(
+      evaluationFailure(new Error('Editorial source HTTP 401'), 'source').fatal,
+    ).toBe(false);
+    expect(
+      evaluationFailure(new Error('Editorial source HTTP 403'), 'source').fatal,
+    ).toBe(false);
   });
 });
