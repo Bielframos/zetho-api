@@ -53,7 +53,8 @@
       "feed": "https://feeds.feedburner.com/ign/games-all",
       "id": 6,
       "expected": "reject_non_videogame",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-3"
     },
     {
       "title": "GTA 6 Fan Says Rockstar Sent Them a Poster Just Because They Asked Nicely",
@@ -98,7 +99,8 @@
       "feed": "https://feeds.feedburner.com/ign/games-all",
       "id": 11,
       "expected": "reject_non_videogame",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-3"
     },
     {
       "title": "Gears of War: E-Day Estimated Sales Reach Just 230,000 in First Week, Analyst Says",
@@ -134,7 +136,8 @@
       "feed": "https://feeds.feedburner.com/ign/games-all",
       "id": 15,
       "expected": "accept",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-1"
     },
     {
       "title": "October’s Humble Choice Has Dropped – Get Like a Dragon: Pirate Yakuza in Hawaii and 7 More PC Games for $15",
@@ -161,7 +164,10 @@
       "feed": "https://feeds.feedburner.com/ign/games-all",
       "id": 18,
       "expected": "accept",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "recent_article_ids": [
+        17
+      ]
     },
     {
       "title": "Wardogs Dev Holding Back Certain Features Because of Xbox Series S, but Working to 'Very Low-End Hardware' Has Its Benefits",
@@ -188,7 +194,8 @@
       "feed": "https://www.gamespot.com/feeds/game-news",
       "id": 21,
       "expected": "reject_non_videogame",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-3"
     },
     {
       "title": "Let’s All Be Happy This AAA Minesweeper Game Isn’t Real",
@@ -206,7 +213,8 @@
       "feed": "https://www.gamespot.com/feeds/game-news",
       "id": 23,
       "expected": "duplicate",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-1"
     },
     {
       "title": "Gears Of War: E-Day–How’s It Selling? Let’s Unpack Things",
@@ -242,7 +250,8 @@
       "feed": "https://www.gamespot.com/feeds/game-news",
       "id": 27,
       "expected": "ambiguous",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-2"
     },
     {
       "title": "Is The BioShock Movie Ever Going To Happen? Director Weighs In",
@@ -368,7 +377,8 @@
       "feed": "https://blog.playstation.com/feed/",
       "id": 41,
       "expected": "duplicate",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-1"
     },
     {
       "title": "Players’ Choice: Vote for September’s best new game",
@@ -440,7 +450,8 @@
       "feed": "https://www.videogameschronicle.com/feed/",
       "id": 49,
       "expected": "duplicate",
-      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review"
+      "assessment_basis": "Editorial human-style annotation by agent from title and feed excerpt; not an independent human review",
+      "event_group": "event-2"
     },
     {
       "title": "Sonic Racing Crossworlds Year 2 crossovers revealed, including Final Fantasy 7, Hello Kitty and retro Sega",

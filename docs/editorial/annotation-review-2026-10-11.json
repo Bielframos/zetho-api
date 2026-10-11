@@ -1,0 +1,45 @@
+{
+  "review_method": "Independent engineering-agent review of captured source material, completed before reading model outputs; not a human editorial panel.",
+  "original_labels": "sample-2026-10-11.json",
+  "corrections": [
+    {
+      "id": 41,
+      "original": "duplicate",
+      "revised": "reject_guide",
+      "remove_event_group": true,
+      "reason": "Overview of FOB, stations, progression and XP tips; distinct from the early-access announcement in 15/23."
+    }
+  ],
+  "notes": [
+    {
+      "id": 26,
+      "decision": "retain_ambiguous",
+      "reason": "Retrospective interview; reject_recap is plausible."
+    },
+    {
+      "id": 27,
+      "decision": "retain_ambiguous",
+      "reason": "Official no-announcement statement about a rumor; rejection is plausible."
+    },
+    {
+      "id": 20,
+      "decision": "retain_ambiguous",
+      "reason": "Direct next-generation statement lacks specific platform/date."
+    },
+    {
+      "id": 45,
+      "decision": "retain_reject_interview",
+      "reason": "Primarily retrospective actor interview, although lead mentions released content; mixed case."
+    },
+    {
+      "id": 50,
+      "decision": "retain_accept_with_source_limitation",
+      "reason": "Announcement in title but captured body is only 57 characters about a price drop; insufficient basis for detailed writing."
+    },
+    {
+      "id": 18,
+      "decision": "retain_accept",
+      "reason": "Rain mechanics are a different event from article17 balance/spawn changes."
+    }
+  ]
+}

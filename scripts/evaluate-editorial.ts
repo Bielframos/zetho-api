@@ -1,11 +1,19 @@
 /** Read-only comparison. No Appwrite client, publication or notifications are initialized. */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import {
+  evaluationFailure,
+  selectedByTrend,
+  summarize,
+  EvaluationResult,
+} from './editorial-evaluation/report';
 import { config } from 'dotenv';
 import openAI from '@genkit-ai/compat-oai/openai';
 import { genkit, z } from 'genkit';
 import {
   obviousEditorialRejection,
+  generatedEditorialIssues,
   normalizeEditorialDecision,
 } from '../src/agents/editor/editorial-policy';
 import { ContentExtractorService } from '../src/agents/editor/content-extractor.service';
@@ -18,6 +26,7 @@ type Sample = {
   title?: string;
   excerpt?: string;
   event_group?: string;
+  recent_article_ids?: number[];
 };
 async function main() {
   if (!process.env.OPENAI_KEY)
@@ -58,20 +67,34 @@ async function main() {
     },
     async () => [],
   );
-  const results: unknown[] = [];
+  const results: (EvaluationResult & Record<string, unknown>)[] = [];
   const extractor = new ContentExtractorService();
   for (const item of samples) {
     const started = Date.now();
+    let stage = 'source';
+    let fatal = false;
+    let source: unknown;
+    const evidence: Record<string, unknown> & {
+      decisions?: EvaluationResult['decisions'];
+    } = {};
     try {
       const extracted =
         item.title && item.excerpt
           ? { title: item.title, text: item.excerpt }
           : await extractor.extract(item.url);
+      const text = extracted.text.slice(0, 12000);
+      source = {
+        url: item.url,
+        title: extracted.title,
+        text,
+        capturedAt: new Date().toISOString(),
+        sha256: createHash('sha256').update(text).digest('hex'),
+      };
       const post = {
         id: String(item.id),
         title: extracted.title,
-        description: extracted.text.slice(0, 12000),
-        content: extracted.text.slice(0, 12000),
+        description: text,
+        content: text,
         link: item.url,
         pubDate: new Date().toISOString(),
       };
@@ -81,24 +104,36 @@ async function main() {
               other.id < item.id && other.event_group === item.event_group,
           )
         : undefined;
-      const recentPosts = previous
-        ? [
-            {
-              title: previous.title ?? '',
-              pubDate: new Date().toISOString(),
-              originalSourceUrl: previous.url,
-              tags: [],
-            },
-          ]
-        : [];
+      const context = item.recent_article_ids
+        ? item.recent_article_ids.map((id) => {
+            const entry = samples.find((candidate) => candidate.id === id);
+            if (!entry) throw new Error(`Unknown context article ${id}`);
+            return entry;
+          })
+        : previous
+          ? [previous]
+          : [];
+      const recentPosts = context.map((entry) => ({
+        title: entry.title ?? '',
+        pubDate: new Date().toISOString(),
+        originalSourceUrl: entry.url,
+        tags: [],
+      }));
+      evidence.recentPosts = recentPosts;
+      stage = 'baseline';
       const baseline = await old.prompt('trend_analysis')({
         posts: [post],
         recentPosts,
       });
+      evidence.baseline = baseline.output;
+      const baselineSelected = selectedByTrend(baseline.output, item.id);
+      stage = 'eligibility';
       const rejection = obviousEditorialRejection(post);
       const classified =
         rejection ?? (await ai.prompt('editor/eligibility')({ post })).output;
       const checked = normalizeEditorialDecision(classified);
+      evidence.proposed = checked;
+      stage = 'proposed_trend';
       const trend = checked.eligible
         ? (
             await ai.prompt('editor/trend_analysis')({
@@ -107,16 +142,28 @@ async function main() {
             })
           ).output
         : null;
+      const proposedSelected =
+        checked.eligible && selectedByTrend(trend, item.id);
+      evidence.trend = trend;
+      evidence.decisions = {
+        baselineSelected,
+        proposedEligible: checked.eligible,
+        proposedSelected,
+        proposedDraftSupported: null,
+      };
+      let proposedDraftSupported: boolean | null = null;
       let writing: unknown = null;
-      if (
-        process.env.EDITOR_EVAL_WRITING === 'true' &&
-        checked.eligible &&
-        trend?.id !== 'N/A'
-      ) {
+      if (process.env.EDITOR_EVAL_WRITING === 'true' && proposedSelected) {
+        stage = 'writing';
         const drafted = await ai.prompt('editor/write_article')(
           { post },
           { tools: [noGames, noVideos] },
         );
+        evidence.writing = {
+          article: drafted.output.post,
+          usage: drafted.usage,
+        };
+        stage = 'verification';
         const verified = await ai.prompt('editor/verify_article')({
           source: post,
           article: {
@@ -125,9 +172,14 @@ async function main() {
             body: drafted.output.post.body,
           },
         });
+        proposedDraftSupported = verified.output?.supported === true;
+        const editorialIssues = generatedEditorialIssues(drafted.output.post);
         writing = {
+          editorialGatePassed:
+            proposedDraftSupported && editorialIssues.length === 0,
           article: drafted.output.post,
           verification: verified.output,
+          editorialIssues,
           usage: drafted.usage,
         };
       }
@@ -135,6 +187,14 @@ async function main() {
         id: item.id,
         url: item.url,
         expected: item.expected,
+        source,
+        recentPosts,
+        decisions: {
+          baselineSelected,
+          proposedEligible: checked.eligible,
+          proposedSelected,
+          proposedDraftSupported,
+        },
         baseline: baseline.output,
         proposed: checked,
         writing,
@@ -143,24 +203,39 @@ async function main() {
         usage: baseline.usage,
       });
     } catch (error) {
+      const failure = evaluationFailure(error, stage);
+      fatal = failure.fatal;
       results.push({
         id: item.id,
         url: item.url,
-        error: error instanceof Error ? error.message : 'failed',
+        expected: item.expected,
+        source,
+        ...evidence,
+        stage,
+        error: failure.error,
       });
     }
     writeFileSync(
       output,
       JSON.stringify(
-        { evaluatedAt: new Date().toISOString(), results },
+        {
+          evaluatedAt: new Date().toISOString(),
+          summary: summarize(results),
+          results,
+        },
         null,
         2,
       ),
     );
     console.log(`Evaluated ${results.length}/${samples.length}`);
+    if (fatal) {
+      console.error('Evaluation stopped: model credentials were rejected.');
+      process.exitCode = 1;
+      return;
+    }
   }
 }
 void main().catch((error) => {
-  console.error(error.message);
+  console.error(evaluationFailure(error, 'startup').error);
   process.exitCode = 1;
 });
