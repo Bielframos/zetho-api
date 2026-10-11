@@ -6,6 +6,19 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-11
+
+### Fixed
+
+- Curadoria distingue eventos novos do mesmo jogo, rejeita formatos explícitos de guias e podcasts e considera mudanças oficiais de disponibilidade.
+- Notícias geradas com preços ou promoções são retidas como rascunhos, mesmo com aprovação factual, sem notificações de publicação.
+- Redação e verificação preservam cronologia, atribuições e limites das fontes, sem exigir tradução literal nem conclusões especulativas.
+
+### Changed
+
+- Avaliação editorial real concluída com 60 casos, revisão independente das fontes e rascunhos, replay dos filtros finais e confirmação dos casos afetados. Limites e falsos positivos/negativos estão documentados; imagens automáticas permanecem desativadas.
+- Runner registra contexto, falhas por etapa e aprovação factual separada da aprovação editorial; falhas de credencial interrompem a execução com mensagem redigida.
+
 ## [0.14.0] - 2026-10-11
 
 ### Added
