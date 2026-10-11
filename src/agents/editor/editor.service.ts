@@ -1,6 +1,14 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { OutboxService } from 'src/infra/events/outbox.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EditorialImageService } from './editorial-image.service';
+import { JSDOM } from 'jsdom';
 import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
 import { PostsStatus } from 'src/infra/appwrite/appwrite.enums';
@@ -12,6 +20,11 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { GENKIT } from 'src/infra/ai/ai.constants';
 import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
+import {
+  obviousEditorialRejection,
+  type EditorialCandidate,
+  type EditorialDecision,
+} from './editorial-policy';
 import { ContentExtractorService } from './content-extractor.service';
 
 type Feed = {
@@ -37,6 +50,7 @@ type TrendAnalysis = {
 };
 
 type AiArticle = {
+  verification?: { supported: boolean; issues: string[] };
   post: {
     title: string;
     subtitle: string;
@@ -112,6 +126,7 @@ export class EditorService implements OnModuleInit {
     private readonly loggerContext: LoggerContextService,
     private readonly contentExtractor: ContentExtractorService,
     private readonly outboxService: OutboxService,
+    @Optional() private readonly editorialImages?: EditorialImageService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -193,7 +208,13 @@ export class EditorService implements OnModuleInit {
         const { posts, contents } = await this.getNews({ captureWindowHours });
 
         const recentPosts = await this.getRecentPostsForAi();
-        const postsForAnalysis = posts.slice(0, 60);
+        const postsForAnalysis = posts
+          .filter((post) => {
+            const decision = obviousEditorialRejection(post);
+            if (decision) this.logEditorialDecision(post, decision);
+            return !decision;
+          })
+          .slice(0, 60);
         const analysis = await this.trendAnalysis(
           postsForAnalysis,
           recentPosts,
@@ -209,7 +230,7 @@ export class EditorService implements OnModuleInit {
         }
 
         const postId = analysis.id as string;
-        const post = posts.find((p) => p.id === postId);
+        const post = postsForAnalysis.find((p) => p.id === postId);
 
         if (post) {
           const content =
@@ -229,6 +250,9 @@ export class EditorService implements OnModuleInit {
           };
         }
 
+        const decision = await this.assessEligibility(post);
+        if (!decision.eligible)
+          return { skipped: true as const, reason: decision.reason };
         const article = await this.writeArticle(post);
 
         const processedBody = this.postProcessContent(article.post.body);
@@ -284,6 +308,16 @@ export class EditorService implements OnModuleInit {
           content: text.slice(0, GUIDED_CONTENT_MAX_CHARS),
         };
 
+        const decision = await this.assessEligibility(post);
+        if (!decision.eligible)
+          return { skipped: true as const, reason: decision.reason };
+        // Guided URLs obey the same event-level deduplication as automated capture.
+        const analysis = await this.trendAnalysis(
+          [post],
+          await this.getRecentPostsForAi(),
+        );
+        if (this.shouldSkipPublication(analysis))
+          return { skipped: true as const, reason: analysis.why };
         const article = await this.writeArticle(post, {
           humanInstructions: instructions,
         });
@@ -309,6 +343,46 @@ export class EditorService implements OnModuleInit {
         return { skipped: false as const, savedPost };
       },
     );
+  }
+
+  private logEditorialDecision(
+    post: EditorialCandidate,
+    decision: EditorialDecision,
+  ) {
+    this.logger.log({
+      event: 'editorial.eligibility',
+      source: post.link,
+      ...decision,
+    });
+  }
+
+  async assessEligibility(
+    post: EditorialCandidate,
+  ): Promise<EditorialDecision> {
+    const obvious = obviousEditorialRejection(post);
+    const decision =
+      obvious ??
+      (
+        await this.ai.prompt('editor/eligibility')({
+          post: {
+            ...post,
+            content: post.content?.slice(0, GUIDED_CONTENT_MAX_CHARS),
+          },
+        })
+      ).output;
+    const checked =
+      decision &&
+      typeof decision.eligible === 'boolean' &&
+      typeof decision.category === 'string' &&
+      typeof decision.reason === 'string'
+        ? (decision as EditorialDecision)
+        : {
+            eligible: false,
+            category: 'invalid',
+            reason: 'Insufficient editorial classification.',
+          };
+    this.logEditorialDecision(post, checked);
+    return checked;
   }
 
   /**
@@ -349,7 +423,15 @@ export class EditorService implements OnModuleInit {
       { post, humanInstructions: options.humanInstructions },
       { tools: [this.youtubeTool, this.gameSearchTool] },
     );
-    return output;
+    const verification = await this.ai.prompt('editor/verify_article')({
+      source: post,
+      article: {
+        title: output.post.title,
+        subtitle: output.post.subtitle,
+        body: output.post.body,
+      },
+    });
+    return { ...output, verification: verification.output };
   }
 
   /**
@@ -472,7 +554,47 @@ export class EditorService implements OnModuleInit {
    * Realiza o pós-processamento do conteúdo gerado pela IA, como limpeza de HTML, formatação ou adição de elementos necessários para a publicação.
    */
   private postProcessContent(body: string) {
-    let processed = body;
+    const document = new JSDOM(`<body>${body}</body>`).window.document;
+    const allowed = new Set([
+      'P',
+      'H2',
+      'H3',
+      'UL',
+      'OL',
+      'LI',
+      'STRONG',
+      'EM',
+      'A',
+      'BR',
+    ]);
+    for (const element of Array.from(document.body.querySelectorAll('*'))) {
+      if (!allowed.has(element.tagName)) {
+        if (
+          [
+            'SCRIPT',
+            'STYLE',
+            'IFRAME',
+            'OBJECT',
+            'SVG',
+            'FORM',
+            'TEMPLATE',
+          ].includes(element.tagName)
+        )
+          element.remove();
+        else element.replaceWith(...Array.from(element.childNodes));
+        continue;
+      }
+      for (const attribute of Array.from(element.attributes)) {
+        if (
+          element.tagName === 'A' &&
+          attribute.name === 'href' &&
+          /^https?:\/\//i.test(attribute.value)
+        )
+          continue;
+        element.removeAttribute(attribute.name);
+      }
+    }
+    let processed = document.body.innerHTML;
 
     const processes = [this.renderYoutube, this.normalizeHtml];
 
@@ -582,23 +704,30 @@ export class EditorService implements OnModuleInit {
     }
   }
 
-  /** Salva o post gerado pela IA sem imagem principal. */
+  /** Saves editorial content; images require an independently approved source asset. */
   private async saveGeneratedPost(
     article: AiArticle,
     fallbackSourceUrl: string,
   ) {
     const slug = this.slugify(article.post.slug || article.post.title);
     const title = article.post.title.trim();
-    const originalSourceUrl =
-      this.toNullableString(article.post.originalSourceUrl) ||
-      this.toNullableString(fallbackSourceUrl);
+    const originalSourceUrl = this.toNullableString(fallbackSourceUrl);
 
-    const { status, reasons } = await this.resolvePublicationStatus({
+    const publication = await this.resolvePublicationStatus({
       title,
       slug,
       body: article.post.body,
       sourceUrl: originalSourceUrl,
     });
+    if (article.verification?.supported !== true) {
+      publication.status = PostsStatus.DRAFT;
+      publication.reasons.push(
+        ...(article.verification?.issues ?? [
+          'verificação factual indisponível',
+        ]),
+      );
+    }
+    const { status, reasons } = publication;
 
     if (status === PostsStatus.DRAFT) {
       this.logger.warn(
@@ -606,6 +735,9 @@ export class EditorService implements OnModuleInit {
       );
     }
 
+    const mainImage = originalSourceUrl
+      ? await this.editorialImages?.forPublication(originalSourceUrl)
+      : null;
     return this.tablesDB.createRow({
       databaseId: EditorService.DB_ID,
       tableId: 'posts',
@@ -615,7 +747,7 @@ export class EditorService implements OnModuleInit {
         subtitle: this.toNullableString(article.post.subtitle),
         slug,
         body: article.post.body,
-        mainImage: null,
+        mainImage: mainImage ? JSON.stringify(mainImage) : null,
         status,
         tags: article.post.tags
           .map((tag) => this.slugify(tag))
