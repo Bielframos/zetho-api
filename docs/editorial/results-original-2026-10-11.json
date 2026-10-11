@@ -1,0 +1,887 @@
+{
+  "evaluatedAt": "2026-10-11T10:48:28.277Z",
+  "configuration": {
+    "baseline_and_classifiers": "openai/gpt-5.4-mini",
+    "writer": "openai/gpt-5.4",
+    "candidate_mode": "singleton",
+    "source_limit_characters": 12000,
+    "writing_enabled": true,
+    "catalog_and_video_tools": "empty fixture results",
+    "prompt_sha256": {
+      "trend_analysis.prompt": "ce2dcb0f3cfeaaab652c46fe3f6d937a9e80b9f3cfe8e1a87b073cf0a00cc147",
+      "write_article.prompt": "02caf9180ac3d35fef8e94450323946bf7b381d0141c92c05929df37647e38bc",
+      "eligibility.prompt": "87390342697c05a1b5371889e354258cd4e14d152829b97000954008d9e4f33f",
+      "verify_article.prompt": "f7ac92e2d2b7f271d96d0debf20aea980790ce125fc23961859c125618b8ae4a"
+    }
+  },
+  "summary": {
+    "attempted": 60,
+    "curationSuccessful": 60,
+    "fullySuccessful": 60,
+    "minimumThirtySuccessful": true,
+    "scored": 51,
+    "ambiguous": [1, 19, 20, 26, 27, 31],
+    "duplicates": [23, 41, 49],
+    "errors": [],
+    "baseline": {
+      "falsePositives": [
+        2, 4, 5, 6, 8, 10, 12, 13, 16, 22, 24, 28, 29, 30, 32, 33, 35, 36, 37,
+        42, 43, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60
+      ],
+      "falseNegatives": [18],
+      "falsePositiveRate": 0.9230769230769231,
+      "falseNegativeRate": 0.08333333333333333,
+      "duplicatesSelected": []
+    },
+    "proposed": {
+      "falsePositives": [],
+      "falseNegatives": [9, 14, 18, 34],
+      "falsePositiveRate": 0,
+      "falseNegativeRate": 0.3333333333333333,
+      "duplicatesSelected": []
+    },
+    "factualWritingReview": "pending_manual_review"
+  },
+  "cases": [
+    {
+      "id": 1,
+      "url": "https://www.ign.com/articles/arc-raiders-20-update-and-spider-man-grappling-hook-drive-player-count-to-reach-7-month-high",
+      "expected": "ambiguous",
+      "source_sha256": "9c189843a0b2c6666a466e0adb2e2e7bcbb505d9bcd4d3d3f2377aa6c8353551",
+      "source_characters": 11994,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 21493
+    },
+    {
+      "id": 2,
+      "url": "https://www.ign.com/articles/gta-6-leaker-threatens-to-release-build-with-full-story-mode-played-to-the-end-ties-lucias-clothing-to-crypto-scheme",
+      "expected": "reject_leak",
+      "source_sha256": "1251dc9149faa44d6e26e9fd21e3331f516d8ee83180a4375029fc8b18d16d19",
+      "source_characters": 3983,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2624
+    },
+    {
+      "id": 3,
+      "url": "https://www.ign.com/articles/star-citizen-single-player-spinoff-squadron-42-reemerges-with-flashy-new-trailer-steam-wishlists-and-cast-confirmation",
+      "expected": "accept",
+      "source_sha256": "aa4419a8e7259beeb33a7214b219aa38addd3093d8e0701edf7b5b365a56c953",
+      "source_characters": 4914,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 18559
+    },
+    {
+      "id": 4,
+      "url": "https://www.ign.com/articles/call-of-duty-modern-warfare-story-recap",
+      "expected": "reject_recap",
+      "source_sha256": "7f70d737aa29f0788fc7f54a45a08bed3f2df7e2542321fc19bd16372208cbf4",
+      "source_characters": 12000,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2310
+    },
+    {
+      "id": 5,
+      "url": "https://www.ign.com/articles/magic-the-gathering-marvel-darkhold-destiny-preorders-are-now-live",
+      "expected": "reject_promotion",
+      "source_sha256": "1afe17371c73e3209b765e399d972590db0f43c8e0958589dfc5d17c51485564",
+      "source_characters": 2698,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2844
+    },
+    {
+      "id": 6,
+      "url": "https://www.ign.com/articles/magic-the-gathering-returns-to-marvel-with-darkhold-destiny",
+      "expected": "reject_non_videogame",
+      "source_sha256": "ead849f4f09ae69e53dbf396574d9a61977a720b2c42e6a2af49e4148b150ac8",
+      "source_characters": 3263,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2158
+    },
+    {
+      "id": 7,
+      "url": "https://www.ign.com/articles/gta-6-fan-says-rockstar-sent-them-a-poster-just-because-they-asked-nicely",
+      "expected": "reject_trivia",
+      "source_sha256": "049d548fcb420c46c4feea939057f235225a146014e02dbde6a2d89334a6ee35",
+      "source_characters": 2507,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1765
+    },
+    {
+      "id": 8,
+      "url": "https://www.ign.com/articles/final-fantasy-7-revelation-i-played-a-new-slice-from-the-early-game-with-a-boss-fight-ign-preview",
+      "expected": "reject_preview",
+      "source_sha256": "45feba73982798efba1e1364b0896c1203cedb55de2484bafd52b39d374e1144",
+      "source_characters": 7744,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2189
+    },
+    {
+      "id": 9,
+      "url": "https://www.ign.com/articles/konami-planning-second-and-third-waves-of-new-silent-hill-games",
+      "expected": "accept",
+      "source_sha256": "00c46afbd35f0850ac9b2b0f185305bb107d4d75c05440639a424c585f1d5675",
+      "source_characters": 2347,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1836
+    },
+    {
+      "id": 10,
+      "url": "https://www.ign.com/articles/blumhouse-partners-with-matpat-to-make-amanda-the-adventurer-movie-confirms-more-indie-horror-game-adaptations-are-coming-nycc-2026",
+      "expected": "reject_adaptation",
+      "source_sha256": "6b211343f71471dda8a4157205b374cce5eaaf69f537b65d20ecd26072dfd293",
+      "source_characters": 2407,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2229
+    },
+    {
+      "id": 11,
+      "url": "https://www.ign.com/articles/magic-the-gathering-at-nycc-everything-announced",
+      "expected": "reject_non_videogame",
+      "source_sha256": "2b5c8af5bcd79b57f8cf7e3b05c81440351864dce435546aa06d36522a95d43a",
+      "source_characters": 7620,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1860
+    },
+    {
+      "id": 12,
+      "url": "https://www.ign.com/articles/gears-of-war-e-day-estimated-sales-reach-just-230000-in-first-week-analyst-says",
+      "expected": "reject_market",
+      "source_sha256": "40f460c6ea1f77a781d1c68e2fac7d6775c22541a63e62d0467741a936b36d74",
+      "source_characters": 3662,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2132
+    },
+    {
+      "id": 13,
+      "url": "https://www.ign.com/articles/lucasfilm-games-producer-responds-after-galactic-racer-character-biddy-blas-goes-viral",
+      "expected": "reject_trivia",
+      "source_sha256": "71ab8b1a86c571df7e4b73d956481b9c78bddf30eb934bc451b113eed2f9988f",
+      "source_characters": 3057,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2576
+    },
+    {
+      "id": 14,
+      "url": "https://www.ign.com/articles/skate-developer-promises-more-creative-tools-are-coming-after-reskate-modding-platform-goes-viral",
+      "expected": "accept",
+      "source_sha256": "54ef6306996e93cf5c609530437b879a7eb0b4722a9eea6088d1b6670beaff62",
+      "source_characters": 2806,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 3064
+    },
+    {
+      "id": 15,
+      "url": "https://www.ign.com/articles/call-of-duty-modern-warfare-4-launch-rollout-adds-dmz-early-access",
+      "expected": "accept",
+      "source_sha256": "b29a9dd6b7c1faf3cf50be9cda2429755054cfc9e4d1583c53fda9ce05bcacdf",
+      "source_characters": 2519,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 16825
+    },
+    {
+      "id": 16,
+      "url": "https://www.ign.com/articles/october-humble-choice-2026",
+      "expected": "reject_promotion",
+      "source_sha256": "2c7f190cf5f4a0c0c9b93c0c3e219685999963873ea571b8c208d62cf6bcbaab",
+      "source_characters": 2675,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1009
+    },
+    {
+      "id": 17,
+      "url": "https://www.ign.com/articles/wardogs-dev-explains-why-blue-team-loses-more-confirms-plan-to-address-the-balance-in-season-2",
+      "expected": "accept",
+      "source_sha256": "e7b7b8d8e5251b63d3e618436c637946a53c209e0574db578998b8ab63b52cf3",
+      "source_characters": 3188,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 17928
+    },
+    {
+      "id": 18,
+      "url": "https://www.ign.com/articles/wardogs-new-rain-system-will-have-a-major-effect-on-gameplay-in-season-2",
+      "expected": "accept",
+      "source_sha256": "ee4acf5b53a6ebfcacc66b16f728e16c7c4f6a37005cc0edcfc8c20331eb6046",
+      "source_characters": 2322,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2519
+    },
+    {
+      "id": 19,
+      "url": "https://www.ign.com/articles/wardogs-dev-holding-back-certain-features-because-of-xbox-series-s-but-working-to-very-low-end-hardware-has-its-benefits",
+      "expected": "ambiguous",
+      "source_sha256": "ebd1d354c8aaa71046716a7f9afa17ce65202b30102c6265a4e3d7f24404fbba",
+      "source_characters": 4800,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 15562
+    },
+    {
+      "id": 20,
+      "url": "https://www.ign.com/articles/wardogs-dev-says-ps6-and-xbox-project-helix-ports-should-be-relatively-straightforward",
+      "expected": "ambiguous",
+      "source_sha256": "5b6af1915cb8b6f86f18b538dce646e507abc05c89b1ae717e28b95f8928d17a",
+      "source_characters": 3190,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1993
+    },
+    {
+      "id": 21,
+      "url": "https://www.gamespot.com/articles/marvel-darkhold-destiny-is-magic-the-gatherings-first-universes-beyond-set-of-2027/",
+      "expected": "reject_non_videogame",
+      "source_sha256": "19525203d8e24456923cf43e80651774073cd2f724f56a0454c2a9d6d38c0ebc",
+      "source_characters": 1120,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1657
+    },
+    {
+      "id": 22,
+      "url": "https://www.gamespot.com/articles/lets-all-be-happy-this-aaa-minesweeper-game-isnt-real/",
+      "expected": "reject_parody",
+      "source_sha256": "beabef30a6715b8fdd7cefee45901ed2533f73b01da67a151760c41be4afed5d",
+      "source_characters": 1883,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2083
+    },
+    {
+      "id": 23,
+      "url": "https://www.gamespot.com/articles/call-of-duty-mw4-early-access-also-includes-dmz-heres-how-to-get-in/",
+      "expected": "duplicate",
+      "source_sha256": "d6f5bad3fa4829aac7f991c65f392ca33c581e2f33e1c37e6ac8cb547e797460",
+      "source_characters": 1278,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1989
+    },
+    {
+      "id": 24,
+      "url": "https://www.gamespot.com/articles/gears-of-war-e-day-hows-it-selling-lets-unpack-things/",
+      "expected": "reject_market",
+      "source_sha256": "33d09d6811d1b725ab477d047afe4c2352abbe13742bbda54b81e1c153cdbeab",
+      "source_characters": 5853,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2339
+    },
+    {
+      "id": 25,
+      "url": "https://www.gamespot.com/articles/battlefield-6-is-adding-something-fans-have-wanted-since-day-1/",
+      "expected": "accept",
+      "source_sha256": "de33569261fa887629df57c8719b97453e54a4091ad1ec3cbaabd7cf9f03746f",
+      "source_characters": 2121,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 15284
+    },
+    {
+      "id": 26,
+      "url": "https://www.gamespot.com/articles/street-fighter-was-on-deaths-door-and-its-players-werent-getting-any-younger/",
+      "expected": "ambiguous",
+      "source_sha256": "1f64fda674ea8f72bec52bdabae78667ccada830fe39ffd7f0ff51588205bcdb",
+      "source_characters": 3027,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1918
+    },
+    {
+      "id": 27,
+      "url": "https://www.gamespot.com/articles/is-gta-6-coming-to-switch-2-ask-rockstar-nintendo-says/",
+      "expected": "ambiguous",
+      "source_sha256": "ad1902366cc3cca4b9c03b3b1f1024d70b3637dd71aa158249e58d8bfb8e585c",
+      "source_characters": 1604,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1980
+    },
+    {
+      "id": 28,
+      "url": "https://www.gamespot.com/articles/is-the-bioshock-movie-ever-going-to-happen-director-weighs-in/",
+      "expected": "reject_adaptation",
+      "source_sha256": "3ee9037cad2e990a30bd7822c9062180bc404dd0766a10fcf460fcd25764bbb2",
+      "source_characters": 2801,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2026
+    },
+    {
+      "id": 29,
+      "url": "https://www.gamespot.com/articles/the-eu-is-coming-for-gamings-most-manipulative-monetization-tactics/",
+      "expected": "reject_market",
+      "source_sha256": "bcadc1e2099109ca2f9907c7e807f48728dff551341807584bd53594da10cb07",
+      "source_characters": 3784,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2112
+    },
+    {
+      "id": 30,
+      "url": "https://www.gamespot.com/articles/video-games-singer-cant-wait-to-play-new-video-game-gta-6/",
+      "expected": "reject_trivia",
+      "source_sha256": "177b19684f2de3406e43c4c964fa91be2e4e0eeed927239ab01534408155a68e",
+      "source_characters": 1456,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2181
+    },
+    {
+      "id": 31,
+      "url": "https://www.gamespot.com/articles/charlie-cox-recorded-40-hours-of-dialogue-for-a-sega-game-he-cant-name-yet/",
+      "expected": "ambiguous",
+      "source_sha256": "ed4dee565dc526341b5451e44403370184d952d8c2515701c02feacd8f4908c0",
+      "source_characters": 2114,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2196
+    },
+    {
+      "id": 32,
+      "url": "https://www.gamespot.com/articles/ghost-of-tsushima-anime-taps-star-wars-visions-talent-for-its-2028-release/",
+      "expected": "reject_adaptation",
+      "source_sha256": "115e3215b3d119fa3e030dc6f7f36d3ba08ad5f42284dc2760ba59acc2ab27ca",
+      "source_characters": 1858,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1973
+    },
+    {
+      "id": 33,
+      "url": "https://www.gamespot.com/articles/ben-affleck-has-some-strong-opinions-about-fortnite-skins-and-how-hard-the-game-is-for-him/",
+      "expected": "reject_trivia",
+      "source_sha256": "6bc61e4702d3d3d31fe1c59388964f80c7dd2b4cacc4e5a2e648bd0dbcc6b803",
+      "source_characters": 1286,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2184
+    },
+    {
+      "id": 34,
+      "url": "https://www.gamespot.com/articles/ubisoft-shutting-down-rainbow-six-mobile-after-less-than-a-year/",
+      "expected": "accept",
+      "source_sha256": "33d1c0363d1f34f14896ca2b0e56ef1d10d571af0e4130b0251fb7c5ca3d12d5",
+      "source_characters": 1395,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2276
+    },
+    {
+      "id": 35,
+      "url": "https://www.gamespot.com/articles/cyberpunk-2077-is-getting-a-movie-adaptation-at-call-of-duty-film-studio-transformers-producer-on-board/",
+      "expected": "reject_adaptation",
+      "source_sha256": "30d9650c52d5f7c36af76017621ee8c0426513a6bb2a4ac6bf58c93f2648c6b6",
+      "source_characters": 2142,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1934
+    },
+    {
+      "id": 36,
+      "url": "https://blog.playstation.com/2026/10/09/official-playstation-podcast-episode-550-now-this-is-podcasting/",
+      "expected": "reject_podcast",
+      "source_sha256": "056bc3885ef0ce1643ce648816b17186a8b679799c0a0ad845ced09e1eea0204",
+      "source_characters": 1729,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2910
+    },
+    {
+      "id": 37,
+      "url": "https://blog.playstation.com/2026/10/09/share-of-the-week-marvels-wolverine-allies-villains/",
+      "expected": "reject_community_gallery",
+      "source_sha256": "35ed5c646fac13c55d2cd3b0403408c5c8db38807369e208ae7baeb0895233ae",
+      "source_characters": 896,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2168
+    },
+    {
+      "id": 38,
+      "url": "https://blog.playstation.com/2026/10/08/critical-role-joins-rockbeasts-launching-january-2027/",
+      "expected": "accept",
+      "source_sha256": "b1b90c3f8a77ae845b1cc3d0e7b1983f455c5b23eea53c07a95824cded3019ed",
+      "source_characters": 3105,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 16198
+    },
+    {
+      "id": 39,
+      "url": "https://blog.playstation.com/2026/10/07/phoenix-cyclops-joins-marvel-tokon-fighting-souls-on-november-2/",
+      "expected": "accept",
+      "source_sha256": "051903372db714cd2916ef2f93c552b3401a643285143b9c6a0ff13c6e12db6b",
+      "source_characters": 5490,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 16840
+    },
+    {
+      "id": 40,
+      "url": "https://blog.playstation.com/2026/10/06/warhammer-survivors-launches-november-10-new-characters-revealed/",
+      "expected": "accept",
+      "source_sha256": "ba233edd6dd9fbf337de08a3bdf0058242662c2151869d51a7b408f592b6cb9e",
+      "source_characters": 3282,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 18376
+    },
+    {
+      "id": 41,
+      "url": "https://blog.playstation.com/2026/10/05/everything-you-need-to-know-about-dmz-mode-in-call-of-duty-modern-warfare-4/",
+      "expected": "duplicate",
+      "source_sha256": "380fb6838a4e3d8d013d20e9c8a67369de98969f4c386d449636bd0999744976",
+      "source_characters": 4181,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2703
+    },
+    {
+      "id": 42,
+      "url": "https://blog.playstation.com/2026/10/05/players-choice-vote-for-septembers-best-new-game-4/",
+      "expected": "reject_poll",
+      "source_sha256": "5586c35dcd43dd09ccd618e967d30f6007dc7d257de5c5a272663a0ed34caec6",
+      "source_characters": 973,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1851
+    },
+    {
+      "id": 43,
+      "url": "https://blog.playstation.com/2026/10/02/official-playstation-podcast-episode-549-friendly-ghosts/",
+      "expected": "reject_podcast",
+      "source_sha256": "f0f847d77f31cee6dba99444d4225942a018376b222648240bcf4b2bede26d53",
+      "source_characters": 1888,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1928
+    },
+    {
+      "id": 44,
+      "url": "https://blog.playstation.com/2026/10/02/share-of-the-week-marvels-wolverine-logan/",
+      "expected": "reject_community_gallery",
+      "source_sha256": "05efaa4868ad30a98215113dd6ee5457acdaa3c82d4e7843e552020ee28f5331",
+      "source_characters": 967,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2341
+    },
+    {
+      "id": 45,
+      "url": "https://blog.playstation.com/2026/10/02/ghost-of-yotei-complete-edition-erika-ishii-interview/",
+      "expected": "reject_interview",
+      "source_sha256": "d1328b600ddc84bfae8f76e8b4ed6805f6d11169f4f5ba9fb41e6cde63cc0834",
+      "source_characters": 6699,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2864
+    },
+    {
+      "id": 46,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-hals-treasure-hunt-quest-guide/",
+      "expected": "reject_guide",
+      "source_sha256": "222a3c77955de50dbfc9bf30ed17782d5c4bc0af4c3657847587d21aa22ec9dd",
+      "source_characters": 116,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1768
+    },
+    {
+      "id": 47,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-transmog-how-to-change-armor-appearance/",
+      "expected": "reject_guide",
+      "source_sha256": "1a7e10f2f04851598ebe60c66ddc0ec47b158612af9369005f2ce1d44be4ea3d",
+      "source_characters": 98,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2125
+    },
+    {
+      "id": 48,
+      "url": "https://www.videogameschronicle.com/news/us-console-hardware-market-at-its-most-precarious-position-since-the-80s-says-circana/",
+      "expected": "reject_market",
+      "source_sha256": "e6bcd27be65961a73f8889ce3b211bb3c960d505699802cac83c72c7fd103665",
+      "source_characters": 78,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2048
+    },
+    {
+      "id": 49,
+      "url": "https://www.videogameschronicle.com/news/will-gta-6-make-its-way-to-switch-2-nintendo-isnt-saying/",
+      "expected": "duplicate",
+      "source_sha256": "033e82945c0c5b79699b375168509c9dc23f4ca36b319a661e5434e96fb3909e",
+      "source_characters": 80,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1609
+    },
+    {
+      "id": 50,
+      "url": "https://www.videogameschronicle.com/news/sonic-racing-crossworlds-year-2-crossovers-revealed-including-final-fantasy-7-hello-kitty-and-retro-sega/",
+      "expected": "accept",
+      "source_sha256": "d8d561f1871d9db3a2d58798035b9812350d1dd779c3914eaf30326ee35cabc2",
+      "source_characters": 57,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "elapsedMs": 13310
+    },
+    {
+      "id": 51,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-all-commission-supply-locations-the-snatching-beast-quest-guide/",
+      "expected": "reject_guide",
+      "source_sha256": "b43064f32f0f2ffe9e047394e79bfd260f9e333118ee7c7fb34e2da60d13d13f",
+      "source_characters": 102,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1720
+    },
+    {
+      "id": 52,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-summon-gagana-the-castle-in-ice-quest-guide/",
+      "expected": "reject_guide",
+      "source_sha256": "cf3ebf660c8efe199e6c13dacecef044ca962302da598f44228520b4de21849d",
+      "source_characters": 99,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2008
+    },
+    {
+      "id": 53,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-all-norgan-sphinx-sage-riddle-solutions/",
+      "expected": "reject_guide",
+      "source_sha256": "17ef22e1b5e6d9e0d08d7cf0e2d8ebc78a27d09b86dbeb4bc5769ff7838e298c",
+      "source_characters": 90,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1850
+    },
+    {
+      "id": 54,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-how-to-damage-blackdog-enemies-a-howl-in-the-dawk-quest-guide/",
+      "expected": "reject_guide",
+      "source_sha256": "f06917a6c725962a821d40cb4b8a1d162e48707d737ba8e47fa25dfb047aee8e",
+      "source_characters": 96,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1988
+    },
+    {
+      "id": 55,
+      "url": "https://www.videogameschronicle.com/guide/dd2-dark-arisen-flight-in-the-night-quest-guide-all-ilda-item-locations/",
+      "expected": "reject_guide",
+      "source_sha256": "d26403da8c64211db97ce8c80c5328fbf02bf9515e81553252ca3dbcb974fd92",
+      "source_characters": 100,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1671
+    },
+    {
+      "id": 56,
+      "url": "https://www.gamespot.com/reviews/dragons-dogma-2-dark-arisen-is-great-but-at-a-cost/",
+      "expected": "reject_review",
+      "source_sha256": "31c111c87691fd9a9c90e818e2a239123bce0efe2a26481180a2d8f6fe26e758",
+      "source_characters": 10192,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2108
+    },
+    {
+      "id": 57,
+      "url": "https://www.gamespot.com/reviews/gears-of-war-e-days-campaign-is-buried-in-the-past/",
+      "expected": "reject_review",
+      "source_sha256": "f33f85efe6744c832afc4ccd2bca1c67df9483e68c874b77cf369283d37581ed",
+      "source_characters": 11645,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2061
+    },
+    {
+      "id": 58,
+      "url": "https://www.gamespot.com/reviews/clive-barkers-hellraiser-revival-is-the-best-entry-in-the-franchise-since-the-original-film/",
+      "expected": "reject_review",
+      "source_sha256": "a7f9ae88fec8982a71692b010f8d7b302a037c5878476a36e62b0ce05cc3821a",
+      "source_characters": 12000,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2168
+    },
+    {
+      "id": 59,
+      "url": "https://www.gamespot.com/reviews/order-of-the-sinking-star-is-enormous-for-better-and-worse/",
+      "expected": "reject_review",
+      "source_sha256": "0be973b0bb62cd7e87e6e7696f029ed20edda6d1880a98a62a074c4ac238fcf0",
+      "source_characters": 10445,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 1986
+    },
+    {
+      "id": 60,
+      "url": "https://www.gamespot.com/reviews/i-cannot-believe-silly-star-wars-racing-roguelite-is-one-of-my-favorite-games-in-2026/",
+      "expected": "reject_review",
+      "source_sha256": "327a09fe84e1462266ab0576e90477a1808734885cb35d1d343448ddc8ab4cfc",
+      "source_characters": 12000,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "elapsedMs": 2395
+    }
+  ]
+}

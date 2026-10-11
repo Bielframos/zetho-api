@@ -13,6 +13,7 @@ import openAI from '@genkit-ai/compat-oai/openai';
 import { genkit, z } from 'genkit';
 import {
   obviousEditorialRejection,
+  generatedEditorialIssues,
   normalizeEditorialDecision,
 } from '../src/agents/editor/editorial-policy';
 import { ContentExtractorService } from '../src/agents/editor/content-extractor.service';
@@ -172,9 +173,13 @@ async function main() {
           },
         });
         proposedDraftSupported = verified.output?.supported === true;
+        const editorialIssues = generatedEditorialIssues(drafted.output.post);
         writing = {
+          editorialGatePassed:
+            proposedDraftSupported && editorialIssues.length === 0,
           article: drafted.output.post,
           verification: verified.output,
+          editorialIssues,
           usage: drafted.usage,
         };
       }
