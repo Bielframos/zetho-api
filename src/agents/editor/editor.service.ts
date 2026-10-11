@@ -22,6 +22,7 @@ import { CorrelationContextService } from 'src/common/observability/correlation-
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import {
   obviousEditorialRejection,
+  normalizeEditorialDecision,
   type EditorialCandidate,
   type EditorialDecision,
 } from './editorial-policy';
@@ -370,17 +371,7 @@ export class EditorService implements OnModuleInit {
           },
         })
       ).output;
-    const checked =
-      decision &&
-      typeof decision.eligible === 'boolean' &&
-      typeof decision.category === 'string' &&
-      typeof decision.reason === 'string'
-        ? (decision as EditorialDecision)
-        : {
-            eligible: false,
-            category: 'invalid',
-            reason: 'Insufficient editorial classification.',
-          };
+    const checked = normalizeEditorialDecision(decision);
     this.logEditorialDecision(post, checked);
     return checked;
   }

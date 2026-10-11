@@ -39,3 +39,33 @@ export function obviousEditorialRejection(
   }
   return null;
 }
+
+export function normalizeEditorialDecision(value: unknown): EditorialDecision {
+  const decision = value as Partial<EditorialDecision> | null;
+  if (
+    !decision ||
+    typeof decision.eligible !== 'boolean' ||
+    typeof decision.category !== 'string' ||
+    typeof decision.reason !== 'string' ||
+    !decision.reason.trim()
+  ) {
+    return {
+      eligible: false,
+      category: 'invalid',
+      reason: 'Insufficient editorial classification.',
+    };
+  }
+  return {
+    ...decision,
+    eligible:
+      decision.eligible &&
+      [
+        'announcement',
+        'release_date',
+        'trailer',
+        'gameplay',
+        'expansion',
+        'update',
+      ].includes(decision.category),
+  } as EditorialDecision;
+}

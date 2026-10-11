@@ -4,7 +4,10 @@ import { resolve } from 'node:path';
 import { config } from 'dotenv';
 import openAI from '@genkit-ai/compat-oai/openai';
 import { genkit, z } from 'genkit';
-import { obviousEditorialRejection } from '../src/agents/editor/editorial-policy';
+import {
+  obviousEditorialRejection,
+  normalizeEditorialDecision,
+} from '../src/agents/editor/editorial-policy';
 import { ContentExtractorService } from '../src/agents/editor/content-extractor.service';
 
 config({ path: process.env.EDITOR_EVAL_ENV_FILE ?? '.env', quiet: true });
@@ -95,7 +98,8 @@ async function main() {
       const rejection = obviousEditorialRejection(post);
       const classified =
         rejection ?? (await ai.prompt('editor/eligibility')({ post })).output;
-      const trend = classified?.eligible
+      const checked = normalizeEditorialDecision(classified);
+      const trend = checked.eligible
         ? (
             await ai.prompt('editor/trend_analysis')({
               posts: [post],
@@ -106,7 +110,7 @@ async function main() {
       let writing: unknown = null;
       if (
         process.env.EDITOR_EVAL_WRITING === 'true' &&
-        classified?.eligible &&
+        checked.eligible &&
         trend?.id !== 'N/A'
       ) {
         const drafted = await ai.prompt('editor/write_article')(
@@ -132,7 +136,7 @@ async function main() {
         url: item.url,
         expected: item.expected,
         baseline: baseline.output,
-        proposed: classified,
+        proposed: checked,
         writing,
         trend,
         elapsedMs: Date.now() - started,

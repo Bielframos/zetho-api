@@ -68,6 +68,25 @@ describe('editorial policy enforcement', () => {
       ).eligible,
     ).toBe(false);
   });
+  it.each(['review', 'market', 'prices_promotions', 'unknown'])(
+    'rejects contradictory eligible=true category %s',
+    async (category) => {
+      const f = service({
+        eligible: true,
+        category,
+        reason: 'Conflicting model output',
+      });
+      expect(
+        (
+          await f.instance.assessEligibility({
+            title: 'A game story',
+            link: 'https://example.com',
+          })
+        ).eligible,
+      ).toBe(false);
+    },
+  );
+
   it('guided instructions cannot override forbidden review policy or create a post', async () => {
     const f = service();
     const result = await f.instance.generateGuidedArticle({
