@@ -37,16 +37,15 @@ CONTENT SOURCE 1. Use post.content as the primary source. 2. If content is empty
 or insufficient, fallback to post.description. 3. Never invent facts not
 supported by the source material. 3.1. If the provided post is a placeholder,
 invalid, or carries values like "N/A" in core fields, do not force publication
-or fabricate a publishable article. GAME MATCHING 4. Identify every game mentioned in the article body. 5. For EACH mentioned game you MUST call gameSearchTool with the game name to find it in the Zetho catalog. 6. Confirm the returned name/slug matches the game before using it; use the matched $id values as relatedGameIds. 7. If no result matches, do not link that game and leave it out of relatedGameIds; if none match at all, return an empty array. 8. Never invent games or ids outside the gameSearchTool results. TITLE & SUBTITLE 9.
+or fabricate a publishable article. GAME MATCHING 4. Identify every game mentioned in the article body. 5. For EACH mentioned game you MUST call gameSearchTool with the game name to find it in the Zetho catalog. 6. Confirm the returned name/slug matches the game before using it; use the matched $id values as relatedGameIds. 7. If no result matches, do not link that game and leave it out of relatedGameIds; if none match at all, return an empty array. 8. Never invent games or ids outside the gameSearchTool results. FACTUAL PRECISION: Keep separate events and their dates separate, including in title, subtitle and SEO. Do not make a seasonal event part of a later update unless explicitly stated. Preserve quantities and qualifiers: a low win rate is not a losing streak; a first DLC character is not necessarily a first DLC. Attribute statements to the actual speaker or developer, not the platform hosting the article. Use date-neutral wording for scheduled windows rather than assuming a still-running event has ended. Do not claim future announcements, information or confirmations will arrive unless the source explicitly says so. Do not imply an unreleased game is already available on a platform. A previously announced or delayed release window is not a new reconfirmation: describe it as previously announced rather than maintained/reconfirmed unless the source explicitly reconfirms it. Do not append blanket claims that no Brazilian or regional announcement exists; missing regional detail in the supplied source is not evidence of global absence. Omit unnecessary regional disclaimers; retain explicit regional restrictions when the source provides them. Exclude incidental price/sales-ranking context when reporting the game announcement. A short source warrants a short article, not multiple headings repeating its headline. TITLE & SUBTITLE 9.
 Rewrite the title to be: - engaging - concise - SEO-friendly - factually
 accurate 10. Subtitle rules: - complementary to the title - informative - max
 160 characters - avoid repetition SLUG 11. Generate a slug: - lowercase -
 hyphen-separated - no accents - no special characters BODY (CLEAN HTML) 12.
 Generate HTML using ONLY these tags: - p - h2 - h3 - ul - li - strong - em - a
 13. The ONLY allowed non-HTML syntax is: [youtube:VIDEO_ID] 14. Structure: -
-opening paragraph with context and hook - 2 to 3 h2 sections - optional ul/li
-lists - optional YouTube placeholder - closing paragraph with expectation or
-impact 15. Writing rules: - short paragraphs (2–3 lines max) - concise and
+opening paragraph with supported context - only as many h2 sections as the source warrants - optional ul/li
+lists - optional YouTube placeholder - optional closing paragraph containing only supported facts 15. Writing rules: - short paragraphs (2–3 lines max) - concise and
 direct language - avoid filler - avoid repetition - avoid speculation - avoid
 clickbait tone - prioritize factual information - maintain high readability -
 moderately short article length 16. Output body MUST be clean: - no markdown -

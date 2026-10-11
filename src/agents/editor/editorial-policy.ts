@@ -1,3 +1,5 @@
+import { JSDOM } from 'jsdom';
+
 export type EditorialCandidate = {
   title: string;
   description?: string;
@@ -19,6 +21,11 @@ export function obviousEditorialRejection(
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
   const rules: [string, RegExp][] = [
+    [
+      'guide',
+      /^(everything you need to know|tudo (?:o )?que voce precisa saber)\b/,
+    ],
+    ['podcast', /\bpodcast\s+(?:episode|episodio|#)\s*\d/],
     ['review', /\b(review|reviews|reviewed|analise|veredito)\b/],
     [
       'prices_promotions',
@@ -68,4 +75,34 @@ export function normalizeEditorialDecision(value: unknown): EditorialDecision {
         'update',
       ].includes(decision.category),
   } as EditorialDecision;
+}
+
+/** Conservative final gate: source eligibility does not authorize promotional copy. */
+export function generatedEditorialIssues(article: {
+  title?: string;
+  subtitle?: string;
+  body?: string;
+  seo?: { title?: string; description?: string };
+}): string[] {
+  const markup = [
+    article.title,
+    article.subtitle,
+    article.body,
+    article.seo?.title,
+    article.seo?.description,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const document = new JSDOM(markup).window.document;
+  const text = (document.body.textContent ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const promotional =
+    /\b(descontos?|promocao|promocoes|ofertas?|cupons?|cupom|cashback|discounts?|deals?|precos?)\b|(?:us\$|r\$|\$|€|£)\s*\d/;
+  return promotional.test(text)
+    ? [
+        'O texto gerado contém preço ou promoção; requer revisão editorial antes de publicar.',
+      ]
+    : [];
 }

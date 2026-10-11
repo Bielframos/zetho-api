@@ -1,4 +1,7 @@
-import { obviousEditorialRejection } from './editorial-policy';
+import {
+  obviousEditorialRejection,
+  generatedEditorialIssues,
+} from './editorial-policy';
 import { EditorService } from './editor.service';
 
 function service(
@@ -38,6 +41,8 @@ function service(
 describe('editorial policy enforcement', () => {
   it.each([
     'Game Review',
+    'Everything you need to know about a new extraction mode',
+    'Official PlayStation Podcast Episode 549: New stories',
     'Best game deals this week',
     'Console price hike',
     'Publisher earnings report',
@@ -126,5 +131,28 @@ describe('editorial policy enforcement', () => {
     expect(body).not.toMatch(/onclick|javascript:|<script/);
     expect(body).toContain('href="https://example.com"');
     expect(body).toContain('https://www.youtube.com/embed/abcdefghijk');
+  });
+});
+
+describe('generated editorial copy', () => {
+  it.each([
+    {
+      body: '<p>Pré-venda com des<strong>conto</strong> de 10% para assinantes.</p>',
+    },
+    { subtitle: 'O jogo custa US$ 59.99.' },
+    { seo: { description: 'Uma promo&#231;&#227;o imperdível.' } },
+  ])(
+    'blocks promotional copy even outside the body or with HTML entities',
+    (article) => {
+      expect(generatedEditorialIssues(article)).toHaveLength(1);
+    },
+  );
+  it('allows gameplay percentages and free gameplay updates without sales language', () => {
+    expect(
+      generatedEditorialIssues({
+        title: 'Atualização gratuita chega amanhã',
+        body: '<p>O dano aumenta 10% e a nova expansão recebe um trailer.</p>',
+      }),
+    ).toEqual([]);
   });
 });

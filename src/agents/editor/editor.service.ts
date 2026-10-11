@@ -22,6 +22,7 @@ import { CorrelationContextService } from 'src/common/observability/correlation-
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import {
   obviousEditorialRejection,
+  generatedEditorialIssues,
   normalizeEditorialDecision,
   type EditorialCandidate,
   type EditorialDecision,
@@ -717,6 +718,11 @@ export class EditorService implements OnModuleInit {
           'verificação factual indisponível',
         ]),
       );
+    }
+    const editorialIssues = generatedEditorialIssues(article.post);
+    if (editorialIssues.length) {
+      publication.status = PostsStatus.DRAFT;
+      publication.reasons.push(...editorialIssues);
     }
     const { status, reasons } = publication;
 

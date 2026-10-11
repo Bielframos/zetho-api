@@ -1,0 +1,197 @@
+{
+  "evaluatedAt": "2026-10-11T10:51:27.120Z",
+  "status": "aborted_after_16_cases_due_to_physical_card_game_false_positive",
+  "prompt_sha256": {
+    "trend_analysis.prompt": "8f37bc382a3d8350caa38f0983c3a7aa47dc19736b7ca72236b4eea3f9773134",
+    "write_article.prompt": "989c9cec47162378763e26645e46d62e9ad777830a8eebc527c0d5663a88e172",
+    "eligibility.prompt": "180da4495d8be30c2b3c4e122191dc16442755676431f6d2bf130757dfad4365",
+    "verify_article.prompt": "bd55ed9472419230b0e08b19afe43d369b3101a3dbfabc4dfe341c795e33b29f"
+  },
+  "summary": {
+    "attempted": 16,
+    "curationSuccessful": 16,
+    "fullySuccessful": 16,
+    "minimumThirtySuccessful": false,
+    "scored": 15,
+    "ambiguous": [1],
+    "duplicates": [],
+    "errors": [],
+    "baseline": {
+      "falsePositives": [2, 4, 5, 6, 7, 8, 10, 12, 13, 16],
+      "falseNegatives": [],
+      "falsePositiveRate": 0.9090909090909091,
+      "falseNegativeRate": 0,
+      "duplicatesSelected": []
+    },
+    "proposed": {
+      "falsePositives": [6],
+      "falseNegatives": [],
+      "falsePositiveRate": 0.09090909090909091,
+      "falseNegativeRate": 0,
+      "duplicatesSelected": []
+    },
+    "factualWritingReview": "pending_manual_review"
+  },
+  "cases": [
+    {
+      "id": 1,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "source_sha256": "9c189843a0b2c6666a466e0adb2e2e7bcbb505d9bcd4d3d3f2377aa6c8353551"
+    },
+    {
+      "id": 2,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "1251dc9149faa44d6e26e9fd21e3331f516d8ee83180a4375029fc8b18d16d19"
+    },
+    {
+      "id": 3,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "source_sha256": "aa4419a8e7259beeb33a7214b219aa38addd3093d8e0701edf7b5b365a56c953"
+    },
+    {
+      "id": 4,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "7f70d737aa29f0788fc7f54a45a08bed3f2df7e2542321fc19bd16372208cbf4"
+    },
+    {
+      "id": 5,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "1afe17371c73e3209b765e399d972590db0f43c8e0958589dfc5d17c51485564"
+    },
+    {
+      "id": 6,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "source_sha256": "ead849f4f09ae69e53dbf396574d9a61977a720b2c42e6a2af49e4148b150ac8"
+    },
+    {
+      "id": 7,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "049d548fcb420c46c4feea939057f235225a146014e02dbde6a2d89334a6ee35"
+    },
+    {
+      "id": 8,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "45feba73982798efba1e1364b0896c1203cedb55de2484bafd52b39d374e1144"
+    },
+    {
+      "id": 9,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": true
+      },
+      "source_sha256": "00c46afbd35f0850ac9b2b0f185305bb107d4d75c05440639a424c585f1d5675"
+    },
+    {
+      "id": 10,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "6b211343f71471dda8a4157205b374cce5eaaf69f537b65d20ecd26072dfd293"
+    },
+    {
+      "id": 11,
+      "decisions": {
+        "baselineSelected": false,
+        "proposedEligible": true,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "2b5c8af5bcd79b57f8cf7e3b05c81440351864dce435546aa06d36522a95d43a"
+    },
+    {
+      "id": 12,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "40f460c6ea1f77a781d1c68e2fac7d6775c22541a63e62d0467741a936b36d74"
+    },
+    {
+      "id": 13,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "71ab8b1a86c571df7e4b73d956481b9c78bddf30eb934bc451b113eed2f9988f"
+    },
+    {
+      "id": 14,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": false
+      },
+      "source_sha256": "54ef6306996e93cf5c609530437b879a7eb0b4722a9eea6088d1b6670beaff62"
+    },
+    {
+      "id": 15,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": true,
+        "proposedSelected": true,
+        "proposedDraftSupported": true
+      },
+      "source_sha256": "b29a9dd6b7c1faf3cf50be9cda2429755054cfc9e4d1583c53fda9ce05bcacdf"
+    },
+    {
+      "id": 16,
+      "decisions": {
+        "baselineSelected": true,
+        "proposedEligible": false,
+        "proposedSelected": false,
+        "proposedDraftSupported": null
+      },
+      "source_sha256": "2c7f190cf5f4a0c0c9b93c0c3e219685999963873ea571b8c208d62cf6bcbaab"
+    }
+  ]
+}

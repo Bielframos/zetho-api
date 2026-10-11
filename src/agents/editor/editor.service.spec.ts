@@ -216,14 +216,12 @@ describe('EditorService.generateGuidedArticle', () => {
     const original = ai.prompt.getMockImplementation()!;
     ai.prompt.mockImplementation((name: string) =>
       name === 'editor/verify_article'
-        ? jest
-            .fn()
-            .mockResolvedValue({
-              output: {
-                supported: false,
-                issues: ['Brazilian launch date absent from source'],
-              },
-            })
+        ? jest.fn().mockResolvedValue({
+            output: {
+              supported: false,
+              issues: ['Brazilian launch date absent from source'],
+            },
+          })
         : original(name),
     );
     appwrite.tablesDB.createRow.mockImplementation(async ({ data }: any) => ({
@@ -237,6 +235,32 @@ describe('EditorService.generateGuidedArticle', () => {
           status: 'draft',
           originalSourceUrl: 'https://fonte.com/post',
         }),
+      }),
+    );
+    expect(outboxService.enqueueImmediate).not.toHaveBeenCalled();
+  });
+
+  it('retains promotional prose even when the factual verifier approves it', async () => {
+    const { service, ai, appwrite, outboxService } = setup();
+    const original = ai.prompt.getMockImplementation()!;
+    ai.prompt.mockImplementation((name: string) => {
+      const run = original(name);
+      if (name !== 'editor/write_article') return run;
+      return async (...args: any[]) => {
+        const result = await run(...args);
+        result.output.post.body +=
+          '<p>Assinantes recebem desconto de 10% na pré-venda.</p>';
+        return result;
+      };
+    });
+    appwrite.tablesDB.createRow.mockImplementation(async ({ data }: any) => ({
+      ...data,
+      $id: 'draft',
+    }));
+    await service.generateGuidedArticle({ url: 'https://fonte.com/post' });
+    expect(appwrite.tablesDB.createRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'draft' }),
       }),
     );
     expect(outboxService.enqueueImmediate).not.toHaveBeenCalled();
