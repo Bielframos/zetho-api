@@ -3,19 +3,16 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
+  GoneException,
   Put,
   Req,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { IsArray, IsIn, IsInt, Max, Min } from 'class-validator';
+import { IsArray, IsIn } from 'class-validator';
 import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { AchievementsService } from './achievements.service';
-class GoalDto {
-  @IsInt() @Min(1) @Max(1000) target!: number;
-}
 class ShowcaseDto {
   @IsArray()
   @IsIn(['soulslike_3', 'reviews_5', 'sessions_3'], { each: true })
@@ -24,32 +21,18 @@ class ShowcaseDto {
 @Controller('achievements')
 export class AchievementsController {
   constructor(private readonly service: AchievementsService) {}
-  @Get(':profileId/goals/:year') goal(
-    @Param('profileId') profileId: string,
-    @Param('year', ParseIntPipe) year: number,
-  ) {
-    return this.service.getAnnualGoal(profileId, year);
+  // Compatibility tombstones for cached clients; never read or mutate legacy rows.
+  @Get(':profileId/goals/:year')
+  retiredGoal() {
+    throw new GoneException(
+      'Meta do ano foi descontinuada. Atualize o aplicativo.',
+    );
   }
   @Put(':profileId/goals/:year')
   @UseGuards(AppwriteSessionGuard)
-  @UsePipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  )
-  setGoal(
-    @Req() req: any,
-    @Param('profileId') profileId: string,
-    @Param('year', ParseIntPipe) year: number,
-    @Body() dto: GoalDto,
-  ) {
-    return this.service.setAnnualGoal(
-      req.user.$id,
-      profileId,
-      year,
-      dto.target,
+  retiredGoalUpdate() {
+    throw new GoneException(
+      'Meta do ano foi descontinuada. Atualize o aplicativo.',
     );
   }
   @Get(':profileId/badges') badges(@Param('profileId') profileId: string) {

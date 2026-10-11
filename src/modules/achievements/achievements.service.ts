@@ -108,60 +108,6 @@ export class AchievementsService implements OnModuleInit {
     if (!rows[0]) throw new NotFoundException('Perfil não encontrado');
     return rows[0];
   }
-  async getAnnualGoal(profileId: string, year: number) {
-    this.validateYear(year);
-    const profile = await this.profile(profileId);
-    const goals = await this.page('annual_goals', [
-      Query.equal('profileId', profileId),
-      Query.equal('year', year),
-    ]);
-    const completed = await this.db.listRows<Row>({
-      databaseId: DB,
-      tableId: 'completion_events',
-      queries: [
-        Query.equal('profileId', profileId),
-        Query.equal('year', year),
-        Query.limit(1),
-      ],
-    });
-    return {
-      profileId,
-      year,
-      target: goals[0]?.target ?? null,
-      completed: completed.total,
-    };
-  }
-  async setAnnualGoal(
-    userId: string,
-    profileId: string,
-    year: number,
-    target: number,
-  ) {
-    this.validateYear(year);
-    if (!Number.isInteger(target) || target < 1 || target > 1000)
-      throw new BadRequestException('Meta deve estar entre 1 e 1000');
-    const profile = await this.profile(profileId);
-    if (profile.userId !== userId)
-      throw new ForbiddenException('Perfil não pertence ao usuário');
-    const rowId = stableId('annual_goal', `${profileId}:${year}`);
-    try {
-      await this.db.createRow({
-        databaseId: DB,
-        tableId: 'annual_goals',
-        rowId,
-        data: { profileId, year, target },
-      });
-    } catch (error) {
-      if ((error as any)?.code !== 409) throw error;
-      await this.db.updateRow({
-        databaseId: DB,
-        tableId: 'annual_goals',
-        rowId,
-        data: { target },
-      });
-    }
-    return this.getAnnualGoal(profileId, year);
-  }
   private validateYear(year: number) {
     if (!Number.isInteger(year) || year < 2020 || year > 2100)
       throw new BadRequestException('Ano inválido');
