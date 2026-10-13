@@ -4,7 +4,7 @@ API do Zetho, uma plataforma para registrar sua vida nos jogos e compartilhar co
 
 *Zetho's NestJS API powers a gaming journal and community app. Contributions in Portuguese and English are welcome.*
 
-Frontend: [Bielframos/zerei](https://github.com/Bielframos/zerei).
+Frontend: [Bielframos/Zetho](https://github.com/Bielframos/Zetho).
 
 ## Começar
 
