@@ -1,98 +1,75 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Zetho API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API do Zetho, uma plataforma para registrar sua vida nos jogos e compartilhar com sua comunidade. Implementa biblioteca, avaliações, listas, perfis, conexões, jogatinas e rankings. Recomendações de IA, curadoria editorial e integrações de catálogo são recursos opcionais.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+*Zetho's NestJS API powers a gaming journal and community app. Contributions in Portuguese and English are welcome.*
 
-## Description
+Frontend: [Bielframos/zerei](https://github.com/Bielframos/zerei).
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Começar
 
-## Project setup
+Requisitos: Node.js 22.12 ou superior (referência em `.node-version`), pnpm 10.34.5, Redis e um projeto Appwrite com TablesDB e suporte às transações usadas pelo SDK `node-appwrite` 29. Para instalar pnpm: `npm install --global pnpm@10.34.5`.
 
 ```bash
-$ pnpm install
+git clone https://github.com/Bielframos/zetho-api.git
+cd zetho-api
+pnpm install --frozen-lockfile
+cp .env.example .env
+docker compose up -d
 ```
 
-## Compile and run the project
+Edite `.env` com endpoint, ID e chave do **seu próprio projeto Appwrite**. O Compose inicia somente Redis. Instale e autentique a CLI do Appwrite, habilite autenticação por email/senha no seu projeto e registre `localhost` como plataforma Web. Gere a configuração local e confira o projeto de destino antes de importar o schema:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm appwrite:configure
+appwrite push teams --all --config-file appwrite.local.json
+appwrite push tables --all --config-file appwrite.local.json
+appwrite push buckets --all --config-file appwrite.local.json
+pnpm demo:seed
+pnpm demo:seed --apply
 ```
 
-## Run tests
+Aguarde a criação de colunas e índices antes do seed. `demo:seed` apenas mostra uma prévia; `--apply` cria os dados fictícios sem substituir linhas existentes. Para um projeto remoto de desenvolvimento, acrescente `--allow-remote`. A configuração local não copia usuários, membros de equipes ou dados da instalação oficial.
+
+Depois, inicie a API:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm start:dev
 ```
 
-## Deployment
+A API escuta em http://localhost:3000. `GET /health` verifica o processo; `/health/ready` verifica disponibilidade do Appwrite. Uma resposta de liveness não comprova que o schema foi instalado.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Comandos
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm test:tooling       # ferramentas de configuração e dados fictícios
+pnpm test:ci            # testes unitários e de contrato com mocks
+pnpm build             # compila NestJS
+pnpm start:prod        # inicia dist/main
+pnpm appwrite:configure
+pnpm demo:seed          # somente prévia, sem gravar
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+`pnpm secrets:check` requer Gitleaks 8.30.1 e examina arquivos atuais rastreados e novos não ignorados. A CI executa essa verificação sem credenciais de produção. Os testes não substituem uma validação ponta a ponta com Appwrite real.
 
-## Resources
+## Arquitetura
 
-Check out a few resources that may come in handy when working with NestJS:
+- `src/modules`: regras de negócio e endpoints por domínio.
+- `src/agents`: recomendação, tradução e curadoria editorial.
+- `src/infra`: adaptadores Appwrite, IA e eventos persistidos.
+- `src/common`: autenticação, resiliência e observabilidade compartilhadas.
+- `src/system`: saúde, timeline e sitemap.
+- `scripts`: configuração, dados fictícios e manutenção do schema.
+- `appwrite.config.json`: schema de referência. Gere `appwrite.local.json` antes de usar a CLI em outra instância.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Appwrite é responsável por autenticação, tabelas e arquivos; Redis coordena caches e tarefas. Operações de escrita social passam pela API. Não exponha `APPWRITE_API_KEY` ao frontend.
 
-## Support
+## Contribuir e operar
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Leia [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md).
 
-## Stay in touch
+A branch padrão atual é `master`. As regras preparadas acompanham a branch padrão, incluindo uma eventual migração para `main`. O arquivo [.github/default-branch.ruleset.json](.github/default-branch.ruleset.json) contém as regras; a proteção depende de ativação no GitHub, conforme o plano do repositório.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Licença e conteúdo
 
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+O código do Zetho é distribuído sob a **GNU Affero General Public License, versão 3 exclusivamente** (`AGPL-3.0-only`). Consulte o texto completo em [LICENSE](LICENSE). Dependências mantêm suas próprias licenças. Catálogos, imagens e outros conteúdos de terceiros não são dados livres distribuídos pelo projeto; veja [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

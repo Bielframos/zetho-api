@@ -14,7 +14,7 @@ import { IGDBGame, IGDBGameMedia, IGDBGenre } from './igdb.types';
 import { AppwriteException, ID, Models, Query } from 'node-appwrite';
 import type { GamesCreate } from 'src/infra/appwrite/appwrite-custom.types';
 import {
-  classifyHttpError,
+  classifyFetchError,
   executeWithRetry,
   IntegrationExecutionError,
 } from 'src/common/integration/retry-policy';
@@ -92,32 +92,7 @@ export class IGDBService {
 
         return res;
       },
-      classifyError: (error) => {
-        if (error instanceof Error && error.name === 'AbortError') {
-          return {
-            retryable: true,
-            terminalStatusCode: 504,
-            reason: 'timeout',
-          };
-        }
-
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'status' in error &&
-          typeof (error as { status?: unknown }).status === 'number'
-        ) {
-          const status = (error as { status: number }).status;
-          return {
-            retryable: status === 429 || status >= 500,
-            terminalStatusCode: status,
-            reason:
-              status >= 400 && status < 500 ? 'http_4xx' : 'http_5xx_or_429',
-          };
-        }
-
-        return classifyHttpError(error);
-      },
+      classifyError: classifyFetchError,
     });
 
     if (!response.ok) {
@@ -164,32 +139,7 @@ export class IGDBService {
 
           return res;
         },
-        classifyError: (error) => {
-          if (error instanceof Error && error.name === 'AbortError') {
-            return {
-              retryable: true,
-              terminalStatusCode: 504,
-              reason: 'timeout',
-            };
-          }
-
-          if (
-            typeof error === 'object' &&
-            error !== null &&
-            'status' in error &&
-            typeof (error as { status?: unknown }).status === 'number'
-          ) {
-            const status = (error as { status: number }).status;
-            return {
-              retryable: status === 429 || status >= 500,
-              terminalStatusCode: status,
-              reason:
-                status >= 400 && status < 500 ? 'http_4xx' : 'http_5xx_or_429',
-            };
-          }
-
-          return classifyHttpError(error);
-        },
+        classifyError: classifyFetchError,
       });
 
       return await response.json();

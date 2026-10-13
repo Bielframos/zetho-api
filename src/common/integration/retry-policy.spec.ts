@@ -1,10 +1,37 @@
 import {
+  classifyFetchError,
   executeWithRetry,
   IntegrationExecutionError,
   RetryClassification,
 } from './retry-policy';
 
 describe('executeWithRetry', () => {
+  it.each([
+    [429, true, 'http_4xx'],
+    [503, true, 'http_5xx_or_429'],
+    [401, false, 'http_4xx'],
+  ])(
+    'classifies fetch status %i as retryable=%s',
+    (status, retryable, reason) => {
+      expect(classifyFetchError({ status })).toEqual({
+        retryable,
+        terminalStatusCode: status,
+        reason,
+      });
+    },
+  );
+
+  it('classifies fetch aborts as retryable timeouts', () => {
+    const error = new Error('request aborted');
+    error.name = 'AbortError';
+
+    expect(classifyFetchError(error)).toEqual({
+      retryable: true,
+      terminalStatusCode: 504,
+      reason: 'timeout',
+    });
+  });
+
   it('retries retryable failures with cap and exposes metadata', async () => {
     let attempts = 0;
 

@@ -1,0 +1,32 @@
+[extend]
+useDefault = true
+
+# Appwrite uses twoWayKey as a schema relationship identifier. Restrict this
+# exception to that field under the generic API key detector.
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Appwrite schema relationship identifiers"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)appwrite\.config\.json$''']
+regexes = ['''^\s*"twoWayKey"\s*:\s*"[A-Za-z0-9_-]+"\s*,?\s*$''']
+
+# This spec fixture sets a deterministic idempotency header for request tests.
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Idempotency key test fixture"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)src/agents/game-recommender/game-recommender\.controller\.spec\.ts$''']
+regexes = ['''^\s*\.set\('Idempotency-Key', '4de20dee-2306-41cf-a98e-7cfc793dcb67'\)\s*$''']
+
+# Historical NestJS starter badge used this fixed public placeholder as a
+# shields.io query token. Match only that exact README line.
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "NestJS starter badge placeholder"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)README\.md$''']
+regexes = ['''^\[circleci-image\]: https://img\.shields\.io/circleci/build/github/nestjs/nest/master\?token=abc123def456$''']
+

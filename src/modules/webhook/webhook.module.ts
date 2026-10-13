@@ -7,6 +7,7 @@ import { WebhookReplayModule } from './replay/replay.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DashboardModule } from 'src/system/dashboard/dashboard.module';
 import { AchievementsModule } from '../achievements/achievements.module';
+import { CommentNotificationService } from './handlers/comment-notification.service';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { AchievementsModule } from '../achievements/achievements.module';
     AchievementsModule,
   ],
   controllers: [WebhookController],
-  providers: [ZethoHandler, IGDBHandler],
+  providers: [ZethoHandler, IGDBHandler, CommentNotificationService],
   exports: [ZethoHandler],
 })
 export class WebhookModule {}

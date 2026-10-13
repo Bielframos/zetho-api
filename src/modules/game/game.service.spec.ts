@@ -1,5 +1,28 @@
 import { NotFoundException } from '@nestjs/common';
 import { GameService } from './game.service';
+import { GameMediaService } from './game-media.service';
+import { GameMigrationsService } from './game-migrations.service';
+import { GameSubscriptionsService } from './game-subscriptions.service';
+import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import { TranslatorService } from 'src/agents/translator/translator.service';
+import { IGDBService } from '../igdb/igdb.service';
+import type { Cache } from 'cache-manager';
+
+function buildGameService(
+  appwrite: Appwrite,
+  translator: TranslatorService,
+  igdb: IGDBService,
+  cache: Cache,
+) {
+  return new GameService(
+    appwrite,
+    igdb,
+    cache,
+    new GameMediaService(appwrite, igdb, cache),
+    new GameMigrationsService(appwrite, translator, igdb),
+    new GameSubscriptionsService(appwrite),
+  );
+}
 
 describe('GameService.findById', () => {
   const tablesDB = { listRows: jest.fn() };
@@ -7,7 +30,7 @@ describe('GameService.findById', () => {
   const cache = { get: jest.fn(), set: jest.fn() } as never;
 
   const buildService = () =>
-    new GameService(appwrite, {} as never, {} as never, cache);
+    buildGameService(appwrite, {} as never, {} as never, cache);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -36,7 +59,7 @@ describe('GameService.findById', () => {
 describe('GameService.search', () => {
   const tablesDB = { listRows: jest.fn(), updateRow: jest.fn() };
   const igdb = { getGamesByIds: jest.fn() };
-  const service = new GameService(
+  const service = buildGameService(
     { tablesDB } as never,
     {} as never,
     igdb as never,
@@ -109,7 +132,7 @@ describe('GameService detail payload', () => {
       listRows: jest.fn().mockResolvedValue({ rows: [game] }),
     };
     const cache = { get: jest.fn(), set: jest.fn() };
-    const service = new GameService(
+    const service = buildGameService(
       { tablesDB } as never,
       {} as never,
       {} as never,
@@ -128,7 +151,7 @@ describe('GameService detail payload', () => {
 
 describe('GameService.searchCompanies', () => {
   const tablesDB = { listRows: jest.fn() };
-  const service = new GameService(
+  const service = buildGameService(
     { tablesDB } as never,
     {} as never,
     {} as never,

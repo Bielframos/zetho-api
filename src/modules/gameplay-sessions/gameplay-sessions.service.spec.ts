@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { EmailTemplateService } from '../notifications/email-template.service';
 import { GameplaySessionsService } from './gameplay-sessions.service';
+import { GameplaySessionQueriesService } from './gameplay-session-queries.service';
+import { GameplaySessionNotificationsService } from './gameplay-session-notifications.service';
 
 type Row = Record<string, any> & { $id: string };
 
@@ -169,6 +171,8 @@ describe('GameplaySessionsService', () => {
       new EmailTemplateService(),
       outbox as never,
       transactions as never,
+      new GameplaySessionQueriesService(appwrite as never),
+      new GameplaySessionNotificationsService(appwrite as never),
     );
   });
 

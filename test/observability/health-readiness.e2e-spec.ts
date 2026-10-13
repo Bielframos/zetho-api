@@ -8,13 +8,13 @@ describe('Health readiness contract (e2e)', () => {
   let HealthModule: typeof import('../../src/system/health/health.module').HealthModule;
   let AppwriteHealthIndicator: typeof import('../../src/system/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
 
-  const mockAppwriteHealthIndicator = {
+  const mockAppwriteHealthIndicator: { isHealthy: jest.Mock } = {
     isHealthy: jest.fn().mockResolvedValue({
       appwrite: {
         status: 'up',
       },
     }),
-  } as unknown as typeof import('../../src/system/health/indicators/appwrite-health.indicator').AppwriteHealthIndicator;
+  };
 
   const mockMemoryHealthIndicator = {
     checkHeap: jest.fn().mockResolvedValue({
@@ -66,11 +66,11 @@ describe('Health readiness contract (e2e)', () => {
   });
 
   it('returns readiness success when Appwrite is reachable', async () => {
-    mockAppwriteHealthIndicator.isHealthy = jest.fn().mockResolvedValue({
+    mockAppwriteHealthIndicator.isHealthy.mockResolvedValue({
       appwrite: {
         status: 'up',
       },
-    }) as never;
+    });
 
     const response = await request(app.getHttpServer())
       .get('/health/ready')
@@ -87,12 +87,12 @@ describe('Health readiness contract (e2e)', () => {
   });
 
   it('returns non-200 readiness when Appwrite fails', async () => {
-    mockAppwriteHealthIndicator.isHealthy = jest.fn().mockResolvedValue({
+    mockAppwriteHealthIndicator.isHealthy.mockResolvedValue({
       appwrite: {
         status: 'down',
         message: 'Appwrite connectivity unavailable',
       },
-    }) as never;
+    });
 
     const response = await request(app.getHttpServer()).get('/health/ready');
 

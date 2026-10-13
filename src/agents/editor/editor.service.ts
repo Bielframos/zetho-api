@@ -3,46 +3,36 @@ import {
   Injectable,
   Logger,
   OnModuleInit,
-  Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { OutboxService } from 'src/infra/events/outbox.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { EditorialImageService } from './editorial-image.service';
-import { JSDOM } from 'jsdom';
-import { DOMParser } from '@xmldom/xmldom';
 import { z, type Genkit } from 'genkit';
-import { PostsStatus } from 'src/infra/appwrite/appwrite.enums';
-import { ID, Query } from 'node-appwrite';
+import { ID } from 'node-appwrite';
 import { GameService } from 'src/modules/game/game.service';
 import { YoutubeService } from 'src/modules/google/youtube.service';
-import { NotificationsService } from 'src/modules/notifications/notifications.service';
-import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { GENKIT } from 'src/infra/ai/ai.constants';
 import { CorrelationContextService } from 'src/common/observability/correlation-context.service';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
 import {
   obviousEditorialRejection,
-  generatedEditorialIssues,
   normalizeEditorialDecision,
   type EditorialCandidate,
   type EditorialDecision,
 } from './editorial-policy';
 import { ContentExtractorService } from './content-extractor.service';
+import {
+  EditorialFeedService,
+  type EditorialFeed,
+  type NewsCaptureOptions,
+} from './editorial-feed.service';
+import {
+  EditorialPostService,
+  type RecentEditorialPost,
+} from './editorial-post.service';
+import { resolveFrontendOrigin } from 'src/common/utils/frontend-origin';
 
-type Feed = {
-  posts: {
-    id: string;
-    title: string;
-    description: string;
-    link: string;
-    pubDate: string;
-    content?: string;
-  }[];
-  contents: {
-    id: string;
-    content: string;
-  }[];
-};
+type Feed = EditorialFeed;
 
 type TrendAnalysis = {
   id: string;
@@ -69,16 +59,7 @@ type AiArticle = {
   };
 };
 
-type RecentPostForAi = {
-  title: string;
-  pubDate: string;
-  originalSourceUrl: string;
-  tags: string[];
-};
-
-type NewsCaptureOptions = {
-  captureWindowHours?: number;
-};
+type RecentPostForAi = RecentEditorialPost;
 
 type ExecuteEditorOptions = NewsCaptureOptions & {
   suggestion?: string;
@@ -89,101 +70,42 @@ type GenerateGuidedArticleOptions = {
   instructions?: string;
 };
 
-const ZETHO_INSIDER_ID = '69f945e0000754418a5b';
-const DEFAULT_CAPTURE_WINDOW_HOURS = 24;
-const ZETHO_SITE_BASE_URL = 'https://www.zetho.app';
 // Limita o conteúdo extraído enviado à IA no fluxo guiado, evitando estourar
 // o limite de tokens do provedor com páginas muito longas.
 const GUIDED_CONTENT_MAX_CHARS = 12000;
-// Piso de qualidade para publicação automática. Abaixo disso o post vira
-// rascunho e espera revisão humana.
-const MIN_BODY_CHARS = 1200;
-const MIN_TITLE_CHARS = 20;
-
-const feedUrls = [
-  'https://feeds.feedburner.com/ign/games-all',
-  'https://www.gamespot.com/feeds/game-news',
-  'https://blog.playstation.com/feed/',
-  'https://news.xbox.com/en-us/feed/',
-  'https://www.videogameschronicle.com/feed/',
-];
 
 @Injectable()
 export class EditorService implements OnModuleInit {
   private readonly logger = new Logger(EditorService.name);
-  private static readonly DB_ID = 'app';
-  private readonly tablesDB: Appwrite['tablesDB'];
-  private readonly defaultCaptureWindowHours =
-    this.resolveCaptureWindowHours(
-      process.env.EDITOR_NEWS_CAPTURE_WINDOW_HOURS,
-    ) ?? DEFAULT_CAPTURE_WINDOW_HOURS;
 
   constructor(
     @Inject(GENKIT) private readonly ai: Genkit,
     private readonly gameService: GameService,
-    private readonly appwrite: Appwrite,
     private readonly youtubeService: YoutubeService,
-    private readonly notificationsService: NotificationsService,
     private readonly correlationContext: CorrelationContextService,
     private readonly loggerContext: LoggerContextService,
     private readonly contentExtractor: ContentExtractorService,
     private readonly outboxService: OutboxService,
-    @Optional() private readonly editorialImages?: EditorialImageService,
-  ) {
-    this.tablesDB = this.appwrite.tablesDB;
-  }
+    private readonly editorialFeed: EditorialFeedService,
+    private readonly editorialPost: EditorialPostService,
+  ) {}
 
   onModuleInit() {
-    this.outboxService.registerHandler(
-      'editorial.post.published',
-      async (payload) => {
-        const typedPayload = payload as {
-          id?: string;
-          title: string;
-          subtitle: string;
-          slug: string;
-          mediaUrl?: string;
-          relatedGameIds?: string[];
-        };
-
-        // 1. WhatsApp sharing
-        await this.notificationsService.sharePost({
-          title: typedPayload.title,
-          subtitle: typedPayload.subtitle,
-          postUrl: this.buildPostUrl(typedPayload.slug),
-          mediaUrl: typedPayload.mediaUrl,
-        });
-
-        // 2. Subscriber emails
-        if (
-          typedPayload.id &&
-          typedPayload.relatedGameIds &&
-          typedPayload.relatedGameIds.length > 0
-        ) {
-          try {
-            await this.notificationsService.sendGameSubscriberEmails({
-              postId: typedPayload.id,
-              title: typedPayload.title,
-              subtitle: typedPayload.subtitle,
-              slug: typedPayload.slug,
-              mediaUrl: typedPayload.mediaUrl,
-              relatedGameIds: typedPayload.relatedGameIds,
-            });
-          } catch (error) {
-            this.logger.error(
-              `Failed to send game subscriber emails for post ${typedPayload.id}`,
-              error instanceof Error ? error.stack : String(error),
-            );
-            // Re-throw to trigger outbox retry
-            throw error;
-          }
-        }
-      },
-    );
+    this.editorialPost.registerPublicationHandler();
   }
 
   @Cron(CronExpression.EVERY_HOUR)
   async handleScheduledExecution() {
+    if (!this.hasAiCredentials()) {
+      this.logger.warn(
+        'Skipping editorial schedule: OPENAI_KEY is not configured.',
+      );
+      return {
+        skipped: true as const,
+        reason: 'AI integration is not configured.',
+      };
+    }
+
     return this.correlationContext.runWithGeneratedCorrelationId(
       () =>
         this.loggerContext.trackLifecycle(
@@ -206,10 +128,11 @@ export class EditorService implements OnModuleInit {
         operation: 'editor.execute',
       },
       async () => {
+        this.assertAiAvailable();
         const { suggestion, captureWindowHours } = options;
         const { posts, contents } = await this.getNews({ captureWindowHours });
 
-        const recentPosts = await this.getRecentPostsForAi();
+        const recentPosts = await this.editorialPost.getRecentPostsForAi();
         const postsForAnalysis = posts
           .filter((post) => {
             const decision = obviousEditorialRejection(post);
@@ -245,7 +168,10 @@ export class EditorService implements OnModuleInit {
           post.content = content;
         } else throw new Error('Post not found');
 
-        if (post.link && (await this.sourceUrlAlreadyPublished(post.link))) {
+        if (
+          post.link &&
+          (await this.editorialPost.sourceUrlAlreadyPublished(post.link))
+        ) {
           return {
             skipped: true as const,
             reason: `Source URL already published: ${post.link}`,
@@ -257,14 +183,19 @@ export class EditorService implements OnModuleInit {
           return { skipped: true as const, reason: decision.reason };
         const article = await this.writeArticle(post);
 
-        const processedBody = this.postProcessContent(article.post.body);
+        const processedBody = this.editorialPost.postProcessContent(
+          article.post.body,
+        );
         article.post.body = processedBody;
 
-        const savedPost = await this.saveGeneratedPost(article, post.link);
+        const savedPost = await this.editorialPost.saveGeneratedPost(
+          article,
+          post.link,
+        );
 
         // Rascunho retido pelo piso de qualidade não é publicação: não pode
         // disparar compartilhamento no WhatsApp nem e-mail para inscritos.
-        if (savedPost.status === PostsStatus.PUBLISHED) {
+        if (savedPost.status === 'published') {
           await this.outboxService.enqueueImmediate({
             type: 'editorial.post.published',
             payload: {
@@ -290,9 +221,10 @@ export class EditorService implements OnModuleInit {
         operation: 'editor.generateGuided',
       },
       async () => {
+        this.assertAiAvailable();
         const { url, instructions } = options;
 
-        if (await this.sourceUrlAlreadyPublished(url)) {
+        if (await this.editorialPost.sourceUrlAlreadyPublished(url)) {
           return {
             skipped: true as const,
             reason: `Source URL already published: ${url}`,
@@ -316,7 +248,7 @@ export class EditorService implements OnModuleInit {
         // Guided URLs obey the same event-level deduplication as automated capture.
         const analysis = await this.trendAnalysis(
           [post],
-          await this.getRecentPostsForAi(),
+          await this.editorialPost.getRecentPostsForAi(),
         );
         if (this.shouldSkipPublication(analysis))
           return { skipped: true as const, reason: analysis.why };
@@ -324,12 +256,17 @@ export class EditorService implements OnModuleInit {
           humanInstructions: instructions,
         });
 
-        article.post.body = this.postProcessContent(article.post.body);
+        article.post.body = this.editorialPost.postProcessContent(
+          article.post.body,
+        );
 
-        const savedPost = await this.saveGeneratedPost(article, url);
+        const savedPost = await this.editorialPost.saveGeneratedPost(
+          article,
+          url,
+        );
 
         // Mesma regra do fluxo automático: rascunho não dispara divulgação.
-        if (savedPost.status === PostsStatus.PUBLISHED) {
+        if (savedPost.status === 'published') {
           await this.outboxService.enqueueImmediate({
             type: 'editorial.post.published',
             payload: {
@@ -356,6 +293,18 @@ export class EditorService implements OnModuleInit {
       source: post.link,
       ...decision,
     });
+  }
+
+  private hasAiCredentials(): boolean {
+    return Boolean(process.env.OPENAI_KEY?.trim());
+  }
+
+  private assertAiAvailable(): void {
+    if (!this.hasAiCredentials()) {
+      throw new ServiceUnavailableException(
+        'Editorial generation is unavailable because the OpenAI integration is not configured.',
+      );
+    }
   }
 
   async assessEligibility(
@@ -412,7 +361,11 @@ export class EditorService implements OnModuleInit {
   ): Promise<AiArticle> {
     const prompt = this.ai.prompt('editor/write_article');
     const { output } = await prompt(
-      { post, humanInstructions: options.humanInstructions },
+      {
+        post,
+        humanInstructions: options.humanInstructions,
+        frontendOrigin: resolveFrontendOrigin(),
+      },
       { tools: [this.youtubeTool, this.gameSearchTool] },
     );
     const verification = await this.ai.prompt('editor/verify_article')({
@@ -433,7 +386,7 @@ export class EditorService implements OnModuleInit {
    */
   private shouldSkipPublication(analysis: TrendAnalysis) {
     return [analysis.id, analysis.title]
-      .map((value) => this.toTrimmedString(value))
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
       .some((value) => value.toUpperCase() === 'N/A');
   }
 
@@ -498,423 +451,7 @@ export class EditorService implements OnModuleInit {
     );
   }
 
-  /**
-   * Obtém os posts recentes para análise pela IA.
-   * @param limit
-   * @returns
-   */
-  private async getRecentPostsForAi(limit = 30): Promise<RecentPostForAi[]> {
-    const safeLimit = Math.max(1, Math.min(limit, 30));
-    const cutoffDate = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-
-    const response = await this.tablesDB.listRows({
-      databaseId: EditorService.DB_ID,
-      tableId: 'posts',
-      queries: [
-        Query.equal('status', PostsStatus.PUBLISHED),
-        Query.greaterThan('$createdAt', cutoffDate),
-        Query.select(['title', '$createdAt', 'originalSourceUrl', 'tags']),
-        Query.orderDesc('$createdAt'),
-        Query.limit(safeLimit),
-      ],
-    });
-
-    return response.rows
-      .filter((row) => !!row.title)
-      .map((row) => ({
-        title: row.title,
-        pubDate: row.$createdAt,
-        originalSourceUrl: row.originalSourceUrl ?? '',
-        tags: row.tags ?? [],
-      }));
-  }
-
-  private async sourceUrlAlreadyPublished(sourceUrl: string): Promise<boolean> {
-    const response = await this.tablesDB.listRows({
-      databaseId: EditorService.DB_ID,
-      tableId: 'posts',
-      queries: [
-        Query.equal('originalSourceUrl', sourceUrl),
-        Query.equal('status', PostsStatus.PUBLISHED),
-        Query.limit(1),
-      ],
-    });
-    return response.rows.length > 0;
-  }
-
-  /**
-   * Realiza o pós-processamento do conteúdo gerado pela IA, como limpeza de HTML, formatação ou adição de elementos necessários para a publicação.
-   */
-  private postProcessContent(body: string) {
-    const document = new JSDOM(`<body>${body}</body>`).window.document;
-    const allowed = new Set([
-      'P',
-      'H2',
-      'H3',
-      'UL',
-      'OL',
-      'LI',
-      'STRONG',
-      'EM',
-      'A',
-      'BR',
-    ]);
-    for (const element of Array.from(document.body.querySelectorAll('*'))) {
-      if (!allowed.has(element.tagName)) {
-        if (
-          [
-            'SCRIPT',
-            'STYLE',
-            'IFRAME',
-            'OBJECT',
-            'SVG',
-            'FORM',
-            'TEMPLATE',
-          ].includes(element.tagName)
-        )
-          element.remove();
-        else element.replaceWith(...Array.from(element.childNodes));
-        continue;
-      }
-      for (const attribute of Array.from(element.attributes)) {
-        if (
-          element.tagName === 'A' &&
-          attribute.name === 'href' &&
-          /^https?:\/\//i.test(attribute.value)
-        )
-          continue;
-        element.removeAttribute(attribute.name);
-      }
-    }
-    let processed = document.body.innerHTML;
-
-    const processes = [this.renderYoutube, this.normalizeHtml];
-
-    for (const process of processes) {
-      processed = process.call(this, processed);
-    }
-
-    return processed;
-  }
-
-  /**
-   * Substitui os placeholders de vídeos do YouTube no conteúdo pelo HTML correspondente.
-   * @param body - Conteúdo contendo os placeholders de vídeos do YouTube.
-   * @returns Conteúdo com os vídeos do YouTube incorporados.
-   */
-  private renderYoutube(body: string) {
-    return body.replace(
-      /\[youtube:([a-zA-Z0-9_-]{11})\]/g,
-      (_, id) => `
-        <div data-youtube-video=""><iframe width="840" height="473" src="https://www.youtube.com/embed/${id}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" loading="lazy" allowfullscreen></iframe></div>
-    `,
-    );
-  }
-
-  /**
-   * Normaliza o HTML removendo quebras de linha, tabs e espaços extras.
-   * @param body - Conteúdo HTML a ser normalizado.
-   * @returns Conteúdo HTML normalizado.
-   */
-  private normalizeHtml(body: string) {
-    return body
-      .replace(/\n/g, '')
-      .replace(/\t/g, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-  }
-
-  /** Remove marcação para medir o texto real de um corpo em HTML. */
-  private toPlainText(value?: string | null) {
-    if (typeof value !== 'string') return '';
-    return value
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  /**
-   * Piso de qualidade antes de publicar.
-   *
-   * Não reduz a cadência do agente: descarta o refugo. Publicar
-   * automaticamente artigo curto, sem fonte ou com slug duplicado é o que
-   * caracteriza produção em escala sem valor agregado — o que a política do
-   * Google penaliza. O que não passa vira rascunho para revisão humana.
-   */
-  private async resolvePublicationStatus(input: {
-    title: string;
-    slug: string;
-    body: string;
-    sourceUrl: string | null;
-  }): Promise<{ status: PostsStatus; reasons: string[] }> {
-    const reasons: string[] = [];
-    const bodyLength = this.toPlainText(input.body).length;
-
-    if (input.title.length < MIN_TITLE_CHARS) {
-      reasons.push(
-        `título com ${input.title.length} caracteres (mínimo ${MIN_TITLE_CHARS})`,
-      );
-    }
-
-    if (bodyLength < MIN_BODY_CHARS) {
-      reasons.push(
-        `corpo com ${bodyLength} caracteres (mínimo ${MIN_BODY_CHARS})`,
-      );
-    }
-
-    if (!input.sourceUrl) {
-      reasons.push('sem URL de fonte original');
-    }
-
-    if (!input.slug) {
-      reasons.push('slug vazio');
-    } else if (await this.slugAlreadyExists(input.slug)) {
-      reasons.push(`slug duplicado ("${input.slug}")`);
-    }
-
-    return {
-      status: reasons.length ? PostsStatus.DRAFT : PostsStatus.PUBLISHED,
-      reasons,
-    };
-  }
-
-  private async slugAlreadyExists(slug: string) {
-    try {
-      const existing = await this.tablesDB.listRows({
-        databaseId: EditorService.DB_ID,
-        tableId: 'posts',
-        queries: [Query.equal('slug', slug), Query.limit(1)],
-      });
-      return existing.total > 0;
-    } catch (error) {
-      // Indisponibilidade da checagem não deve bloquear a publicação.
-      this.logger.warn(
-        `Falha ao verificar slug duplicado "${slug}": ${String(error)}`,
-      );
-      return false;
-    }
-  }
-
-  /** Saves editorial content; images require an independently approved source asset. */
-  private async saveGeneratedPost(
-    article: AiArticle,
-    fallbackSourceUrl: string,
-  ) {
-    const slug = this.slugify(article.post.slug || article.post.title);
-    const title = article.post.title.trim();
-    const originalSourceUrl = this.toNullableString(fallbackSourceUrl);
-
-    const publication = await this.resolvePublicationStatus({
-      title,
-      slug,
-      body: article.post.body,
-      sourceUrl: originalSourceUrl,
-    });
-    if (article.verification?.supported !== true) {
-      publication.status = PostsStatus.DRAFT;
-      publication.reasons.push(
-        ...(article.verification?.issues ?? [
-          'verificação factual indisponível',
-        ]),
-      );
-    }
-    const editorialIssues = generatedEditorialIssues(article.post);
-    if (editorialIssues.length) {
-      publication.status = PostsStatus.DRAFT;
-      publication.reasons.push(...editorialIssues);
-    }
-    const { status, reasons } = publication;
-
-    if (status === PostsStatus.DRAFT) {
-      this.logger.warn(
-        `Post "${title}" salvo como rascunho pelo piso de qualidade: ${reasons.join('; ')}`,
-      );
-    }
-
-    const mainImage = originalSourceUrl
-      ? await this.editorialImages?.forPublication(originalSourceUrl)
-      : null;
-    return this.tablesDB.createRow({
-      databaseId: EditorService.DB_ID,
-      tableId: 'posts',
-      rowId: ID.unique(),
-      data: {
-        title,
-        subtitle: this.toNullableString(article.post.subtitle),
-        slug,
-        body: article.post.body,
-        mainImage: mainImage ? JSON.stringify(mainImage) : null,
-        status,
-        tags: article.post.tags
-          .map((tag) => this.slugify(tag))
-          .filter(Boolean)
-          .slice(0, 10),
-        relatedGameIds: article.post.relatedGameIds
-          .map((id) => this.toTrimmedString(id))
-          .filter((id): id is string => Boolean(id)),
-        seo: this.buildSeoString(article.post.seo),
-        originalSourceUrl,
-        author: ZETHO_INSIDER_ID,
-      },
-    });
-  }
-
-  /**
-   * Constrói a string de SEO a partir dos dados fornecidos, garantindo que os campos sejam adequadamente formatados e limitados.
-   */
-  private buildSeoString(value: AiArticle['post']['seo']) {
-    return JSON.stringify({
-      title: this.toTrimmedString(value?.title) || '',
-      description: this.toTrimmedString(value?.description) || '',
-    });
-  }
-
-  /**
-   * Converte uma string para null se ela for vazia ou composta apenas por espaços, caso contrário, retorna a string original sem espaços nas extremidades.
-   */
-  private toNullableString(value?: string | null) {
-    const normalized = this.toTrimmedString(value);
-    return normalized || null;
-  }
-
-  /**
-   * Remove espaços extras de uma string e retorna a versão limpa. Se a entrada não for uma string, retorna uma string vazia.
-   */
-  private toTrimmedString(value?: string | null) {
-    if (typeof value !== 'string') {
-      return '';
-    }
-
-    return value.trim();
-  }
-
-  /**
-   * Converte uma string em um slug, removendo acentos, caracteres especiais e espaços, e limitando o comprimento.
-   * @param value - A string a ser convertida em slug.
-   * @returns O slug gerado.
-   */
-  private slugify(value: string) {
-    return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 96);
-  }
-
-  /**
-   * Busca e processa o feed RSS, retornando apenas os posts publicados hoje.
-   */
-  private async fetchRSS(
-    url: string,
-    captureWindowHours: number,
-  ): Promise<Feed> {
-    const response = await fetch(url);
-    const text = await response.text();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, 'text/xml');
-
-    const items = [
-      ...Array.from(xml.getElementsByTagName('item')),
-      ...Array.from(xml.getElementsByTagName('entry')),
-    ];
-
-    let posts: Feed['posts'] = [];
-    const contents: Feed['contents'] = [];
-
-    for (const el of items) {
-      const pubDate =
-        el.getElementsByTagName('pubDate')[0]?.textContent ||
-        el.getElementsByTagName('published')[0]?.textContent ||
-        el.getElementsByTagName('updated')[0]?.textContent ||
-        '';
-
-      const dateObj = new Date(pubDate);
-      const now = new Date();
-      const captureWindowMs = captureWindowHours * 60 * 60 * 1000;
-      const ageMs = now.getTime() - dateObj.getTime();
-
-      if (
-        Number.isNaN(dateObj.getTime()) ||
-        ageMs < 0 ||
-        ageMs > captureWindowMs
-      )
-        continue;
-
-      const id = ID.unique();
-      const title = el.getElementsByTagName('title')[0]?.textContent || '';
-      const link =
-        el.getElementsByTagName('link')[0]?.textContent ||
-        el.getElementsByTagName('link')[0]?.getAttribute('href') ||
-        '';
-      const description =
-        el.getElementsByTagName('description')[0]?.textContent ||
-        el.getElementsByTagName('content')[0]?.textContent ||
-        '';
-      const content =
-        el.getElementsByTagName('content:encoded')[0]?.textContent ||
-        el.getElementsByTagName('content')[0]?.textContent ||
-        '';
-
-      posts.push({
-        id,
-        title,
-        description: description.slice(0, 500),
-        link,
-        pubDate,
-      });
-      contents.push({ id, content });
-    }
-
-    posts = posts.sort(
-      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime(),
-    );
-
-    return { posts, contents };
-  }
-
-  /**
-   * BUsca as notícias dos feeds RSS e retorna apenas os posts publicados hoje, juntamente com seus conteúdos.
-   */
   async getNews(options: NewsCaptureOptions = {}) {
-    const captureWindowHours = this.getCaptureWindowHours(options);
-    const feeds = await Promise.all(
-      feedUrls.map((url) => this.fetchRSS(url, captureWindowHours)),
-    );
-
-    return feeds.reduce(
-      (acc, feed) => {
-        acc.posts.push(...feed.posts);
-        acc.contents.push(...feed.contents);
-        return acc;
-      },
-      { posts: [], contents: [] } as Feed,
-    );
-  }
-
-  private getCaptureWindowHours(options?: NewsCaptureOptions) {
-    return (
-      this.resolveCaptureWindowHours(options?.captureWindowHours) ??
-      this.defaultCaptureWindowHours
-    );
-  }
-
-  private resolveCaptureWindowHours(value?: number | string | null) {
-    const numericValue =
-      typeof value === 'number'
-        ? value
-        : Number.parseFloat(String(value ?? ''));
-
-    if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      return null;
-    }
-
-    return Math.min(numericValue, 24 * 30);
-  }
-
-  private buildPostUrl(slug: string) {
-    return new URL(`/noticias/${slug}`, ZETHO_SITE_BASE_URL).toString();
+    return this.editorialFeed.getNews(options);
   }
 }

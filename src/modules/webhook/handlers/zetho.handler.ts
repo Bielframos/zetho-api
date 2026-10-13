@@ -14,20 +14,20 @@ import type {
 import { ID, Models, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { LoggerContextService } from 'src/common/observability/logger-context.service';
-import { EmailTemplateService } from 'src/modules/notifications/email-template.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
 import { OutboxService } from 'src/infra/events/outbox.service';
+import { CommentNotificationService } from './comment-notification.service';
+import {
+  getStatusAction,
+  getStatusRank,
+  resolveMaxStatusReached,
+  resolveStatusZCoinChanges,
+} from './entry-status.policy';
 
 @Injectable()
 export class ZethoHandler {
   private readonly logger = new Logger(ZethoHandler.name);
   private static readonly DB_ID = 'app';
-  private static readonly STATUS_RANK: Record<string, number> = {
-    backlog: 1,
-    playing: 2,
-    completed: 3,
-  };
-
   private tablesDB: Appwrite['tablesDB'];
 
   private statuses: `${ZEntriesStatus}`[] = [
@@ -41,8 +41,8 @@ export class ZethoHandler {
   constructor(
     private appwrite: Appwrite,
     private readonly loggerContext: LoggerContextService,
-    private readonly emailTemplateService: EmailTemplateService,
     private readonly outbox: OutboxService,
+    private readonly commentNotificationService: CommentNotificationService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -169,11 +169,14 @@ export class ZethoHandler {
                 ],
               });
 
-            const earlierRows = legacyPage.rows.filter((candidate) =>
-              candidate.$createdAt < entry.$createdAt ||
-              (candidate.$createdAt === entry.$createdAt && candidate.$id < entry.$id),
+            const earlierRows = legacyPage.rows.filter(
+              (candidate) =>
+                candidate.$createdAt < entry.$createdAt ||
+                (candidate.$createdAt === entry.$createdAt &&
+                  candidate.$id < entry.$id),
             );
-            if (!fallbackPreviousEntry) fallbackPreviousEntry = earlierRows[0] ?? null;
+            if (!fallbackPreviousEntry)
+              fallbackPreviousEntry = earlierRows[0] ?? null;
 
             for (const legacyEntry of earlierRows) {
               if (legacyEntry.liked === true) {
@@ -182,16 +185,16 @@ export class ZethoHandler {
 
               const legacyStatus = legacyEntry.status ?? null;
               if (
-                this.getStatusRank(legacyStatus) >
-                this.getStatusRank(legacyMaxStatusReached)
+                getStatusRank(legacyStatus) >
+                getStatusRank(legacyMaxStatusReached)
               ) {
                 legacyMaxStatusReached = legacyStatus;
               }
             }
 
             const reachedTopRank =
-              this.getStatusRank(legacyMaxStatusReached) >=
-              this.getStatusRank('completed');
+              getStatusRank(legacyMaxStatusReached) >=
+              getStatusRank('completed');
 
             if (
               legacyPage.rows.length === 0 ||
@@ -227,7 +230,7 @@ export class ZethoHandler {
           legacyMaxStatusReached ??
           prevStatus;
 
-        const zcoinChanges = this.resolveStatusZCoinChanges(
+        const zcoinChanges = resolveStatusZCoinChanges(
           currentStatus,
           maxStatusReached,
         );
@@ -237,7 +240,7 @@ export class ZethoHandler {
         // -------------------------------------------------
 
         const newLikedEver = likedEver || currentLiked === true;
-        const newMaxStatusReached = this.resolveMaxStatusReached(
+        const newMaxStatusReached = resolveMaxStatusReached(
           maxStatusReached,
           currentStatus,
         );
@@ -299,11 +302,7 @@ export class ZethoHandler {
 
         const statusOps = this.statuses
           .map((status) => {
-            const action = this.getStatusAction(
-              status,
-              prevStatus,
-              currentStatus,
-            );
+            const action = getStatusAction(status, prevStatus, currentStatus);
             if (!action) return null;
 
             const zstatsCol = `${status}Count`;
@@ -629,273 +628,7 @@ export class ZethoHandler {
     };
   }
 
-  /**
-   * Retorna a posição do status no ranking de progressão.
-   *
-   * @param status Status de biblioteca do usuário.
-   */
-  private getStatusRank(status: string | null): number {
-    return status ? (ZethoHandler.STATUS_RANK[status] ?? 0) : 0;
-  }
-
-  /**
-   * Resolve as mudanças de zcoins para mudança de status.
-   * Anti-spam: só premia na primeira vez que o usuário alcança cada nível de
-   * progresso, com base no maxStatusReached persistido em z_entries_read.
-   */
-  /**
-   * Calcula as recompensas de zcoin para transições de status.
-   *
-   * O backend deve concordar com o cálculo otimista do frontend:
-   * premia apenas a primeira vez que o usuário sobe de nível.
-   *
-   * @param current Status atual do registro.
-   * @param maxStatusReached Melhor status já alcançado.
-   */
-  private resolveStatusZCoinChanges(
-    current: string | null,
-    maxStatusReached: string | null,
-  ) {
-    const reasonByStatus: Partial<
-      Record<string, keyof typeof SCORE_TABLE.input>
-    > = {
-      backlog: 'add_game_to_library',
-      playing: 'playing_game',
-      completed: 'finished_game',
-    };
-
-    const changes: Array<{
-      type: 'input' | 'output';
-      reason: keyof typeof SCORE_TABLE.input;
-      amount: number;
-    }> = [];
-
-    const currentRank = this.getStatusRank(current);
-    const maxRank = this.getStatusRank(maxStatusReached);
-
-    if (currentRank > maxRank) {
-      const reason = current ? reasonByStatus[current] : undefined;
-      if (reason) {
-        changes.push({
-          type: 'input',
-          reason,
-          amount: SCORE_TABLE.input[reason],
-        });
-      }
-    }
-
-    return changes;
-  }
-
-  /**
-   * Retorna o maior status alcançado entre o atual e o candidato.
-   *
-   * Usado para manter `maxStatusReached` no read model.
-   */
-  private resolveMaxStatusReached(
-    current: string | null,
-    candidate: string | null,
-  ): string | null {
-    const currentRank = this.getStatusRank(current);
-    const candidateRank = this.getStatusRank(candidate);
-
-    return candidateRank > currentRank ? candidate : current;
-  }
-
-  /**
-   * Determina se a operação de contador deve incrementar ou decrementar um status.
-   *
-   * @param status Status alvo.
-   * @param prev Status anterior.
-   * @param current Status atual.
-   */
-  private getStatusAction(
-    status: `${ZEntriesStatus}`,
-    prev?: string | null,
-    current?: string | null,
-  ) {
-    if (prev !== status && current === status) return 'increment';
-    if (prev === status && current !== status) return 'decrement';
-    return null;
-  }
-
-  // Processamento de novos comentários para notificação de resposta
   async handleCommentCreate(comment: any) {
-    const parentId = this.extractRelationId(comment.parentId);
-    const replyProfileId = this.extractRelationId(comment.userProfile);
-
-    return this.loggerContext.trackLifecycle(
-      this.logger,
-      {
-        component: ZethoHandler.name,
-        operation: 'webhook.comments.on-create',
-        metadata: {
-          commentId: comment.$id,
-          parentId,
-          replyProfileId,
-        },
-      },
-      async () => {
-        if (!parentId) {
-          return {
-            success: true,
-            message: 'Comentário raiz, sem necessidade de notificação.',
-          };
-        }
-
-        // 1. Obter comentário pai
-        const parentComment = await this.tablesDB.getRow<any>({
-          databaseId: 'app',
-          tableId: 'game_comments',
-          rowId: parentId,
-        });
-
-        const parentProfileId = this.extractRelationId(
-          parentComment.userProfile,
-        );
-
-        if (!parentProfileId) {
-          return {
-            success: true,
-            message: 'Comentário pai sem perfil vinculado.',
-          };
-        }
-
-        // Ignorar se o usuário estiver respondendo a si mesmo
-        if (replyProfileId === parentProfileId) {
-          return { success: true, message: 'Auto-resposta ignorada.' };
-        }
-
-        // 2. Obter perfis e o jogo do comentário
-        const [parentProfile, replyProfile, game] = await Promise.all([
-          this.tablesDB.getRow<any>({
-            databaseId: 'app',
-            tableId: 'user_profiles',
-            rowId: parentProfileId,
-          }),
-          replyProfileId
-            ? this.tablesDB.getRow<any>({
-                databaseId: 'app',
-                tableId: 'user_profiles',
-                rowId: replyProfileId,
-              })
-            : Promise.resolve(null),
-          comment.gameId
-            ? this.tablesDB
-                .getRow<any>({
-                  databaseId: 'app',
-                  tableId: 'games',
-                  rowId: comment.gameId,
-                })
-                .catch(() => null)
-            : Promise.resolve(null),
-        ]);
-
-        const replyAuthor = replyProfile?.gamertag || 'Alguém';
-        const gameName = game?.name || 'um jogo';
-
-        // 3. Criar notificação in-app para o autor do comentário pai.
-        // O tipo ainda não consta na declaração gerada, então permanece como
-        // string local até a próxima regeneração do schema.
-        if (replyProfileId) {
-          const notificationType: string = 'game_comment';
-
-          try {
-            await this.tablesDB.createRow({
-              databaseId: ZethoHandler.DB_ID,
-              tableId: 'notifications',
-              rowId: crypto
-                .createHash('sha256')
-                .update(`reply:${comment.$id}`)
-                .digest('hex')
-                .slice(0, 32),
-              data: {
-                recipientProfileId: parentProfileId,
-                senderProfileId: replyProfileId,
-                type: notificationType,
-                title: `${replyAuthor} respondeu ao seu comentário`,
-                body:
-                  comment.content ||
-                  `Nova resposta ao seu comentário em ${gameName}.`,
-                entityId: comment.$id,
-                read: false,
-              },
-            });
-          } catch (error) {
-            if ((error as any)?.code !== 409) throw error;
-          }
-        }
-
-        if (!parentProfile.userId) {
-          return {
-            success: true,
-            message: 'Perfil pai não possui userId vinculado.',
-          };
-        }
-
-        // 4. Enviar e-mail de resposta direto para o autor do comentário pai
-        const gameUrl = game?.slug
-          ? new URL(
-              `/jogo/${game.slug}?commentId=${encodeURIComponent(comment.$id)}`,
-              this.getFrontendAppUrl(),
-            ).toString()
-          : this.getFrontendAppUrl();
-        const emailSubject = game?.name
-          ? `[Zetho] Nova resposta ao seu comentário em ${game.name}`
-          : `[Zetho] Nova resposta ao seu comentário`;
-        const emailContent = this.emailTemplateService.renderCommentReplyEmail({
-          recipientName: parentProfile.gamertag || 'Gamer',
-          replyAuthor,
-          commentContent: comment.content,
-          gameName,
-          gameUrl,
-        });
-
-        try {
-          await this.appwrite.messaging.createEmail(
-            crypto
-              .createHash('sha256')
-              .update(`reply-email:${comment.$id}`)
-              .digest('hex')
-              .slice(0, 32),
-            emailSubject,
-            emailContent,
-            [], // topics
-            [parentProfile.userId], // users
-            [], // targets
-            [], // cc
-            [], // bcc
-            [], // attachments
-            false, // draft
-            true, // html
-          );
-        } catch (error: any) {
-          if (error?.code !== 409) throw error;
-        }
-
-        return { success: true, message: 'E-mail de resposta enviado.' };
-      },
-    );
-  }
-
-  /**
-   * Normaliza um campo de relacionamento do Appwrite para o seu ID.
-   *
-   * Relações podem vir como string (ID) ou como o documento aninhado
-   * (`{ $id, ... }`) tanto no payload do webhook quanto no retorno de
-   * `getRow`. Este helper garante que sempre trabalhamos com o `$id`.
-   */
-  private extractRelationId(value: unknown): string | null {
-    if (!value) return null;
-    if (typeof value === 'string') return value;
-    if (typeof value === 'object' && '$id' in value) {
-      const id = (value as { $id?: unknown }).$id;
-      return typeof id === 'string' ? id : null;
-    }
-    return null;
-  }
-
-  private getFrontendAppUrl() {
-    return process.env.FRONTEND_APP_URL || 'https://www.zetho.app/';
+    return this.commentNotificationService.handleCommentCreate(comment);
   }
 }

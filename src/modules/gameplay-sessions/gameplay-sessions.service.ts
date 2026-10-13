@@ -14,7 +14,6 @@ import { OutboxService } from 'src/infra/events/outbox.service';
 import type {
   GameplaySessionParticipants,
   GameplaySessions,
-  Notifications,
   UserProfiles,
 } from 'src/infra/appwrite/appwrite.d';
 import type { GameplaySessionParticipantStatus } from 'src/infra/appwrite/appwrite-custom.types';
@@ -22,6 +21,8 @@ import { EmailTemplateService } from '../notifications/email-template.service';
 import { CreateGameplaySessionDto } from './dto/create-gameplay-session.dto';
 import { InviteGameplaySessionDto } from './dto/invite-gameplay-session.dto';
 import { QueryGameplaySessionDto } from './dto/query-gameplay-session.dto';
+import { GameplaySessionQueriesService } from './gameplay-session-queries.service';
+import { GameplaySessionNotificationsService } from './gameplay-session-notifications.service';
 
 type ParticipantAction = 'approve' | 'reject' | 'remove' | 'cancel_invite';
 type ParticipantTransitionResult = {
@@ -35,13 +36,14 @@ export class GameplaySessionsService {
   private static readonly DB_ID = 'app';
   private static readonly SESSIONS_TABLE = 'gameplay_sessions';
   private static readonly PARTICIPANTS_TABLE = 'gameplay_session_participants';
-  private static readonly NOTIFICATIONS_TABLE = 'notifications';
 
   constructor(
     private readonly appwrite: Appwrite,
     private readonly emailTemplateService: EmailTemplateService,
     private readonly outbox: OutboxService,
     private readonly transactions: TransactionService,
+    private readonly queries: GameplaySessionQueriesService,
+    private readonly sessionNotifications: GameplaySessionNotificationsService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -69,7 +71,11 @@ export class GameplaySessionsService {
           });
           await this.outbox.enqueue(txId, {
             type: 'GAMEPLAY_SESSION_COMPLETED',
-            payload: { sessionId: session.$id, hostProfileId: session.hostProfileId, gameId: session.gameId },
+            payload: {
+              sessionId: session.$id,
+              hostProfileId: session.hostProfileId,
+              gameId: session.gameId,
+            },
           });
         });
       }
@@ -149,182 +155,15 @@ export class GameplaySessionsService {
   }
 
   async listSessions(userId: string, query: QueryGameplaySessionDto) {
-    const profile = await this.getProfileByUserId(userId);
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const offset = (page - 1) * limit;
-    let rows: GameplaySessions[] = [];
-
-    if (query.type === 'my_sessions') {
-      const [relations, hosted] = await Promise.all([
-        this.appwrite.tablesDB.listRows<GameplaySessionParticipants>({
-          databaseId: GameplaySessionsService.DB_ID,
-          tableId: GameplaySessionsService.PARTICIPANTS_TABLE,
-          queries: [
-            Query.equal('profileId', profile.$id),
-            Query.equal('status', 'confirmed'),
-            Query.limit(100),
-          ],
-        }),
-        this.appwrite.tablesDB.listRows<GameplaySessions>({
-          databaseId: GameplaySessionsService.DB_ID,
-          tableId: GameplaySessionsService.SESSIONS_TABLE,
-          queries: [
-            Query.equal('hostProfileId', profile.$id),
-            Query.limit(100),
-          ],
-        }),
-      ]);
-      const ids = new Set([
-        ...relations.rows.map((row) => row.sessionId),
-        ...hosted.rows.map((row) => row.$id),
-      ]);
-      if (ids.size) {
-        rows = (
-          await this.appwrite.tablesDB.listRows<GameplaySessions>({
-            databaseId: GameplaySessionsService.DB_ID,
-            tableId: GameplaySessionsService.SESSIONS_TABLE,
-            queries: [
-              Query.equal('$id', [...ids]),
-              ...(query.gameId ? [Query.equal('gameId', query.gameId)] : []),
-              Query.limit(limit),
-              Query.offset(offset),
-            ],
-          })
-        ).rows;
-      }
-    } else if (query.type === 'invites') {
-      const invites =
-        await this.appwrite.tablesDB.listRows<GameplaySessionParticipants>({
-          databaseId: GameplaySessionsService.DB_ID,
-          tableId: GameplaySessionsService.PARTICIPANTS_TABLE,
-          queries: [
-            Query.equal('profileId', profile.$id),
-            Query.equal('status', 'invited'),
-            Query.limit(100),
-          ],
-        });
-      if (invites.rows.length) {
-        rows = (
-          await this.appwrite.tablesDB.listRows<GameplaySessions>({
-            databaseId: GameplaySessionsService.DB_ID,
-            tableId: GameplaySessionsService.SESSIONS_TABLE,
-            queries: [
-              Query.equal(
-                '$id',
-                invites.rows.map((row) => row.sessionId),
-              ),
-              ...(query.gameId ? [Query.equal('gameId', query.gameId)] : []),
-              Query.limit(limit),
-              Query.offset(offset),
-            ],
-          })
-        ).rows;
-      }
-    } else {
-      rows = (
-        await this.appwrite.tablesDB.listRows<GameplaySessions>({
-          databaseId: GameplaySessionsService.DB_ID,
-          tableId: GameplaySessionsService.SESSIONS_TABLE,
-          queries: [
-            Query.equal('privacy', 'public'),
-            Query.equal('status', ['scheduled', 'active']),
-            ...(query.gameId ? [Query.equal('gameId', query.gameId)] : []),
-            Query.limit(limit),
-            Query.offset(offset),
-          ],
-        })
-      ).rows;
-    }
-
-    return {
-      total: rows.length,
-      rows: await Promise.all(
-        rows.map((session) => this.enrichSummary(session, profile.$id)),
-      ),
-    };
+    return this.queries.listSessions(userId, query);
   }
 
   async getSessionById(userId: string, sessionId: string) {
-    const profile = await this.getProfileByUserId(userId);
-    const session = await this.getSession(sessionId);
-    const participants =
-      await this.appwrite.tablesDB.listRows<GameplaySessionParticipants>({
-        databaseId: GameplaySessionsService.DB_ID,
-        tableId: GameplaySessionsService.PARTICIPANTS_TABLE,
-        queries: [Query.equal('sessionId', sessionId), Query.limit(100)],
-      });
-    const current = participants.rows.find(
-      (row) => row.profileId === profile.$id,
-    );
-
-    if (
-      session.privacy === 'closed' &&
-      session.hostProfileId !== profile.$id &&
-      (!current ||
-        !['pending', 'invited', 'confirmed'].includes(current.status))
-    ) {
-      throw new ForbiddenException('Você não tem acesso a esta Jogatina');
-    }
-
-    const [host, enrichedParticipants] = await Promise.all([
-      this.getProfileById(session.hostProfileId),
-      Promise.all(
-        participants.rows.map(async (participant) => ({
-          ...participant,
-          profile: this.publicProfile(
-            await this.getProfileById(participant.profileId),
-          ),
-        })),
-      ),
-    ]);
-
-    return {
-      ...session,
-      host: this.publicProfile(host),
-      myParticipantStatus: current?.status,
-      participants: enrichedParticipants,
-    };
+    return this.queries.getSessionById(userId, sessionId);
   }
 
-  /** Conteúdo seguro para a rota pública e para SSR de links compartilhados. */
   async getPublicSessionById(userId: string | undefined, sessionId: string) {
-    const session = await this.getSession(sessionId);
-    if (session.privacy !== 'public') {
-      throw new NotFoundException('Jogatina não encontrada');
-    }
-
-    const participants = await this.appwrite.tablesDB.listRows<GameplaySessionParticipants>({
-      databaseId: GameplaySessionsService.DB_ID,
-      tableId: GameplaySessionsService.PARTICIPANTS_TABLE,
-      queries: [
-        Query.equal('sessionId', sessionId),
-        Query.equal('status', 'confirmed'),
-        Query.limit(100),
-      ],
-    });
-    const profile = userId ? await this.getProfileByUserId(userId) : null;
-    const current = profile
-      ? await this.findParticipant(sessionId, profile.$id)
-      : undefined;
-    const [host, enrichedParticipants] = await Promise.all([
-      this.getProfileById(session.hostProfileId),
-      Promise.all(
-        participants.rows.map(async (participant) => ({
-          ...participant,
-          profile: this.publicProfile(
-            await this.getProfileById(participant.profileId),
-          ),
-        })),
-      ),
-    ]);
-
-    return {
-      ...session,
-      host: this.publicProfile(host),
-      myParticipantStatus: current?.status,
-      participants: enrichedParticipants,
-    };
+    return this.queries.getPublicSessionById(userId, sessionId);
   }
 
   async requestToJoin(userId: string, sessionId: string) {
@@ -402,7 +241,7 @@ export class GameplaySessionsService {
         );
 
       if (result.changed) {
-        await this.createNotification({
+        await this.sessionNotifications.create({
           recipientProfileId: session!.hostProfileId,
           senderProfileId: profile.$id,
           type: 'session_rsvp',
@@ -467,7 +306,7 @@ export class GameplaySessionsService {
       );
 
     if (result.changed) {
-      await this.createNotification({
+      await this.sessionNotifications.create({
         recipientProfileId: session!.hostProfileId,
         senderProfileId: profile.$id,
         type: 'session_rsvp',
@@ -542,7 +381,7 @@ export class GameplaySessionsService {
       );
 
     if (result.changed) {
-      await this.createNotification({
+      await this.sessionNotifications.create({
         recipientProfileId: session!.hostProfileId,
         senderProfileId: profile.$id,
         type: 'session_rsvp',
@@ -653,7 +492,7 @@ export class GameplaySessionsService {
       },
     };
     if (result.changed) {
-      await this.createNotification({
+      await this.sessionNotifications.create({
         recipientProfileId: participant.profileId,
         senderProfileId: host.$id,
         type: 'session_rsvp',
@@ -739,7 +578,7 @@ export class GameplaySessionsService {
 
     await Promise.all(
       activeParticipants.map(async (participant) => {
-        await this.createNotification({
+        await this.sessionNotifications.create({
           recipientProfileId: participant.profileId,
           senderProfileId: host.$id,
           type: 'session_reminder',
@@ -766,85 +605,15 @@ export class GameplaySessionsService {
   }
 
   async getNotifications(userId: string) {
-    const profile = await this.getProfileByUserId(userId);
-    const result = await this.appwrite.tablesDB.listRows<Notifications>({
-      databaseId: GameplaySessionsService.DB_ID,
-      tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-      queries: [
-        Query.equal('recipientProfileId', profile.$id),
-        Query.orderDesc('$createdAt'),
-        Query.limit(50),
-      ],
-    });
-
-    return {
-      ...result,
-      rows: await Promise.all(
-        result.rows.map(async (notification) => {
-          const notificationType = notification.type;
-          const [sender, targetUrl] = await Promise.all([
-            this.getProfileById(notification.senderProfileId),
-            this.getGameCommentTargetUrl(notification),
-          ]);
-          const relatedProfileId =
-            notification.type === 'session_invite'
-              ? profile.$id
-              : notification.senderProfileId;
-          const participant =
-            notification.entityId &&
-            notificationType !== 'entry_comment' &&
-            notificationType !== 'game_comment'
-              ? await this.findParticipant(
-                  notification.entityId,
-                  relatedProfileId,
-                )
-              : null;
-          return {
-            ...notification,
-            senderProfile: this.publicProfile(sender),
-            participantId: participant?.$id,
-            actionStatus: participant?.status,
-            targetUrl,
-          };
-        }),
-      ),
-    };
+    return this.sessionNotifications.getForUser(userId);
   }
 
   async markNotificationAsRead(userId: string, notificationId: string) {
-    const profile = await this.getProfileByUserId(userId);
-    let notification: Notifications;
-    try {
-      notification = await this.appwrite.tablesDB.getRow<Notifications>({
-        databaseId: GameplaySessionsService.DB_ID,
-        tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-        rowId: notificationId,
-      });
-    } catch {
-      throw new NotFoundException('Notificação não encontrada');
-    }
-    if (notification.recipientProfileId !== profile.$id) {
-      throw new ForbiddenException('Acesso negado');
-    }
-    return await this.appwrite.tablesDB.updateRow<Notifications>({
-      databaseId: GameplaySessionsService.DB_ID,
-      tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-      rowId: notificationId,
-      data: { read: true },
-    });
+    return this.sessionNotifications.markAsRead(userId, notificationId);
   }
 
   async deleteNotification(userId: string, notificationId: string) {
-    const profile = await this.getProfileByUserId(userId);
-    const notification = await this.getNotification(notificationId);
-    if (notification.recipientProfileId !== profile.$id) {
-      throw new ForbiddenException('Acesso negado');
-    }
-    await this.appwrite.tablesDB.deleteRow({
-      databaseId: GameplaySessionsService.DB_ID,
-      tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-      rowId: notificationId,
-    });
+    return this.sessionNotifications.deleteOwned(userId, notificationId);
   }
 
   private async inviteProfileIds(
@@ -912,7 +681,7 @@ export class GameplaySessionsService {
       );
       if (!participant) continue;
       invited.push(participant);
-      await this.createNotification({
+      await this.sessionNotifications.create({
         recipientProfileId: profileId,
         senderProfileId: host.$id,
         type: 'session_invite',
@@ -940,18 +709,6 @@ export class GameplaySessionsService {
       });
     }
     return invited;
-  }
-
-  private async enrichSummary(session: GameplaySessions, profileId: string) {
-    const [host, current] = await Promise.all([
-      this.getProfileById(session.hostProfileId),
-      this.findParticipant(session.$id, profileId),
-    ]);
-    return {
-      ...session,
-      host: this.publicProfile(host),
-      myParticipantStatus: current?.status,
-    };
   }
 
   private async syncConfirmedCount(sessionId: string, txId: string) {
@@ -1081,63 +838,6 @@ export class GameplaySessionsService {
     });
   }
 
-  private async createNotification(data: {
-    recipientProfileId: string;
-    senderProfileId: string;
-    type: Notifications['type'];
-    title: string;
-    body: string;
-    entityId: string;
-  }) {
-    return await this.appwrite.tablesDB.createRow<Notifications>({
-      databaseId: GameplaySessionsService.DB_ID,
-      tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-      rowId: ID.unique(),
-      data: { ...data, read: false },
-    });
-  }
-
-  private async getNotification(notificationId: string) {
-    try {
-      return await this.appwrite.tablesDB.getRow<Notifications>({
-        databaseId: GameplaySessionsService.DB_ID,
-        tableId: GameplaySessionsService.NOTIFICATIONS_TABLE,
-        rowId: notificationId,
-      });
-    } catch {
-      throw new NotFoundException('Notificação não encontrada');
-    }
-  }
-
-  private async getGameCommentTargetUrl(notification: Notifications) {
-    if (notification.type !== 'game_comment') return undefined;
-    if (!notification.entityId) return undefined;
-
-    try {
-      const comment = await this.appwrite.tablesDB.getRow<
-        Models.Row & { gameId?: string }
-      >({
-        databaseId: GameplaySessionsService.DB_ID,
-        tableId: 'game_comments',
-        rowId: notification.entityId,
-      });
-      if (!comment.gameId) return undefined;
-
-      const game = await this.appwrite.tablesDB.getRow<
-        Models.Row & { slug?: string }
-      >({
-        databaseId: GameplaySessionsService.DB_ID,
-        tableId: 'games',
-        rowId: comment.gameId,
-      });
-      if (!game.slug) return undefined;
-
-      return `/jogo/${game.slug}?commentId=${encodeURIComponent(notification.entityId)}`;
-    } catch {
-      return undefined;
-    }
-  }
-
   private async emitTransition(type: string, payload: object) {
     await this.outbox.enqueueImmediate({ type, payload });
   }
@@ -1161,16 +861,6 @@ export class GameplaySessionsService {
       }
     }
     return { name: name || 'Jogo', coverUrl };
-  }
-
-  private publicProfile(profile: UserProfiles | null) {
-    return profile
-      ? {
-          $id: profile.$id,
-          gamertag: profile.gamertag,
-          avatarUrl: profile.avatarUrl,
-        }
-      : null;
   }
 
   private async getProfileByUserId(userId: string): Promise<UserProfiles> {

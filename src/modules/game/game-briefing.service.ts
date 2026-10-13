@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ID, type Models } from 'node-appwrite';
 import { z, type Genkit } from 'genkit';
@@ -75,6 +76,12 @@ export class GameBriefingService {
     const stored = await this.findStored(gameId);
     if (stored && !this.shouldRegenerate(game, stored)) {
       return { ...this.toBriefing(stored), source: 'stored' };
+    }
+
+    if (!process.env.OPENAI_KEY?.trim()) {
+      throw new ServiceUnavailableException(
+        'Game briefings are unavailable because the OpenAI integration is not configured.',
+      );
     }
 
     try {

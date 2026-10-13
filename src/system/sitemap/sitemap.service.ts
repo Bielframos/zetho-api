@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { GameService } from 'src/modules/game/game.service';
 import { GazethoService } from 'src/modules/gazetho/gazetho.service';
+import { resolveFrontendOrigin } from 'src/common/utils/frontend-origin';
 
 type SitemapEntry = {
   loc: string;
@@ -44,8 +45,7 @@ export class SitemapService {
    * evita gerar `//jogo/...` no XML.
    */
   private get baseUrl() {
-    const raw = process.env.FRONTEND_APP_URL?.trim() || 'https://www.zetho.app';
-    return raw.replace(/\/+$/, '');
+    return resolveFrontendOrigin();
   }
 
   async getSitemapXml(): Promise<string> {

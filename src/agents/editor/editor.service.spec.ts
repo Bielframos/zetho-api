@@ -1,4 +1,27 @@
 import { EditorService } from './editor.service';
+import { readFileSync } from 'node:fs';
+import { EditorialFeedService } from './editorial-feed.service';
+import { EditorialPostService } from './editorial-post.service';
+
+const originalOpenAiKey = process.env.OPENAI_KEY;
+const originalFrontendAppUrl = process.env.FRONTEND_APP_URL;
+const originalEditorAuthorId = process.env.EDITOR_AUTHOR_ID;
+
+beforeEach(() => {
+  process.env.OPENAI_KEY = 'test-openai-key';
+  process.env.FRONTEND_APP_URL =
+    'https://editor.example///,https://secondary.example';
+  process.env.EDITOR_AUTHOR_ID = 'test-editor-author';
+});
+
+afterAll(() => {
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+  else process.env.OPENAI_KEY = originalOpenAiKey;
+  if (originalFrontendAppUrl === undefined) delete process.env.FRONTEND_APP_URL;
+  else process.env.FRONTEND_APP_URL = originalFrontendAppUrl;
+  if (originalEditorAuthorId === undefined) delete process.env.EDITOR_AUTHOR_ID;
+  else process.env.EDITOR_AUTHOR_ID = originalEditorAuthorId;
+});
 
 const buildAi = () => {
   const definedTools: Record<string, (input: any) => Promise<any>> = {};
@@ -31,24 +54,39 @@ const buildService = (overrides: Partial<Record<string, any>> = {}) => {
   const loggerContext = { trackLifecycle: (_l: any, _m: any, fn: any) => fn() };
   const outboxService = overrides.outboxService ?? {
     enqueueImmediate: jest.fn(),
+    registerHandler: jest.fn(),
   };
+  const editorialFeed = overrides.editorialFeed ?? new EditorialFeedService();
+  const editorialPost =
+    overrides.editorialPost ??
+    new EditorialPostService(
+      appwrite as never,
+      outboxService as never,
+      (overrides.notificationsService ?? {
+        sharePost: jest.fn(),
+        sendGameSubscriberEmails: jest.fn(),
+      }) as never,
+      { forPublication: jest.fn().mockResolvedValue(null) } as never,
+    );
 
   const service = new EditorService(
     ai as never,
     gameService as never,
-    appwrite as never,
     youtubeService as never,
-    notificationsService as never,
     correlationContext as never,
     loggerContext as never,
     contentExtractor as never,
     outboxService as never,
+    editorialFeed,
+    editorialPost,
   );
   return {
     service,
     ai,
     gameService,
     appwrite,
+    editorialFeed,
+    editorialPost,
     notificationsService,
     contentExtractor,
     outboxService,
@@ -193,6 +231,7 @@ describe('EditorService.generateGuidedArticle', () => {
     expect(promptFn).toHaveBeenCalledWith(
       expect.objectContaining({
         humanInstructions: 'Foque no modo cooperativo.',
+        frontendOrigin: 'https://editor.example',
         post: expect.objectContaining({
           content: 'Texto longo extraído da página de contexto fornecida.',
           link: 'https://fonte.com/post',
@@ -204,7 +243,10 @@ describe('EditorService.generateGuidedArticle', () => {
     expect(appwrite.tablesDB.createRow).toHaveBeenCalledTimes(1);
     expect(appwrite.tablesDB.createRow).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ mainImage: null }),
+        data: expect.objectContaining({
+          mainImage: null,
+          author: 'test-editor-author',
+        }),
       }),
     );
     expect(outboxService.enqueueImmediate).toHaveBeenCalledTimes(1);
@@ -279,5 +321,66 @@ describe('EditorService.generateGuidedArticle', () => {
     expect(result).toMatchObject({ skipped: true });
     expect(contentExtractor.extract).not.toHaveBeenCalled();
     expect(outboxService.enqueueImmediate).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditorService AI credential guards', () => {
+  it('returns unavailable before news capture when OpenAI is not configured', async () => {
+    const { service, appwrite } = buildService();
+    delete process.env.OPENAI_KEY;
+
+    await expect(service.execute()).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(appwrite.tablesDB.listRows).not.toHaveBeenCalled();
+  });
+
+  it('skips the scheduled run when OpenAI is not configured', async () => {
+    const { service, appwrite } = buildService();
+    delete process.env.OPENAI_KEY;
+
+    await expect(service.handleScheduledExecution()).resolves.toMatchObject({
+      skipped: true,
+    });
+    expect(appwrite.tablesDB.listRows).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditorService frontend links', () => {
+  it('declares the frontend origin used by game links in the article prompt', () => {
+    const prompt = readFileSync(
+      'src/infra/ai/prompts/editor/write_article.prompt',
+      'utf8',
+    );
+
+    expect(prompt).toContain('frontendOrigin: string');
+    expect(prompt).toContain('{{frontendOrigin}}/jogo/slug');
+  });
+
+  it('uses the configured frontend origin for published post links', async () => {
+    let publishHandler: ((payload: any) => Promise<void>) | undefined;
+    const notificationsService = { sharePost: jest.fn() };
+    const outboxService = {
+      registerHandler: jest.fn(
+        (_type: string, handler: typeof publishHandler) => {
+          publishHandler = handler;
+        },
+      ),
+      enqueueImmediate: jest.fn(),
+    };
+    const { service } = buildService({ notificationsService, outboxService });
+    service.onModuleInit();
+
+    await publishHandler?.({
+      title: 'News',
+      subtitle: 'Latest',
+      slug: 'hello-world',
+    });
+
+    expect(notificationsService.sharePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postUrl: 'https://editor.example/noticias/hello-world',
+      }),
+    );
   });
 });

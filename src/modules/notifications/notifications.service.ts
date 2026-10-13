@@ -6,6 +6,7 @@ import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { EmailTemplateService } from './email-template.service';
 import { EvolutionService } from './evolution.service';
 import { ZETHO_WPP_CHANNEL } from './notifications.constants';
+import { resolveFrontendOrigin } from 'src/common/utils/frontend-origin';
 
 @Injectable()
 export class NotificationsService {
@@ -30,6 +31,13 @@ export class NotificationsService {
     postUrl: string;
     mediaUrl?: string;
   }) {
+    if (
+      !ZETHO_WPP_CHANNEL ||
+      !process.env.EVOLUTION_ENDPOINT ||
+      !process.env.EVOLUTION_INSTANCE_TOKEN
+    ) {
+      return;
+    }
     // O handler do outbox pode reprocessar o mesmo evento (retry após falha em
     // outra etapa), então garantimos aqui que cada postUrl só gera uma
     // mensagem no WhatsApp.
@@ -143,6 +151,6 @@ export class NotificationsService {
   }
 
   private getNewsPostUrl(slug: string) {
-    return new URL(`/noticias/${slug}`, 'https://www.zetho.app').toString();
+    return new URL(`/noticias/${slug}`, resolveFrontendOrigin()).toString();
   }
 }

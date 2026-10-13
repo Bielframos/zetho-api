@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { type Genkit } from 'genkit';
 import { GENKIT_GOOGLE_AI } from 'src/infra/ai/ai.constants';
 
@@ -10,6 +14,12 @@ export class TranslatorService {
     text: string,
     targetLanguage: string = 'pt-BR',
   ): Promise<string> {
+    if (!process.env.GOOGLE_GENAI_KEY?.trim()) {
+      throw new ServiceUnavailableException(
+        'Translation is unavailable because the Google AI integration is not configured.',
+      );
+    }
+
     const prompt = this.ai.prompt('translate');
 
     const { output } = await prompt({

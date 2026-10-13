@@ -3,6 +3,19 @@ import {
   generatedEditorialIssues,
 } from './editorial-policy';
 import { EditorService } from './editor.service';
+import { EditorialFeedService } from './editorial-feed.service';
+import { EditorialPostService } from './editorial-post.service';
+
+const originalOpenAiKey = process.env.OPENAI_KEY;
+
+beforeAll(() => {
+  process.env.OPENAI_KEY = 'test-openai-key';
+});
+
+afterAll(() => {
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+  else process.env.OPENAI_KEY = originalOpenAiKey;
+});
 
 function service(
   output: any = {
@@ -24,18 +37,25 @@ function service(
       text: 'A score and subjective verdict.',
     }),
   };
+  const outbox = { enqueueImmediate: jest.fn(), registerHandler: jest.fn() };
+  const post = new EditorialPostService(
+    { tablesDB } as never,
+    outbox as never,
+    { sharePost: jest.fn(), sendGameSubscriberEmails: jest.fn() } as never,
+    { forPublication: jest.fn().mockResolvedValue(null) } as never,
+  );
   const instance = new EditorService(
     { prompt } as never,
-    {} as never,
-    { tablesDB } as never,
     {} as never,
     {} as never,
     {} as never,
     { trackLifecycle: (_a: any, _b: any, fn: any) => fn() } as never,
     extractor as never,
-    {} as never,
+    outbox as never,
+    new EditorialFeedService(),
+    post,
   );
-  return { instance, prompt, tablesDB, extractor };
+  return { instance, prompt, tablesDB, extractor, post };
 }
 
 describe('editorial policy enforcement', () => {
@@ -125,7 +145,7 @@ describe('editorial policy enforcement', () => {
   });
   it('sanitizes generated HTML while preserving allowed links and YouTube tokens', () => {
     const f = service();
-    const body = (f.instance as any).postProcessContent(
+    const body = f.post.postProcessContent(
       '<p onclick="evil()">Hello<script>alert(1)</script><a href="javascript:evil()">bad</a><a href="https://example.com">source</a></p>[youtube:abcdefghijk]',
     );
     expect(body).not.toMatch(/onclick|javascript:|<script/);

@@ -9,8 +9,9 @@ import { GENKIT, GENKIT_GOOGLE_AI } from './ai.constants';
     {
       provide: GENKIT,
       useFactory: (): Genkit => {
+        const apiKey = process.env.OPENAI_KEY?.trim();
         return genkit({
-          plugins: [openAI({ apiKey: process.env.OPENAI_KEY })],
+          plugins: apiKey ? [openAI({ apiKey })] : [],
           promptDir: 'src/infra/ai/prompts',
         });
       },
@@ -18,8 +19,9 @@ import { GENKIT, GENKIT_GOOGLE_AI } from './ai.constants';
     {
       provide: GENKIT_GOOGLE_AI,
       useFactory: (): Genkit => {
+        const apiKey = process.env.GOOGLE_GENAI_KEY?.trim();
         return genkit({
-          plugins: [googleAI({ apiKey: process.env.GOOGLE_GENAI_KEY })],
+          plugins: apiKey ? [googleAI({ apiKey })] : [],
           promptDir: 'src/infra/ai/prompts',
         });
       },

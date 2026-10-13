@@ -1,6 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { GameRecommenderService } from './game-recommender.service';
+import { GameRecommendationGeneratorService } from './game-recommendation-generator.service';
+import { GameRecommendationReservationsService } from './game-recommendation-reservations.service';
 import { createHash } from 'crypto';
+
+const originalOpenAiKey = process.env.OPENAI_KEY;
+
+beforeEach(() => {
+  process.env.OPENAI_KEY = 'test-openai-key';
+});
+
+afterAll(() => {
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+  else process.env.OPENAI_KEY = originalOpenAiKey;
+});
 
 // Transactional store double: independent snapshots, unique daily/idempotency keys,
 // atomic commit/rollback and optimistic write conflicts. No production data is used.
@@ -135,11 +148,12 @@ function setup(initialBalance = 100) {
     })),
     getGamesByIds: jest.fn(async () => [game]),
   };
+  const appwrite = { tablesDB: db };
   const service = new GameRecommenderService(
-    ai as never,
+    new GameRecommendationGeneratorService(ai as never),
     candidates as never,
-    { tablesDB: db } as never,
-    tx as never,
+    appwrite as never,
+    new GameRecommendationReservationsService(appwrite as never, tx as never),
   );
   return {
     service,

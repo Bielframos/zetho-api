@@ -19,7 +19,7 @@ describe('RegisterIgdbGameTool', () => {
   });
 
   it('returns error if neither igdbId nor query is provided', async () => {
-    const result = await tool.execute({} as any);
+    const result = await tool.execute({ force: false, searchOnly: false });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('MISSING_PARAM');
   });
@@ -31,7 +31,11 @@ describe('RegisterIgdbGameTool', () => {
       gameId: 'igdb_1020',
     });
 
-    const result = await tool.execute({ igdbId: 1020, force: false });
+    const result = await tool.execute({
+      igdbId: 1020,
+      force: false,
+      searchOnly: false,
+    });
 
     expect(igdbServiceMock.importGameById).toHaveBeenCalledWith(1020, {
       force: false,
@@ -48,7 +52,11 @@ describe('RegisterIgdbGameTool', () => {
       { id: 222, name: 'Hollow Knight', slug: 'hollow-knight' },
     ]);
 
-    const result = await tool.execute({ query: 'Silksong', searchOnly: true });
+    const result = await tool.execute({
+      query: 'Silksong',
+      force: false,
+      searchOnly: true,
+    });
 
     expect(igdbServiceMock.importGameById).not.toHaveBeenCalled();
     const payload = JSON.parse(result.content[0].text);
@@ -68,7 +76,11 @@ describe('RegisterIgdbGameTool', () => {
       gameId: 'igdb_111',
     });
 
-    const result = await tool.execute({ query: 'Silksong' });
+    const result = await tool.execute({
+      query: 'Silksong',
+      force: false,
+      searchOnly: false,
+    });
 
     expect(igdbServiceMock.importGameById).toHaveBeenCalledWith(111, {
       force: false,
@@ -85,7 +97,11 @@ describe('RegisterIgdbGameTool', () => {
       new NotFoundException('Jogo não encontrado'),
     );
 
-    const result = await tool.execute({ igdbId: 999999 });
+    const result = await tool.execute({
+      igdbId: 999999,
+      force: false,
+      searchOnly: false,
+    });
 
     expect(result.isError).toBe(true);
     const payload = JSON.parse(result.content[0].text);
@@ -97,7 +113,11 @@ describe('RegisterIgdbGameTool', () => {
       new ConflictException('Jogo não elegível para ingestão'),
     );
 
-    const result = await tool.execute({ igdbId: 555 });
+    const result = await tool.execute({
+      igdbId: 555,
+      force: false,
+      searchOnly: false,
+    });
 
     expect(result.isError).toBe(true);
     const payload = JSON.parse(result.content[0].text);
