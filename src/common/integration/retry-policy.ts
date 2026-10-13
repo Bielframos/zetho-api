@@ -86,6 +86,24 @@ export function classifyHttpError(error: unknown): RetryClassification {
   };
 }
 
+/** Classifies fetch aborts and HTTP errors wrapped with a numeric status. */
+export function classifyFetchError(error: unknown): RetryClassification {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return { retryable: true, terminalStatusCode: 504, reason: 'timeout' };
+  }
+
+  const status = extractFetchStatus(error);
+  if (status !== null) {
+    return {
+      retryable: status === 429 || status >= 500,
+      terminalStatusCode: status,
+      reason: status >= 400 && status < 500 ? 'http_4xx' : 'http_5xx_or_429',
+    };
+  }
+
+  return classifyHttpError(error);
+}
+
 export async function executeWithRetry<T>(
   options: RetryPolicyOptions<T>,
 ): Promise<T> {
@@ -158,4 +176,13 @@ function extractStatusCode(error: unknown): number | null {
   }
 
   return null;
+}
+
+function extractFetchStatus(error: unknown): number | null {
+  if (!error || typeof error !== 'object' || !('status' in error)) {
+    return null;
+  }
+
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : null;
 }

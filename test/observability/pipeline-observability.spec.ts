@@ -2,6 +2,17 @@ import { Logger } from '@nestjs/common';
 import { CorrelationContextService } from '../../src/common/observability/correlation-context.service';
 import { LoggerContextService } from '../../src/common/observability/logger-context.service';
 import { EditorService } from '../../src/agents/editor/editor.service';
+
+const originalOpenAiKey = process.env.OPENAI_KEY;
+
+beforeAll(() => {
+  process.env.OPENAI_KEY = 'test-openai-key';
+});
+
+afterAll(() => {
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+  else process.env.OPENAI_KEY = originalOpenAiKey;
+});
 import { IGDBService } from '../../src/modules/igdb/igdb.service';
 import { RaffleService } from '../../src/modules/raffle/raffle.service';
 import { ZCoinsService } from '../../src/modules/zcoins/zcoins.service';
@@ -80,13 +91,13 @@ describe('Pipeline observability contract', () => {
     editorService = new EditorService(
       { prompt: jest.fn(), defineTool: jest.fn() } as any,
       {} as any,
-      mockAppwrite,
       { searchVideos: jest.fn() } as any,
-      { sharePost: jest.fn() } as any,
       correlationContext,
       loggerContext,
       {} as any,
       { enqueueImmediate: jest.fn() } as any,
+      { getNews: jest.fn() } as any,
+      { registerPublicationHandler: jest.fn() } as any,
     );
     const mockTransactionService = {
       runInTransaction: jest.fn(async (work) => work({ txId: 'mock-tx-id' })),

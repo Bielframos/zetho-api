@@ -3,6 +3,7 @@ model: openai/gpt-5.4
 tools: [youtubeTool, gameSearchTool]
 input:
   schema:
+    frontendOrigin: string
     humanInstructions?: string
     post:
       id: string
@@ -61,7 +62,7 @@ inside p tags. 18. Valid example:
 <p>[youtube:VIDEO_ID]</p>
 
 GAME LINKING 20. When a matched game appears: - use the slug returned by gameSearchTool - format:
-https://www.zetho.app/jogo/slug 21. Wrap ONLY the first occurrence:
+{{frontendOrigin}}/jogo/slug 21. Wrap ONLY the first occurrence:
 <a href='URL'>Game Name</a>
 
 22. Do not overlink. YOUTUBE VIDEO STRATEGY 23. youtubeTool may be used when a

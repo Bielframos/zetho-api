@@ -1,4 +1,8 @@
-import { BadGatewayException, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { GameBriefingService } from './game-briefing.service';
 
 describe('GameBriefingService', () => {
@@ -28,7 +32,17 @@ describe('GameBriefingService', () => {
       { tablesDB } as never,
     );
 
-  beforeEach(() => jest.clearAllMocks());
+  const originalOpenAiKey = process.env.OPENAI_KEY;
+
+  beforeEach(() => {
+    process.env.OPENAI_KEY = 'test-openai-key';
+    jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+    else process.env.OPENAI_KEY = originalOpenAiKey;
+  });
 
   it('busca os fatos do jogo e devolve briefing estruturado da IA', async () => {
     tablesDB.getRow.mockRejectedValue({ code: 404 });
@@ -75,6 +89,18 @@ describe('GameBriefingService', () => {
       NotFoundException,
     );
     expect(ai.generate).not.toHaveBeenCalled();
+  });
+
+  it('retorna indisponível antes de gerar se OpenAI não está configurada', async () => {
+    process.env.OPENAI_KEY = '  ';
+    gameService.findById.mockResolvedValue(game);
+    tablesDB.getRow.mockRejectedValue({ code: 404 });
+
+    await expect(service().create('hades-2')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(ai.generate).not.toHaveBeenCalled();
+    expect(tablesDB.createRow).not.toHaveBeenCalled();
   });
 
   it('converte indisponibilidade ou saída inválida da IA em 502', async () => {

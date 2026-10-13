@@ -6,6 +6,17 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-10-13
+
+### Changed
+
+- Preparação para distribuição sob AGPL-3.0-only, com configuração de instância, contribuição, segurança e validação contínua.
+- Responsabilidades de catálogo, dashboard, sessões, editor, recomendador e webhooks separadas em serviços específicos, preservando permissões, transações e agendamentos.
+
+### Fixed
+
+- Integrações opcionais sem credenciais deixam de impedir a inicialização; URLs de notificações e sitemap acompanham a instância configurada.
+
 ## [0.14.1] - 2026-10-11
 
 ### Fixed

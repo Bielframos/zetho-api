@@ -1,12 +1,22 @@
 import { DashboardService } from './dashboard.service';
+import { DashboardListsService } from './dashboard-lists.service';
+import { DashboardEntrySocialService } from './dashboard-entry-social.service';
+import { DashboardProfilesService } from './dashboard-profiles.service';
 
 describe('DashboardService', () => {
-  const makeService = (tablesDB: any) =>
-    new DashboardService(
-      { tablesDB } as any,
+  const makeService = (tablesDB: any) => {
+    const appwrite = { tablesDB };
+    const outbox = { enqueueImmediate: jest.fn().mockResolvedValue(undefined) };
+    const profiles = new DashboardProfilesService(appwrite as any);
+    return new DashboardService(
+      appwrite as any,
       {} as any,
-      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+      outbox as any,
+      new DashboardListsService(appwrite as any, outbox as any, profiles),
+      new DashboardEntrySocialService(appwrite as any, outbox as any, profiles),
+      profiles,
     );
+  };
 
   it('passes viewer identity and cursor to the persisted timeline', async () => {
     const tablesDB = {
@@ -17,10 +27,16 @@ describe('DashboardService', () => {
     const page = jest
       .fn()
       .mockResolvedValue({ items: [], hasMore: false, nextCursor: null });
+    const appwrite = { tablesDB };
+    const outbox = { enqueueImmediate: jest.fn().mockResolvedValue(undefined) };
+    const profiles = new DashboardProfilesService(appwrite as any);
     const service = new DashboardService(
-      { tablesDB } as any,
+      appwrite as any,
       { page } as any,
-      { enqueueImmediate: jest.fn().mockResolvedValue(undefined) } as any,
+      outbox as any,
+      new DashboardListsService(appwrite as any, outbox as any, profiles),
+      new DashboardEntrySocialService(appwrite as any, outbox as any, profiles),
+      profiles,
     );
     await expect(
       service.getPersonalFeed('viewer', 3, 12, 'connections', 'event-cursor'),

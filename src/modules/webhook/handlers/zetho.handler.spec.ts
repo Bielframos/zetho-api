@@ -1,4 +1,5 @@
 import { ZethoHandler } from './zetho.handler';
+import { CommentNotificationService } from './comment-notification.service';
 
 const READ_MODEL_COLUMNS = [
   'statusChangedAt',
@@ -19,11 +20,17 @@ const makeHandler = (tablesDB: any) => {
     trackLifecycle: jest.fn((_logger, _context, run) => run()),
   };
 
-  return new ZethoHandler(
-    { tablesDB } as any,
+  const appwrite = { tablesDB, messaging: { createEmail: jest.fn() } };
+  const commentNotifications = new CommentNotificationService(
+    appwrite as any,
     loggerContext as any,
-    {} as any,
+    { renderCommentReplyEmail: jest.fn() } as any,
+  );
+  return new ZethoHandler(
+    appwrite as any,
+    loggerContext as any,
     { enqueue: jest.fn() } as any,
+    commentNotifications,
   );
 };
 
@@ -137,8 +144,12 @@ const makeCommentHandler = ({
   const handler = new ZethoHandler(
     { tablesDB, messaging } as any,
     loggerContext as any,
-    emailTemplateService as any,
     { enqueue: jest.fn() } as any,
+    new CommentNotificationService(
+      { tablesDB, messaging } as any,
+      loggerContext as any,
+      emailTemplateService as any,
+    ),
   );
 
   return { handler, tablesDB, messaging, emailTemplateService };
@@ -154,38 +165,62 @@ const makeComment = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('ZethoHandler.syncEntry', () => {
-  it.each(['ps3', null])('preserves catalog selection %s in the persisted read model', async (playedPlatformId) => {
-    const tablesDB = makeTablesDB(null);
-    await makeHandler(tablesDB).syncEntry(makeEntry({ playedPlatformId }) as any);
-    expect(tablesDB.upsertRow).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ playedPlatformId }),
-    }));
-  });
+  it.each(['ps3', null])(
+    'preserves catalog selection %s in the persisted read model',
+    async (playedPlatformId) => {
+      const tablesDB = makeTablesDB(null);
+      await makeHandler(tablesDB).syncEntry(
+        makeEntry({ playedPlatformId }) as any,
+      );
+      expect(tablesDB.upsertRow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ playedPlatformId }),
+        }),
+      );
+    },
+  );
 
   it('ignora eventos posteriores ao reconstruir o estado legado', async () => {
     const tablesDB = makeTablesDB(null);
     const entry = makeEntry({ status: 'playing', liked: false });
     tablesDB.listRows.mockImplementation((async ({ tableId }: any) => {
-      if (tableId === 'user_profiles') return {
-        total: 1, rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }],
-      };
+      if (tableId === 'user_profiles')
+        return {
+          total: 1,
+          rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }],
+        };
       return {
         total: 3,
         rows: [
-          { ...entry, $id: 'future', $createdAt: '2027-01-01T00:00:00Z', status: 'completed', liked: true },
+          {
+            ...entry,
+            $id: 'future',
+            $createdAt: '2027-01-01T00:00:00Z',
+            status: 'completed',
+            liked: true,
+          },
           { ...entry, $id: 'entry-2', status: 'completed', liked: true },
-          { ...entry, $id: 'past', $createdAt: '2026-01-01T00:00:00Z', status: 'backlog' },
+          {
+            ...entry,
+            $id: 'past',
+            $createdAt: '2026-01-01T00:00:00Z',
+            status: 'backlog',
+          },
         ],
       };
     }) as any);
     await makeHandler(tablesDB).syncEntry(entry as any);
     expect(tablesDB.upsertRow.mock.calls[0][0].data).toMatchObject({
-      status: 'playing', maxStatusReached: 'playing', likedEver: false,
+      status: 'playing',
+      maxStatusReached: 'playing',
+      likedEver: false,
     });
-    expect(tablesDB.createRow).toHaveBeenCalledWith(expect.objectContaining({
-      tableId: 'zcoin_transactions',
-      data: expect.objectContaining({ reason: 'playing_game', amount: 4 }),
-    }));
+    expect(tablesDB.createRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'zcoin_transactions',
+        data: expect.objectContaining({ reason: 'playing_game', amount: 4 }),
+      }),
+    );
   });
 
   it('projeta apenas as colunas existentes em z_entries_read', async () => {
@@ -345,8 +380,16 @@ describe('ZethoHandler.syncEntry', () => {
     const handler = new ZethoHandler(
       { tablesDB } as any,
       { trackLifecycle: jest.fn((_logger, _context, run) => run()) } as any,
-      {} as any,
       outbox as any,
+      new CommentNotificationService(
+        { tablesDB, messaging: { createEmail: jest.fn() } } as any,
+        {
+          trackLifecycle: jest.fn((_logger: any, _context: any, run: any) =>
+            run(),
+          ),
+        } as any,
+        { renderCommentReplyEmail: jest.fn() } as any,
+      ),
     );
     await handler.syncEntry(
       makeEntry({
@@ -367,7 +410,8 @@ describe('ZethoHandler.handleCommentCreate', () => {
   const previousFrontendAppUrl = process.env.FRONTEND_APP_URL;
 
   beforeEach(() => {
-    process.env.FRONTEND_APP_URL = 'https://frontend.example/';
+    process.env.FRONTEND_APP_URL =
+      'https://frontend.example///,https://secondary.example';
   });
 
   afterAll(() => {
@@ -487,23 +531,47 @@ describe('ZethoHandler.handleCommentCreate', () => {
   });
 });
 
- describe('status registration date', () => {
+describe('status registration date', () => {
   it.each([
     ['playing', undefined, '2026-08-09T05:43:37.519Z'],
     ['completed', '2025-12-31T20:00:00.000Z', '2025-12-31T20:00:00.000Z'],
     ['completed', undefined, null],
-  ])('preserves dates on edits and changes dates only on transitions (%s)', async (status, previousDate, expected) => {
-    const db = makeTablesDB({ status, statusChangedAt: previousDate, likedEver: true, maxStatusReached: 'completed' });
-    await makeHandler(db).syncEntry(makeEntry() as any);
-    expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe(expected);
-  });
- });
+  ])(
+    'preserves dates on edits and changes dates only on transitions (%s)',
+    async (status, previousDate, expected) => {
+      const db = makeTablesDB({
+        status,
+        statusChangedAt: previousDate,
+        likedEver: true,
+        maxStatusReached: 'completed',
+      });
+      await makeHandler(db).syncEntry(makeEntry() as any);
+      expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe(expected);
+    },
+  );
+});
 
 it('dates null -> completed from the event despite a completed legacy fallback', async () => {
-  const db = makeTablesDB({ status: null, likedEver: null, maxStatusReached: null, statusChangedAt: '2024-01-01T00:00:00Z' });
-  db.listRows.mockImplementation((async ({ tableId }: any) => tableId === 'user_profiles'
-    ? { rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }], total: 1 }
-    : { rows: [{ ...makeEntry(), $id: 'old', $createdAt: '2024-01-01T00:00:00Z' }], total: 1 }) as any);
+  const db = makeTablesDB({
+    status: null,
+    likedEver: null,
+    maxStatusReached: null,
+    statusChangedAt: '2024-01-01T00:00:00Z',
+  });
+  db.listRows.mockImplementation((async ({ tableId }: any) =>
+    tableId === 'user_profiles'
+      ? {
+          rows: [{ $id: 'profile-1', userId: 'user-1', zcoinBalance: 100 }],
+          total: 1,
+        }
+      : {
+          rows: [
+            { ...makeEntry(), $id: 'old', $createdAt: '2024-01-01T00:00:00Z' },
+          ],
+          total: 1,
+        }) as any);
   await makeHandler(db).syncEntry(makeEntry() as any);
-  expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe('2026-08-09T05:43:37.519Z');
+  expect(db.upsertRow.mock.calls[0][0].data.statusChangedAt).toBe(
+    '2026-08-09T05:43:37.519Z',
+  );
 });

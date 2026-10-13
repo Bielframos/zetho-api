@@ -6,11 +6,24 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { GameRecommenderService } from './game-recommender.service';
+import { GameRecommendationGeneratorService } from './game-recommendation-generator.service';
+import { GameRecommendationReservationsService } from './game-recommendation-reservations.service';
 import type {
   GameRecommendationRow,
   RecommendationContext,
   RecommenderGame,
 } from './game-recommender.types';
+
+const originalOpenAiKey = process.env.OPENAI_KEY;
+
+beforeEach(() => {
+  process.env.OPENAI_KEY = 'test-openai-key';
+});
+
+afterAll(() => {
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_KEY;
+  else process.env.OPENAI_KEY = originalOpenAiKey;
+});
 
 describe('GameRecommenderService', () => {
   const game: RecommenderGame = {
@@ -39,7 +52,7 @@ describe('GameRecommenderService', () => {
   const pendingRow = (): GameRecommendationRow =>
     ({
       $id: 'recommendation-1',
-      $sequence: 1,
+      $sequence: '1',
       $createdAt: '2026-09-09T00:00:00.000Z',
       $updatedAt: '2026-09-09T00:00:00.000Z',
       $permissions: [],
@@ -148,11 +161,15 @@ describe('GameRecommenderService', () => {
         },
       ),
     };
+    const appwrite = { tablesDB };
     const service = new GameRecommenderService(
-      ai as never,
+      new GameRecommendationGeneratorService(ai as never),
       candidates as never,
-      { tablesDB } as never,
-      transactions as never,
+      appwrite as never,
+      new GameRecommendationReservationsService(
+        appwrite as never,
+        transactions as never,
+      ),
     );
     return {
       service,
@@ -217,6 +234,18 @@ describe('GameRecommenderService', () => {
       refunded: false,
       dailyKey: expect.stringMatching(/^gday_[a-f0-9]{31}$/),
     });
+  });
+
+  it('returns unavailable before reading quota or charging without OpenAI', async () => {
+    const fixture = setup();
+    delete process.env.OPENAI_KEY;
+
+    await expect(
+      fixture.service.suggest('user-1', 'new', 'request-1'),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(fixture.tablesDB.listRows).not.toHaveBeenCalled();
+    expect(fixture.candidates.build).not.toHaveBeenCalled();
+    expect(fixture.ai.generate).not.toHaveBeenCalled();
   });
 
   it('bloqueia uma sexta recomendação no mesmo dia antes de candidatos, cobrança ou IA', async () => {
