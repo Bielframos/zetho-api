@@ -11,6 +11,8 @@ import { GameplaySessionsService } from '../src/modules/gameplay-sessions/gamepl
 import { GameRecommenderService } from '../src/agents/game-recommender/game-recommender.service';
 import { EditorService } from '../src/agents/editor/editor.service';
 import { ZethoHandler } from '../src/modules/webhook/handlers/zetho.handler';
+import { ForumService } from '../src/modules/social/forum.service';
+import { SocialService } from '../src/modules/social/social.service';
 
 describe('Application module graph', () => {
   it('resolves domain orchestrators through the real module imports without external connections', async () => {
@@ -37,6 +39,8 @@ describe('Application module graph', () => {
       GameRecommenderService,
       EditorService,
       ZethoHandler,
+      SocialService,
+      ForumService,
     ]) {
       expect(module.get(service)).toBeInstanceOf(service);
     }

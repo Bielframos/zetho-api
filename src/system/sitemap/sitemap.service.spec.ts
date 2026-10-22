@@ -23,16 +23,29 @@ describe('SitemapService', () => {
         .fn()
         .mockResolvedValue([{ slug: 'game-one', lastmod: null }]),
     };
+    const forum = {
+      listIndexablePostsForSitemap: jest.fn().mockResolvedValue([
+        {
+          slug: 'debate-elden-ring--post-1',
+          lastmod: '2026-10-14T00:00:00Z',
+        },
+      ]),
+    };
     const service = new SitemapService(
       gazetho as never,
       games as never,
       cache as never,
+      forum as never,
     );
 
     const xml = await service.getSitemapXml();
 
     expect(xml).toContain('<loc>https://site.example</loc>');
+    expect(xml).toContain('<loc>https://site.example/forum</loc>');
     expect(xml).toContain('<loc>https://site.example/noticias/latest</loc>');
     expect(xml).toContain('<loc>https://site.example/jogo/game-one</loc>');
+    expect(xml).toContain(
+      '<loc>https://site.example/forum/debate-elden-ring--post-1</loc>',
+    );
   });
 });

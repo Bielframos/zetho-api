@@ -11,6 +11,16 @@ import { OutboxService } from 'src/infra/events/outbox.service';
 import { TimelineService } from 'src/system/dashboard/timeline.service';
 import crypto from 'node:crypto';
 import { slugify } from 'src/common/utils/slugify';
+import {
+  extractPlainTextFromHtml,
+  sanitizeRichTextHtml,
+} from 'src/common/utils/sanitize-rich-text';
+import {
+  buildForumPostSlug,
+  MAX_FORUM_POST_CONTENT_LENGTH,
+  MAX_FORUM_REPLY_CONTENT_LENGTH,
+  MAX_FORUM_REPLY_DEPTH,
+} from './forum.utils';
 
 @Injectable()
 export class SocialService {
@@ -145,31 +155,87 @@ export class SocialService {
   }
   async createComment(userId: string, data: any) {
     const profile = await this.profile(userId);
-    if (
-      !data?.gameId ||
-      typeof data.content !== 'string' ||
-      !data.content.trim()
-    )
+    if (!data?.gameId || typeof data.content !== 'string')
       throw new BadRequestException('Comentário inválido');
+    const sanitizedContent = sanitizeRichTextHtml(data.content);
+    const plainText = extractPlainTextFromHtml(sanitizedContent);
+    if (!plainText) throw new BadRequestException('Comentário inválido');
+
     const parentId = data.parentId ?? null;
     const parent = parentId ? await this.row('game_comments', parentId) : null;
     if (parent && parent.gameId !== data.gameId)
       throw new BadRequestException('Resposta pertence a outro jogo');
+
+    const depth = parent ? (parent.depth ?? 0) + 1 : 0;
+    if (depth > MAX_FORUM_REPLY_DEPTH)
+      throw new BadRequestException(
+        'Limite de profundidade de respostas atingido',
+      );
+
+    let title: string | null = null;
+    if (!parent) {
+      if (data.title !== undefined && data.title !== null) {
+        const trimmedTitle = String(data.title).trim();
+        if (trimmedTitle.length < 3 || trimmedTitle.length > 255)
+          throw new BadRequestException(
+            'Título deve ter entre 3 e 255 caracteres',
+          );
+        title = trimmedTitle;
+      }
+      if (sanitizedContent.length > MAX_FORUM_POST_CONTENT_LENGTH)
+        throw new BadRequestException('Publicação excede o tamanho máximo');
+    } else if (sanitizedContent.length > MAX_FORUM_REPLY_CONTENT_LENGTH) {
+      throw new BadRequestException('Resposta excede o tamanho máximo');
+    }
+
     const id = ID.unique();
+    const slug = !parent
+      ? buildForumPostSlug(title || plainText, id)
+      : undefined;
+
     return this.run(async ({ txId }) => {
-      const row = await this.db.createRow<any>({
-        databaseId: 'app',
-        tableId: 'game_comments',
-        rowId: id,
-        data: {
-          gameId: data.gameId,
-          userProfile: profile.$id,
-          content: data.content.trim(),
-          parentId,
-          depth: parent ? (parent.depth ?? 0) + 1 : 0,
-        },
-        transactionId: txId,
-      });
+      const baseData: Record<string, any> = {
+        gameId: data.gameId,
+        userProfile: profile.$id,
+        content: sanitizedContent,
+        parentId,
+        depth,
+      };
+      const rowData: Record<string, any> = !parent
+        ? {
+            ...baseData,
+            ...(title ? { title } : {}),
+            ...(slug ? { slug } : {}),
+          }
+        : baseData;
+
+      let row: any;
+      try {
+        row = await this.db.createRow<any>({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          rowId: id,
+          data: rowData,
+          transactionId: txId,
+        });
+      } catch (err: any) {
+        if (
+          !parent &&
+          err?.code === 400 &&
+          err?.type === 'document_invalid_structure'
+        ) {
+          row = await this.db.createRow<any>({
+            databaseId: 'app',
+            tableId: 'game_comments',
+            rowId: id,
+            data: baseData,
+            transactionId: txId,
+          });
+        } else {
+          throw err;
+        }
+      }
+
       if (parent) {
         await this.db.createOperations({
           transactionId: txId,
@@ -189,31 +255,130 @@ export class SocialService {
           payload: { commentId: id },
         });
       }
+      const enriched = {
+        ...row,
+        $id: id,
+        ...(title && !row?.title ? { title } : {}),
+        ...(slug && !row?.slug ? { slug } : {}),
+      };
       await this.event(
         txId,
         'game_comments',
-        { ...row, $id: id, userProfile: profile.$id },
+        { ...enriched, userProfile: profile.$id },
         'create',
       );
-      return row;
+      return enriched;
     });
   }
-  async deleteComment(userId: string, id: string) {
+  async updateComment(
+    userId: string,
+    id: string,
+    data: any,
+    isAdmin = false,
+  ) {
     const profile = await this.profile(userId);
     const row = await this.row('game_comments', id);
     const owner =
       typeof row.userProfile === 'string'
         ? row.userProfile
         : row.userProfile?.$id;
-    if (owner !== profile.$id) throw new ForbiddenException();
+    if (owner !== profile.$id && !isAdmin) throw new ForbiddenException();
+
+    const isRoot = !this.relationId(row.parentId);
+    const patch: Record<string, any> = {};
+
+    if (data?.title !== undefined) {
+      if (!isRoot)
+        throw new BadRequestException('Respostas não possuem título');
+      const trimmedTitle = String(data.title).trim();
+      if (trimmedTitle.length < 3 || trimmedTitle.length > 255)
+        throw new BadRequestException(
+          'Título deve ter entre 3 e 255 caracteres',
+        );
+      patch.title = trimmedTitle;
+      patch.slug = buildForumPostSlug(trimmedTitle, row.$id);
+    }
+
+    if (data?.content !== undefined) {
+      const sanitizedContent = sanitizeRichTextHtml(String(data.content));
+      const plainText = extractPlainTextFromHtml(sanitizedContent);
+      if (!plainText) throw new BadRequestException('Conteúdo inválido');
+      const maxLen = isRoot
+        ? MAX_FORUM_POST_CONTENT_LENGTH
+        : MAX_FORUM_REPLY_CONTENT_LENGTH;
+      if (sanitizedContent.length > maxLen)
+        throw new BadRequestException('Conteúdo excede o tamanho máximo');
+      patch.content = sanitizedContent;
+    }
+
+    if (Object.keys(patch).length === 0)
+      throw new BadRequestException('Nenhuma alteração informada');
+
+    return this.run(async ({ txId }) => {
+      let updated: any;
+      try {
+        updated = await this.db.updateRow<any>({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          rowId: id,
+          data: patch,
+          transactionId: txId,
+        });
+      } catch (err: any) {
+        if (
+          err?.code === 400 &&
+          err?.type === 'document_invalid_structure' &&
+          patch.content !== undefined
+        ) {
+          updated = await this.db.updateRow<any>({
+            databaseId: 'app',
+            tableId: 'game_comments',
+            rowId: id,
+            data: { content: patch.content },
+            transactionId: txId,
+          });
+        } else {
+          throw err;
+        }
+      }
+      const enriched = {
+        ...row,
+        ...updated,
+        ...patch,
+      };
+      await this.event(txId, 'game_comments', enriched, 'update');
+      return enriched;
+    });
+  }
+  async deleteComment(userId: string, id: string, isAdmin = false) {
+    const profile = await this.profile(userId);
+    const row = await this.row('game_comments', id);
+    const owner =
+      typeof row.userProfile === 'string'
+        ? row.userProfile
+        : row.userProfile?.$id;
+    if (owner !== profile.$id && !isAdmin) throw new ForbiddenException();
+
+    const descendants = await this.getCommentDescendants(id);
+    const parentId = this.relationId(row.parentId);
+
     await this.run(async ({ txId }) => {
+      for (const descendant of [...descendants].reverse()) {
+        await this.db.deleteRow({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          rowId: descendant.$id,
+          transactionId: txId,
+        });
+        await this.event(txId, 'game_comments', descendant, 'delete');
+      }
       await this.db.deleteRow({
         databaseId: 'app',
         tableId: 'game_comments',
         rowId: id,
         transactionId: txId,
       });
-      if (row.parentId)
+      if (parentId)
         await this.db.createOperations({
           transactionId: txId,
           operations: [
@@ -221,27 +386,45 @@ export class SocialService {
               action: 'decrement',
               databaseId: 'app',
               tableId: 'game_comments',
-              rowId:
-                typeof row.parentId === 'string'
-                  ? row.parentId
-                  : row.parentId.$id,
+              rowId: parentId,
               data: { column: 'replyCount', value: 1 },
             },
           ],
         });
       await this.event(txId, 'game_comments', row, 'delete');
-      if (row.parentId)
+      if (parentId)
         await this.event(
           txId,
           'game_comments',
-          await this.row(
-            'game_comments',
-            typeof row.parentId === 'string' ? row.parentId : row.parentId.$id,
-          ),
+          await this.row('game_comments', parentId),
           'update',
         );
     });
-    return { success: true };
+    return { success: true, deletedCount: descendants.length + 1 };
+  }
+  private async getCommentDescendants(commentId: string) {
+    if (!this.db.listRows) return [];
+    const descendants: any[] = [];
+    let frontier = [commentId];
+    while (frontier.length > 0) {
+      const result = await this.db
+        .listRows<any>({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          queries: [Query.equal('parentId', frontier), Query.limit(100)],
+        })
+        .catch(() => ({ rows: [] }));
+      const nextRows = (result?.rows ?? []).filter(
+        (item: any) =>
+          item?.$id &&
+          item.$id !== commentId &&
+          frontier.includes(this.relationId(item.parentId)),
+      );
+      if (!nextRows.length) break;
+      descendants.push(...nextRows);
+      frontier = nextRows.map((item: any) => item.$id);
+    }
+    return descendants;
   }
   async voteComment(userId: string, id: string, type: 'up' | 'down' | null) {
     const comment = await this.row('game_comments', id);
