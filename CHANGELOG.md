@@ -6,6 +6,15 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-22
+
+### Added
+
+- Fórum da comunidade (`/social/forum/posts`, `/social/forum/posts/:id`) com criação de publicações em rich text vinculadas a qualquer jogo, ordenação por recentes ou mais votados, filtro por jogo, exclusão pelo autor e árvore de respostas até 3 níveis.
+- Sanitização de HTML rich text no servidor para publicações e respostas do fórum e comentários de jogos.
+- Inclusão das páginas públicas `/forum` e `/forum/:id-:slug` no `sitemap.xml` com roteamento de notificações para discussões do fórum.
+- Script de migração aditiva (`appwrite:provision-forum`) para provisionar `title`, `slug` e expandir `content` na tabela `game_comments`.
+
 ## [0.14.2] - 2026-10-13
 
 ### Changed

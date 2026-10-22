@@ -1276,11 +1276,29 @@
                     "side": "parent"
                 },
                 {
+                    "key": "title",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "slug",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 160,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
                     "key": "content",
                     "type": "string",
                     "required": true,
                     "array": false,
-                    "size": 350,
+                    "size": 8000,
                     "default": null,
                     "encrypt": false
                 },

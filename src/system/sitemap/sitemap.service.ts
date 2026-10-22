@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { GameService } from 'src/modules/game/game.service';
 import { GazethoService } from 'src/modules/gazetho/gazetho.service';
+import { ForumService } from 'src/modules/social/forum.service';
 import { resolveFrontendOrigin } from 'src/common/utils/frontend-origin';
 
 type SitemapEntry = {
@@ -16,6 +17,7 @@ type SitemapEntry = {
  */
 const STATIC_PATHS = [
   '',
+  '/forum',
   '/noticias',
   '/sobre',
   '/contato',
@@ -35,6 +37,7 @@ export class SitemapService {
     private readonly gazethoService: GazethoService,
     private readonly gameService: GameService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly forumService: ForumService,
   ) {}
 
   /**
@@ -56,6 +59,7 @@ export class SitemapService {
       ...STATIC_PATHS.map((path) => ({ loc: `${this.baseUrl}${path}` })),
       ...(await this.getNewsEntries()),
       ...(await this.getGameEntries()),
+      ...(await this.getForumEntries()),
     ];
 
     const xml = this.renderSitemap(entries);
@@ -98,6 +102,20 @@ export class SitemapService {
       }));
     } catch (error) {
       this.logger.error(`Falha ao montar jogos do sitemap: ${error}`);
+      return [];
+    }
+  }
+
+  private async getForumEntries(): Promise<SitemapEntry[]> {
+    try {
+      const posts = await this.forumService.listIndexablePostsForSitemap();
+
+      return posts.map((post) => ({
+        loc: `${this.baseUrl}/forum/${encodeURIComponent(post.slug)}`,
+        lastmod: this.toIsoDate(post.lastmod),
+      }));
+    } catch (error) {
+      this.logger.error(`Falha ao montar tópicos do fórum no sitemap: ${error}`);
       return [];
     }
   }

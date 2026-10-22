@@ -15,6 +15,7 @@ import { SocialService } from './social.service';
 import {
   EntryInput,
   CommentInput,
+  CommentUpdateInput,
   VoteInput,
   ListInput,
   ListUpdateInput,
@@ -39,11 +40,27 @@ export class SocialController {
   @Post('comments') comment(@Req() req: any, @Body() data: CommentInput) {
     return this.social.createComment(req.user.$id, data);
   }
+  @Patch('comments/:id') updateComment(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() data: CommentUpdateInput,
+  ) {
+    return this.social.updateComment(
+      req.user.$id,
+      id,
+      data,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
+  }
   @Delete('comments/:id') deleteComment(
     @Req() req: any,
     @Param('id') id: string,
   ) {
-    return this.social.deleteComment(req.user.$id, id);
+    return this.social.deleteComment(
+      req.user.$id,
+      id,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Post('comments/:id/vote') vote(
     @Req() req: any,

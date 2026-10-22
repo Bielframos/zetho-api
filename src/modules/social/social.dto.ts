@@ -1,9 +1,11 @@
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -42,8 +44,25 @@ export class EntryInput {
 }
 export class CommentInput {
   @IsString() gameId!: string;
-  @IsString() @MaxLength(350) content!: string;
+  @IsOptional() @IsString() @MaxLength(255) title?: string;
+  @IsString() @MaxLength(8000) content!: string;
   @IsOptional() @IsString() parentId?: string;
+}
+export class CommentUpdateInput {
+  @IsOptional() @IsString() @MaxLength(255) title?: string;
+  @IsOptional() @IsString() @MaxLength(8000) content?: string;
+}
+export class ForumPostsQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) pageSize = 12;
+  @IsOptional() @IsString() gameId?: string;
+  @IsOptional() @IsString() gameSlug?: string;
+  @IsOptional() @IsIn(['recent', 'top']) sort: 'recent' | 'top' = 'recent';
+}
+export class ForumRepliesQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) pageSize = 10;
+  @IsOptional() @IsIn(['recent', 'top']) sort: 'recent' | 'top' = 'top';
 }
 export class VoteInput {
   @ValidateIf((o) => o.type !== null) @IsIn(['up', 'down']) type!:

@@ -132,12 +132,19 @@ export class CommentNotificationService {
         }
 
         // 4. Enviar e-mail de resposta direto para o autor do comentário pai
-        const gameUrl = game?.slug
+        const rootComment = await this.resolveRootComment(parentComment);
+        const forumSlug = rootComment?.slug?.trim();
+        const gameUrl = forumSlug
           ? new URL(
-              `/jogo/${game.slug}?commentId=${encodeURIComponent(comment.$id)}`,
+              `/forum/${encodeURIComponent(forumSlug)}?commentId=${encodeURIComponent(comment.$id)}`,
               this.getFrontendAppUrl(),
             ).toString()
-          : this.getFrontendAppUrl();
+          : game?.slug
+            ? new URL(
+                `/jogo/${game.slug}?commentId=${encodeURIComponent(comment.$id)}`,
+                this.getFrontendAppUrl(),
+              ).toString()
+            : this.getFrontendAppUrl();
         const emailSubject = game?.name
           ? `[Zetho] Nova resposta ao seu comentário em ${game.name}`
           : `[Zetho] Nova resposta ao seu comentário`;
@@ -184,6 +191,26 @@ export class CommentNotificationService {
       return typeof id === 'string' ? id : null;
     }
     return null;
+  }
+
+  private async resolveRootComment(comment: any) {
+    let current = comment;
+    const visited = new Set<string>(current?.$id ? [current.$id] : []);
+    for (let hop = 0; hop < 5; hop += 1) {
+      const parentId = this.extractRelationId(current?.parentId);
+      if (!parentId || visited.has(parentId)) break;
+      visited.add(parentId);
+      const next = await this.tablesDB
+        .getRow<any>({
+          databaseId: 'app',
+          tableId: 'game_comments',
+          rowId: parentId,
+        })
+        .catch(() => null);
+      if (!next) break;
+      current = next;
+    }
+    return current;
   }
 
   private getFrontendAppUrl() {
