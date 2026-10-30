@@ -1,30 +1,47 @@
+import { AppwriteException } from 'node-appwrite';
+import type { OutboxService } from 'src/infra/events/outbox.service';
+import type { TimelineService } from 'src/system/dashboard/timeline.service';
+import type { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import type { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { SocialService } from './social.service';
+
+type MockRow = { $id: string; [key: string]: unknown };
+type ReadArgs = { tableId: string; rowId: string };
+type WriteArgs = ReadArgs & {
+  data: Record<string, unknown>;
+  transactionId?: string;
+};
 
 describe('Acquisition persistence', () => {
   function setup(status?: string) {
-    const rows = new Map<string, any>();
+    const rows = new Map<string, MockRow>();
     const db = {
-      getRow: jest.fn(async ({ tableId, rowId }) => {
-        if (tableId === 'games') return { $id: rowId, name: 'Game' };
+      getRow: jest.fn(({ tableId, rowId }: ReadArgs) => {
+        if (tableId === 'games')
+          return Promise.resolve({ $id: rowId, name: 'Game' });
         const value = rows.get(`${tableId}:${rowId}`);
-        if (!value) throw { code: 404 };
-        return value;
+        if (!value)
+          return Promise.reject(new AppwriteException('Not found', 404));
+        return Promise.resolve(value);
       }),
-      listRows: jest.fn(async ({ tableId }) => ({
-        rows:
-          tableId === 'user_profiles'
-            ? [{ $id: 'p', fingerprint: 'f' }]
-            : status
-              ? [{ $id: 'old', status }]
-              : [],
-      })),
-      createRow: jest.fn(async ({ tableId, rowId, data }) => {
+      listRows: jest.fn(({ tableId }: { tableId: string }) =>
+        Promise.resolve({
+          rows:
+            tableId === 'user_profiles'
+              ? [{ $id: 'p', fingerprint: 'f' }]
+              : status
+                ? [{ $id: 'old', status }]
+                : [],
+        }),
+      ),
+      createRow: jest.fn(({ tableId, rowId, data }: WriteArgs) => {
         const value = { $id: rowId, ...data };
         rows.set(`${tableId}:${rowId}`, value);
-        return value;
+        return Promise.resolve(value);
       }),
-      updateRow: jest.fn(async ({ tableId, rowId, data }) => {
+      updateRow: jest.fn(({ tableId, rowId, data }: WriteArgs) => {
         rows.set(`${tableId}:${rowId}`, { $id: rowId, ...data });
+        return Promise.resolve();
       }),
     };
     const outbox = {
@@ -32,13 +49,15 @@ describe('Acquisition persistence', () => {
       processOutbox: jest.fn().mockResolvedValue(undefined),
     };
     const transactions = {
-      runInTransaction: jest.fn(async (fn) => fn({ txId: 'tx' })),
+      runInTransaction: jest.fn(
+        (fn: (ctx: { txId: string }) => Promise<unknown>) => fn({ txId: 'tx' }),
+      ),
     };
     const service = new SocialService(
-      { tablesDB: db } as any,
-      transactions as any,
-      outbox as any,
-      {} as any,
+      { tablesDB: db } as unknown as Appwrite,
+      transactions as unknown as TransactionService,
+      outbox as unknown as OutboxService,
+      {} as TimelineService,
     );
     return { service, db, rows, outbox, transactions };
   }
@@ -91,13 +110,13 @@ describe('Acquisition persistence', () => {
   });
   it('propagates infrastructure read failures instead of treating them as a first visit', async () => {
     const { service, db } = setup();
-    db.getRow.mockImplementation(async ({ tableId }) => {
-      if (tableId === 'games') return { $id: 'g' };
-      throw { code: 503 };
+    db.getRow.mockImplementation(({ tableId }) => {
+      if (tableId === 'games') return Promise.resolve({ $id: 'g' });
+      return Promise.reject(new AppwriteException('Unavailable', 503));
     });
     await expect(
       service.ensureEntry('u', { gameId: 'g', requestId: 'a' }),
-    ).rejects.toEqual({ code: 503 });
+    ).rejects.toMatchObject({ code: 503 });
     expect(db.createRow).not.toHaveBeenCalled();
   });
 });

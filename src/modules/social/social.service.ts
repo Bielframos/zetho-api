@@ -10,6 +10,11 @@ import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { OutboxService } from 'src/infra/events/outbox.service';
 import { TimelineService } from 'src/system/dashboard/timeline.service';
 import crypto from 'node:crypto';
+import type {
+  UserProfiles,
+  ZEntries,
+  ZEntriesReadOnly,
+} from 'src/infra/appwrite/appwrite';
 import { slugify } from 'src/common/utils/slugify';
 import {
   extractPlainTextFromHtml,
@@ -86,7 +91,7 @@ export class SocialService {
     transactionId?: string,
   ) {
     try {
-      return await this.db.getRow<any>({
+      return await this.db.getRow<Models.Row & { metadata: string }>({
         databaseId: 'app',
         tableId,
         rowId,
@@ -106,7 +111,7 @@ export class SocialService {
   ): Promise<boolean> {
     const rowId = this.receiptId('first_game_saved', userId);
     if (await this.optionalRow('app_logs', rowId, txId)) return false;
-    const previous = await this.db.listRows<any>({
+    const previous = await this.db.listRows<ZEntries>({
       databaseId: 'app',
       tableId: 'z_entries',
       transactionId: txId,
@@ -116,7 +121,7 @@ export class SocialService {
         Query.limit(1),
       ],
     });
-    const legacy = await this.db.listRows<any>({
+    const legacy = await this.db.listRows<ZEntriesReadOnly>({
       databaseId: 'app',
       tableId: 'z_entries_read',
       transactionId: txId,
@@ -146,20 +151,26 @@ export class SocialService {
     userId: string,
     data: { gameId: string; requestId: string },
     attempt = 0,
-  ): Promise<any> {
+  ): Promise<{ saved: boolean; firstGameSaved: boolean }> {
     if (
       !/^[a-zA-Z0-9_-]{1,36}$/.test(data.gameId) ||
       !/^[a-zA-Z0-9-]{1,64}$/.test(data.requestId)
     )
       throw new BadRequestException('Ação inválida');
-    const profile = await this.profile(userId);
+    const profile = (await this.profile(userId)) as UserProfiles;
     await this.row('games', data.gameId);
     const receiptId = this.receiptId(`ensure:${data.requestId}`, userId);
     try {
       return await this.run(async ({ txId }) => {
         const receipt = await this.optionalRow('app_logs', receiptId, txId);
         if (receipt) {
-          if (JSON.parse(receipt.metadata).gameId !== data.gameId)
+          const metadata: unknown = JSON.parse(receipt.metadata);
+          if (
+            !metadata ||
+            typeof metadata !== 'object' ||
+            !('gameId' in metadata) ||
+            metadata.gameId !== data.gameId
+          )
             throw new BadRequestException('A ação pertence a outro jogo');
           return { saved: true, firstGameSaved: false };
         }
@@ -187,7 +198,7 @@ export class SocialService {
             transactionId: txId,
             data: lockData,
           });
-        const history = await this.db.listRows<any>({
+        const history = await this.db.listRows<ZEntries>({
           databaseId: 'app',
           tableId: 'z_entries',
           transactionId: txId,
@@ -199,7 +210,7 @@ export class SocialService {
             Query.limit(1),
           ],
         });
-        const current = await this.db.listRows<any>({
+        const current = await this.db.listRows<ZEntriesReadOnly>({
           databaseId: 'app',
           tableId: 'z_entries_read',
           transactionId: txId,
@@ -218,17 +229,19 @@ export class SocialService {
             profile.fingerprint,
           );
           const fields = Object.fromEntries(
-            [
-              'liked',
-              'hyped',
-              'playedPlatform',
-              'playedPlatformId',
-              'playtimeMinutes',
-            ]
+            (
+              [
+                'liked',
+                'hyped',
+                'playedPlatform',
+                'playedPlatformId',
+                'playtimeMinutes',
+              ] as const
+            )
               .filter((key) => prior?.[key] !== undefined)
-              .map((key) => [key, prior[key]]),
+              .map((key) => [key, prior?.[key]]),
           );
-          const entry = await this.db.createRow<any>({
+          const entry = await this.db.createRow({
             databaseId: 'app',
             tableId: 'z_entries',
             rowId: ID.unique(),
@@ -267,7 +280,7 @@ export class SocialService {
   }
 
   async createEntry(userId: string, data: any, attempt = 0): Promise<any> {
-    const profile = await this.profile(userId);
+    const profile = (await this.profile(userId)) as UserProfiles;
     if (!data?.gameId || typeof data.gameId !== 'string')
       throw new BadRequestException('Jogo obrigatório');
     const allowed = [
@@ -330,7 +343,7 @@ export class SocialService {
         const firstGameSaved = clean.status
           ? await this.firstGameSaved(txId, userId, profile.fingerprint)
           : false;
-        const created = await this.db.createRow<any>({
+        const created = await this.db.createRow({
           databaseId: 'app',
           tableId: 'z_entries',
           rowId: id,

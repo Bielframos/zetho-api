@@ -270,6 +270,7 @@ export class GazethoService {
       editorialListId?: string;
     }>(post.seo);
 
+    const author = post.author as Record<string, unknown> | null | undefined;
     return {
       $id: post.$id,
       $createdAt: post.$createdAt,
@@ -279,11 +280,11 @@ export class GazethoService {
       slug: post.slug,
       tags: post.tags ?? [],
       author:
-        post.author?.$id === 'zetho-editorial'
+        author?.$id === 'zetho-editorial'
           ? { name: 'Zetho', slug: 'zetho-editorial', isAutomated: true }
-          : this.toNewsAuthor(post.author),
+          : this.toNewsAuthor(author),
       contentType:
-        post.author?.$id === 'zetho-editorial' ? 'editorial_list' : 'news',
+        author?.$id === 'zetho-editorial' ? 'editorial_list' : 'news',
       mainImage: this.parseJsonColumn<{ url?: string }>(post.mainImage),
       seo: seo
         ? {

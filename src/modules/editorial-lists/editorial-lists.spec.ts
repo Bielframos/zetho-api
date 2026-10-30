@@ -1,5 +1,15 @@
+import { AppwriteException } from 'node-appwrite';
+import type { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import type { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { EditorialListsService } from './editorial-lists.service';
 import { editorialDraftSchema } from './editorial-list.schema';
+
+type MockRow = { $id: string; [key: string]: unknown };
+type ReadArgs = { tableId: string; rowId: string };
+type WriteArgs = ReadArgs & {
+  data: Record<string, unknown>;
+  transactionId?: string;
+};
 
 const thematic = {
   title: 'Jogos para descobrir',
@@ -17,39 +27,42 @@ const thematic = {
 describe('Editorial lists review boundary', () => {
   const admin = { $id: 'editor', labels: ['admin'] };
   function setup() {
-    let draft: any;
+    let draft: MockRow = { $id: '' };
     const db = {
-      createRow: jest.fn(async ({ tableId, rowId, data }) => {
+      createRow: jest.fn(({ tableId, rowId, data }: WriteArgs) => {
         const row = { $id: rowId, ...data };
         if (tableId === 'editorial_drafts') draft = row;
-        return row;
+        return Promise.resolve(row);
       }),
-      getRow: jest.fn(async ({ tableId, rowId }) => {
-        if (tableId === 'editorial_drafts') return draft;
+      getRow: jest.fn(({ tableId, rowId }: ReadArgs) => {
+        if (tableId === 'editorial_drafts') return Promise.resolve(draft);
         if (tableId === 'games')
-          return {
+          return Promise.resolve({
             $id: rowId,
             name: 'Catalog game',
             slug: 'catalog-game',
             releaseDate: '2026-10-15T00:00:00.000Z',
-          };
-        throw { code: 404 };
+          });
+        return Promise.reject(new AppwriteException('Not found', 404));
       }),
-      updateRow: jest.fn(async ({ data }) => {
+      updateRow: jest.fn(({ data }: WriteArgs) => {
         draft = { ...draft, ...data };
-        return draft;
+        return Promise.resolve(draft);
       }),
       upsertRow: jest.fn(),
     };
     const service = new EditorialListsService(
-      { tablesDB: db } as any,
-      { runInTransaction: async (work: any) => work({ txId: 'tx' }) } as any,
+      { tablesDB: db } as unknown as Appwrite,
+      {
+        runInTransaction: <T>(work: (ctx: { txId: string }) => Promise<T>) =>
+          work({ txId: 'tx' }),
+      } as TransactionService,
     );
     return { service, db };
   }
   it('keeps agent output private and denies non-admin approval', async () => {
     const { service, db } = setup();
-    const row: any = await service.submit(thematic);
+    const row = await service.submit(thematic);
     expect(db.createRow).toHaveBeenCalledTimes(1);
     expect(row.status).toBe('draft');
     await expect(service.publicList(`zetho-${row.$id}`)).rejects.toThrow();
@@ -63,7 +76,7 @@ describe('Editorial lists review boundary', () => {
   });
   it('requires exact revision and explicit source review, then reuses lists/items', async () => {
     const { service, db } = setup();
-    const row: any = await service.submit(thematic);
+    const row = await service.submit(thematic);
     await expect(
       service.approve(admin, row.$id, {
         revision: 'old',
@@ -80,15 +93,12 @@ describe('Editorial lists review boundary', () => {
       revision: row.revision,
       sourcesVerified: true,
     });
-    expect(db.createRow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: 'lists',
-        data: expect.objectContaining({
-          ownerFingerprint: 'system:zetho',
-          isPublic: true,
-        }),
-      }),
-    );
+    const listWrite = db.createRow.mock.calls.find(
+      ([call]) => call.tableId === 'lists',
+    )?.[0];
+    expect(listWrite).toMatchObject({
+      data: { ownerFingerprint: 'system:zetho', isPublic: true },
+    });
     expect(db.createRow).toHaveBeenCalledWith(
       expect.objectContaining({ tableId: 'list_items' }),
     );
@@ -119,7 +129,7 @@ describe('Editorial lists review boundary', () => {
   });
   it('accepts a dated monthly fixture and escapes generated prose in the post', async () => {
     const { service, db } = setup();
-    const row: any = await service.submit({
+    const row = await service.submit({
       ...thematic,
       kind: 'monthly',
       month: '2026-10',
@@ -135,7 +145,7 @@ describe('Editorial lists review boundary', () => {
       revision: row.revision,
       sourcesVerified: true,
     });
-    const post: any = await service.convert(admin, row.$id);
+    const post = await service.convert(admin, row.$id);
     expect(post.status).toBe('draft');
     expect(post.body).not.toContain('<script>');
     expect(post.body).toContain('2026-10');

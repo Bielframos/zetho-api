@@ -36,7 +36,7 @@ import {
 export class SocialController {
   constructor(private readonly social: SocialService) {}
   @Post('entries/ensure') ensureEntry(
-    @Req() req: any,
+    @Req() req: { user: { $id: string } },
     @Body() data: EnsureEntryInput,
   ) {
     return this.social.ensureEntry(req.user.$id, data);

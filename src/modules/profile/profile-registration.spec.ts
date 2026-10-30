@@ -1,9 +1,18 @@
+import type { Appwrite } from 'src/infra/appwrite/appwrite.provider';
+import type { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { ProfileService } from './profile.service';
-import { AppwriteException } from 'node-appwrite';
+import { AppwriteException, Models } from 'node-appwrite';
+
+type MockRow = { $id: string; [key: string]: unknown };
+type ReadArgs = { tableId: string; rowId: string };
+type WriteArgs = ReadArgs & {
+  data: Record<string, unknown>;
+  transactionId?: string;
+};
 
 describe('Registration completion receipts', () => {
   function setup() {
-    const rows = new Map<string, any>();
+    const rows = new Map<string, MockRow>();
     const inviter = {
       $id: 'inviter-profile',
       userId: 'inviter',
@@ -11,43 +20,52 @@ describe('Registration completion receipts', () => {
       inviteCode: 'valid',
     };
     const db = {
-      listRows: jest.fn(async ({ queries }) => {
-        const parsed = queries.map((query: string) => JSON.parse(query));
-        const invite = parsed.find((q: any) => q.attribute === 'inviteCode');
+      listRows: jest.fn(({ queries }: { queries: string[] }) => {
+        const parsed = queries.map(
+          (query) =>
+            JSON.parse(query) as { attribute?: string; values: string[] },
+        );
+        const invite = parsed.find((q) => q.attribute === 'inviteCode');
         const profiles = [...rows.entries()]
           .filter(([key]) => key.startsWith('user_profiles:'))
           .map(([, value]) => value);
-        return invite
-          ? {
-              rows: invite.values[0] === 'valid' ? [inviter] : [],
-              total: invite.values[0] === 'valid' ? 1 : 0,
-            }
-          : { rows: profiles, total: profiles.length };
+        return Promise.resolve(
+          invite
+            ? {
+                rows: invite.values[0] === 'valid' ? [inviter] : [],
+                total: invite.values[0] === 'valid' ? 1 : 0,
+              }
+            : { rows: profiles, total: profiles.length },
+        );
       }),
-      getRow: jest.fn(async ({ tableId, rowId }) => {
+      getRow: jest.fn(({ tableId, rowId }: ReadArgs) => {
         const row = rows.get(`${tableId}:${rowId}`);
-        if (!row) throw new AppwriteException('Not found', 404);
-        return row;
+        if (!row)
+          return Promise.reject(new AppwriteException('Not found', 404));
+        return Promise.resolve(row);
       }),
-      createRow: jest.fn(async ({ tableId, rowId, data }) => {
+      createRow: jest.fn(({ tableId, rowId, data }: WriteArgs) => {
         const row = { $id: rowId, ...data };
         rows.set(`${tableId}:${rowId}`, row);
-        return row;
+        return Promise.resolve(row);
       }),
-      updateRow: jest.fn(async ({ tableId, rowId, data }) => {
-        const row = { ...rows.get(`${tableId}:${rowId}`), ...data };
+      updateRow: jest.fn(({ tableId, rowId, data }: WriteArgs) => {
+        const row = { $id: rowId, ...rows.get(`${tableId}:${rowId}`), ...data };
         rows.set(`${tableId}:${rowId}`, row);
-        return row;
+        return Promise.resolve(row);
       }),
       createOperations: jest.fn(),
     };
     const service = new ProfileService(
-      { tablesDB: db } as any,
-      { runInTransaction: async (work: any) => work({ txId: 'tx' }) } as any,
+      { tablesDB: db } as unknown as Appwrite,
+      {
+        runInTransaction: <T>(work: (ctx: { txId: string }) => Promise<T>) =>
+          work({ txId: 'tx' }),
+      } as TransactionService,
     );
     return { service, db, rows };
   }
-  const user = { $id: 'user', email: 'test@example.com' } as any;
+  const user = { $id: 'user', email: 'test@example.com' } as Models.User;
   it('distinguishes an accepted invitation without exposing it in analytics metadata', async () => {
     const { service } = setup();
     const profile = await service.create(user, 'player', 'valid');
@@ -85,7 +103,9 @@ describe('Registration completion receipts', () => {
     db.listRows.mockImplementation((args) => {
       if (
         args.queries.some(
-          (query: string) => JSON.parse(query).attribute === 'inviteCode',
+          (query: string) =>
+            (JSON.parse(query) as { attribute?: string }).attribute ===
+            'inviteCode',
         )
       )
         return Promise.resolve({ rows: [], total: 0 });

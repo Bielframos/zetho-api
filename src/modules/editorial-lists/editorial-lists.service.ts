@@ -105,7 +105,7 @@ export class EditorialListsService {
   async submit(input: unknown) {
     const draft = this.parse(input);
     await this.games(draft);
-    return this.db.createRow({
+    return this.db.createRow<DraftRow>({
       databaseId: 'app',
       tableId: 'editorial_drafts',
       rowId: ID.unique(),

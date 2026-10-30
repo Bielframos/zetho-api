@@ -25,6 +25,13 @@ import type {
   ZEntriesReadOnly,
 } from 'src/infra/appwrite/appwrite';
 
+type RegistrationReceipt = { type: string; metadata: string };
+type RegistrationProfile = Models.Row &
+  Pick<UserProfiles, 'userId' | 'fingerprint' | 'gamertag' | 'inviteCode'>;
+type RegisteredProfile = RegistrationProfile & {
+  registration: { created: boolean; inviteAccepted: boolean };
+};
+
 type ProfileAuditTotals = {
   totalsCompleted: number;
   totalsBacklog: number;
@@ -105,7 +112,7 @@ export class ProfileService {
     gamertag: string,
     inviteCode?: string,
     attempt = 0,
-  ): Promise<any> {
+  ): Promise<RegisteredProfile> {
     if (
       inviteCode !== undefined &&
       (typeof inviteCode !== 'string' || inviteCode.length > 64)
@@ -123,9 +130,9 @@ export class ProfileService {
         tableId: 'user_profiles',
         queries: [Query.equal('fingerprint', fingerprint), Query.limit(1)],
       });
-      let receipt: any = null;
+      let receipt: RegistrationReceipt | null = null;
       try {
-        receipt = await this.tablesDB.getRow({
+        receipt = await this.tablesDB.getRow<Models.Row & RegistrationReceipt>({
           databaseId: 'app',
           tableId: 'app_logs',
           rowId: receiptId,
@@ -133,7 +140,7 @@ export class ProfileService {
       } catch (error) {
         if ((error as { code?: number }).code !== 404) throw error;
       }
-      let profile: any = existing.rows[0];
+      let profile: RegistrationProfile | undefined = existing.rows[0];
       if (profile?.userId && profile.userId !== user.$id)
         throw new BadRequestException('Perfil já vinculado a outra conta');
       if (profile && (!receipt || receipt.type === 'registration_complete')) {
@@ -154,7 +161,7 @@ export class ProfileService {
           await this.resolveInviter(inviteCode.trim(), user.$id);
         profile = await this.transactionService.runInTransaction(
           async ({ txId }) => {
-            const created = await this.tablesDB.createRow<any>({
+            const created = await this.tablesDB.createRow<RegistrationProfile>({
               databaseId: 'app',
               tableId: 'user_profiles',
               rowId: ID.unique(),
@@ -188,9 +195,17 @@ export class ProfileService {
           metadata: JSON.stringify({ inviteCode: inviteCode?.trim() || null }),
         };
       }
-      const acceptedCode = JSON.parse(receipt.metadata).inviteCode ?? undefined;
+      if (!receipt)
+        throw new InternalServerErrorException('Recibo de cadastro ausente');
+      const metadata: unknown = JSON.parse(receipt.metadata);
+      const details = metadata && typeof metadata === 'object' ? metadata : {};
+      const acceptedCode =
+        'inviteCode' in details && typeof details.inviteCode === 'string'
+          ? details.inviteCode
+          : undefined;
       await this.applyWelcomeBonus(user.$id, profile.$id);
-      let inviteAccepted = JSON.parse(receipt.metadata).inviteAccepted === true;
+      let inviteAccepted =
+        'inviteAccepted' in details && details.inviteAccepted === true;
       if (!inviteAccepted) {
         try {
           inviteAccepted = await this.applyInviteReward({
@@ -208,7 +223,9 @@ export class ProfileService {
       }
       const created = await this.transactionService.runInTransaction(
         async ({ txId }) => {
-          const current = await this.tablesDB.getRow<any>({
+          const current = await this.tablesDB.getRow<
+            Models.Row & RegistrationReceipt
+          >({
             databaseId: 'app',
             tableId: 'app_logs',
             rowId: receiptId,
@@ -289,7 +306,7 @@ export class ProfileService {
       queries: [Query.equal('inviteCode', code), Query.limit(1)],
     });
     const inviter = result.rows[0];
-    if (!inviter?.userId || inviter.status === 'pending_deletion')
+    if (!inviter?.userId || String(inviter.status) === 'pending_deletion')
       throw new BadRequestException('Código de convite inválido');
     if (inviter.userId === userId)
       throw new BadRequestException(
