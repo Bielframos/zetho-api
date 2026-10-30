@@ -6,6 +6,17 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Added
+
+- Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
+- Retomada de cadastro parcial com bônus e atribuição protegidos contra repetição.
+- Rascunhos editoriais privados via MCP, aprovação administrativa, listas oficiais e conversão revisável em posts.
+- Schema e provisionamento opt-in para rascunhos editoriais, sem gravações automáticas em produção.
+
+### Changed
+
+- Respostas de fórum não usam cache compartilhado; sitemap inclui listas editoriais e expira em cinco minutos.
+
 ## [0.15.0] - 2026-10-22
 
 ### Added

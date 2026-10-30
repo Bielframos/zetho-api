@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Param,
   Query,
   Req,
@@ -24,6 +25,7 @@ export class ForumController {
   constructor(private readonly forum: ForumService) {}
 
   @Get('posts')
+  @Header('Cache-Control', 'private, no-store')
   listPosts(@Req() req: any, @Query() query: ForumPostsQueryDto) {
     return this.forum.listPosts({
       page: query.page,
@@ -36,6 +38,7 @@ export class ForumController {
   }
 
   @Get('posts/:slugOrId')
+  @Header('Cache-Control', 'private, no-store')
   getPost(
     @Req() req: any,
     @Param('slugOrId') slugOrId: string,
@@ -50,6 +53,7 @@ export class ForumController {
   }
 
   @Get('comments/:parentId/replies')
+  @Header('Cache-Control', 'private, no-store')
   getReplies(
     @Req() req: any,
     @Param('parentId') parentId: string,

@@ -14,6 +14,7 @@ import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { SocialService } from './social.service';
 import {
   EntryInput,
+  EnsureEntryInput,
   CommentInput,
   CommentUpdateInput,
   VoteInput,
@@ -34,6 +35,12 @@ import {
 )
 export class SocialController {
   constructor(private readonly social: SocialService) {}
+  @Post('entries/ensure') ensureEntry(
+    @Req() req: any,
+    @Body() data: EnsureEntryInput,
+  ) {
+    return this.social.ensureEntry(req.user.$id, data);
+  }
   @Post('entries') entry(@Req() req: any, @Body() data: EntryInput) {
     return this.social.createEntry(req.user.$id, data);
   }

@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PostsStatus } from 'src/infra/appwrite/appwrite.enums';
 import { ID, Query } from 'node-appwrite';
@@ -29,6 +30,10 @@ export class GazethoService {
   }
 
   async createPost(dto: CreatePostDto) {
+    if (dto.authorId === 'zetho-editorial')
+      throw new ForbiddenException(
+        'Use o fluxo de aprovação das listas editoriais',
+      );
     const slug = this.slugify(dto.slug ?? dto.title);
 
     return await this.tablesDB.createRow({
@@ -258,9 +263,12 @@ export class GazethoService {
   }
 
   private toNewsSummary(post: Record<string, any>) {
-    const seo = this.parseJsonColumn<{ title?: string; description?: string }>(
-      post.seo,
-    );
+    const seo = this.parseJsonColumn<{
+      title?: string;
+      description?: string;
+      contentType?: string;
+      editorialListId?: string;
+    }>(post.seo);
 
     return {
       $id: post.$id,
@@ -270,7 +278,12 @@ export class GazethoService {
       subtitle: post.subtitle ?? null,
       slug: post.slug,
       tags: post.tags ?? [],
-      author: this.toNewsAuthor(post.author),
+      author:
+        post.author?.$id === 'zetho-editorial'
+          ? { name: 'Zetho', slug: 'zetho-editorial', isAutomated: true }
+          : this.toNewsAuthor(post.author),
+      contentType:
+        post.author?.$id === 'zetho-editorial' ? 'editorial_list' : 'news',
       mainImage: this.parseJsonColumn<{ url?: string }>(post.mainImage),
       seo: seo
         ? {

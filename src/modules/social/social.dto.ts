@@ -91,3 +91,8 @@ export class ItemOrderInput {
 export class FollowInput {
   @IsString() targetProfileId!: string;
 }
+
+export class EnsureEntryInput {
+  @IsString() @MaxLength(36) gameId!: string;
+  @IsString() @MaxLength(64) requestId!: string;
+}

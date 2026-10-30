@@ -4024,6 +4024,74 @@
                     "orders": []
                 }
             ]
+        },
+        {
+            "$id": "editorial_drafts",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Editorial drafts (private)",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "payload",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 16383,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "revision",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reviewedAt",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reviewerId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 48,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "status_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
         }
     ],
     "buckets": [

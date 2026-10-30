@@ -36,11 +36,22 @@ describe('SitemapService', () => {
       games as never,
       cache as never,
       forum as never,
+      {
+        publicIndex: jest.fn().mockResolvedValue([{ slug: 'zetho-list-1' }]),
+      } as never,
     );
 
     const xml = await service.getSitemapXml();
 
     expect(xml).toContain('<loc>https://site.example</loc>');
+    expect(xml).toContain(
+      '<loc>https://site.example/listas-editoriais/zetho-list-1</loc>',
+    );
+    expect(cache.set).toHaveBeenCalledWith(
+      'sitemap:xml',
+      expect.any(String),
+      300000,
+    );
     expect(xml).toContain('<loc>https://site.example/forum</loc>');
     expect(xml).toContain('<loc>https://site.example/noticias/latest</loc>');
     expect(xml).toContain('<loc>https://site.example/jogo/game-one</loc>');

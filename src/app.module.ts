@@ -1,3 +1,4 @@
+import { EditorialListsModule } from './modules/editorial-lists/editorial-lists.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -54,6 +55,7 @@ import { SocialModule } from './modules/social/social.module';
     GameplaySessionsModule,
     AchievementsModule,
     SocialModule,
+    EditorialListsModule,
     GameRecommenderModule,
 
     /** Modulos do sístema */

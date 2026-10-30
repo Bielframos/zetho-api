@@ -72,7 +72,201 @@ export class SocialService {
       payload: { table, row, action },
     });
   }
-  async createEntry(userId: string, data: any) {
+  private receiptId(kind: string, userId: string) {
+    return crypto
+      .createHash('sha256')
+      .update(`${kind}:${userId}`)
+      .digest('hex')
+      .slice(0, 36);
+  }
+
+  private async optionalRow(
+    tableId: string,
+    rowId: string,
+    transactionId?: string,
+  ) {
+    try {
+      return await this.db.getRow<any>({
+        databaseId: 'app',
+        tableId,
+        rowId,
+        ...(transactionId ? { transactionId } : {}),
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 404) return null;
+      throw error;
+    }
+  }
+
+  /** Durable once-per-person milestone, in the same transaction as the entry. */
+  private async firstGameSaved(
+    txId: string,
+    userId: string,
+    fingerprint: string,
+  ): Promise<boolean> {
+    const rowId = this.receiptId('first_game_saved', userId);
+    if (await this.optionalRow('app_logs', rowId, txId)) return false;
+    const previous = await this.db.listRows<any>({
+      databaseId: 'app',
+      tableId: 'z_entries',
+      transactionId: txId,
+      queries: [
+        Query.equal('ownerFingerprint', fingerprint),
+        Query.isNotNull('status'),
+        Query.limit(1),
+      ],
+    });
+    const legacy = await this.db.listRows<any>({
+      databaseId: 'app',
+      tableId: 'z_entries_read',
+      transactionId: txId,
+      queries: [
+        Query.equal('ownerFingerprint', fingerprint),
+        Query.isNotNull('status'),
+        Query.limit(1),
+      ],
+    });
+    const first = previous.rows.length === 0 && legacy.rows.length === 0;
+    await this.db.createRow({
+      databaseId: 'app',
+      tableId: 'app_logs',
+      rowId,
+      transactionId: txId,
+      data: {
+        type: 'first_game_saved',
+        relatedUserId: userId,
+        metadata: JSON.stringify({ first }),
+      },
+    });
+    return first;
+  }
+
+  /** Explicit set operation. Legacy toggle consumers keep their existing contract. */
+  async ensureEntry(
+    userId: string,
+    data: { gameId: string; requestId: string },
+    attempt = 0,
+  ): Promise<any> {
+    if (
+      !/^[a-zA-Z0-9_-]{1,36}$/.test(data.gameId) ||
+      !/^[a-zA-Z0-9-]{1,64}$/.test(data.requestId)
+    )
+      throw new BadRequestException('Ação inválida');
+    const profile = await this.profile(userId);
+    await this.row('games', data.gameId);
+    const receiptId = this.receiptId(`ensure:${data.requestId}`, userId);
+    try {
+      return await this.run(async ({ txId }) => {
+        const receipt = await this.optionalRow('app_logs', receiptId, txId);
+        if (receipt) {
+          if (JSON.parse(receipt.metadata).gameId !== data.gameId)
+            throw new BadRequestException('A ação pertence a outro jogo');
+          return { saved: true, firstGameSaved: false };
+        }
+        // A shared row serializes overlapping ensure requests for this person.
+        const lockId = this.receiptId('ensure_lock', userId);
+        const lock = await this.optionalRow('app_logs', lockId, txId);
+        const lockData = {
+          type: 'entry_ensure_lock',
+          relatedUserId: userId,
+          metadata: data.requestId,
+        };
+        if (lock)
+          await this.db.updateRow({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: lockId,
+            transactionId: txId,
+            data: lockData,
+          });
+        else
+          await this.db.createRow({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: lockId,
+            transactionId: txId,
+            data: lockData,
+          });
+        const history = await this.db.listRows<any>({
+          databaseId: 'app',
+          tableId: 'z_entries',
+          transactionId: txId,
+          queries: [
+            Query.equal('ownerFingerprint', profile.fingerprint),
+            Query.equal('gameId', data.gameId),
+            Query.orderDesc('$createdAt'),
+            Query.orderDesc('$id'),
+            Query.limit(1),
+          ],
+        });
+        const current = await this.db.listRows<any>({
+          databaseId: 'app',
+          tableId: 'z_entries_read',
+          transactionId: txId,
+          queries: [
+            Query.equal('ownerFingerprint', profile.fingerprint),
+            Query.equal('gameId', data.gameId),
+            Query.limit(1),
+          ],
+        });
+        const prior = history.rows[0] ?? current.rows[0];
+        let firstGameSaved = false;
+        if (!prior?.status) {
+          firstGameSaved = await this.firstGameSaved(
+            txId,
+            userId,
+            profile.fingerprint,
+          );
+          const fields = Object.fromEntries(
+            [
+              'liked',
+              'hyped',
+              'playedPlatform',
+              'playedPlatformId',
+              'playtimeMinutes',
+            ]
+              .filter((key) => prior?.[key] !== undefined)
+              .map((key) => [key, prior[key]]),
+          );
+          const entry = await this.db.createRow<any>({
+            databaseId: 'app',
+            tableId: 'z_entries',
+            rowId: ID.unique(),
+            transactionId: txId,
+            data: {
+              ...fields,
+              gameId: data.gameId,
+              ownerFingerprint: profile.fingerprint,
+              status: 'wishlist',
+            },
+          });
+          await this.outbox.enqueue(txId, {
+            type: 'SOCIAL_ENTRY_SYNC',
+            payload: { entryId: entry.$id },
+          });
+          await this.event(txId, 'z_entries', entry, 'create');
+        }
+        await this.db.createRow({
+          databaseId: 'app',
+          tableId: 'app_logs',
+          rowId: receiptId,
+          transactionId: txId,
+          data: {
+            type: 'entry_ensured',
+            relatedUserId: userId,
+            metadata: JSON.stringify({ gameId: data.gameId }),
+          },
+        });
+        return { saved: true, firstGameSaved };
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 409 && attempt < 2)
+        return this.ensureEntry(userId, data, attempt + 1);
+      throw error;
+    }
+  }
+
+  async createEntry(userId: string, data: any, attempt = 0): Promise<any> {
     const profile = await this.profile(userId);
     if (!data?.gameId || typeof data.gameId !== 'string')
       throw new BadRequestException('Jogo obrigatório');
@@ -131,27 +325,36 @@ export class SocialService {
     if (clean.status === null) delete clean.status;
     if (clean.status !== 'completed') clean.completionType = null;
     const id = ID.unique();
-    const row = await this.run(async ({ txId }) => {
-      const created = await this.db.createRow<any>({
-        databaseId: 'app',
-        tableId: 'z_entries',
-        rowId: id,
-        data: { ...clean, ownerFingerprint: profile.fingerprint },
-        transactionId: txId,
+    try {
+      const row = await this.run(async ({ txId }) => {
+        const firstGameSaved = clean.status
+          ? await this.firstGameSaved(txId, userId, profile.fingerprint)
+          : false;
+        const created = await this.db.createRow<any>({
+          databaseId: 'app',
+          tableId: 'z_entries',
+          rowId: id,
+          data: { ...clean, ownerFingerprint: profile.fingerprint },
+          transactionId: txId,
+        });
+        await this.outbox.enqueue(txId, {
+          type: 'SOCIAL_ENTRY_SYNC',
+          payload: { entryId: id },
+        });
+        await this.event(
+          txId,
+          'z_entries',
+          { ...created, $id: id, ownerFingerprint: profile.fingerprint },
+          'create',
+        );
+        return { ...created, firstGameSaved };
       });
-      await this.outbox.enqueue(txId, {
-        type: 'SOCIAL_ENTRY_SYNC',
-        payload: { entryId: id },
-      });
-      await this.event(
-        txId,
-        'z_entries',
-        { ...created, $id: id, ownerFingerprint: profile.fingerprint },
-        'create',
-      );
-      return created;
-    });
-    return row;
+      return row;
+    } catch (error) {
+      if ((error as { code?: number }).code === 409 && attempt < 2)
+        return this.createEntry(userId, data, attempt + 1);
+      throw error;
+    }
   }
   async createComment(userId: string, data: any) {
     const profile = await this.profile(userId);
@@ -270,12 +473,7 @@ export class SocialService {
       return enriched;
     });
   }
-  async updateComment(
-    userId: string,
-    id: string,
-    data: any,
-    isAdmin = false,
-  ) {
+  async updateComment(userId: string, id: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
     const row = await this.row('game_comments', id);
     const owner =
