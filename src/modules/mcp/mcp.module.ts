@@ -1,4 +1,4 @@
-import { EditorialListsModule } from '../editorial-lists/editorial-lists.module';
+import { ListsModule } from '../lists/lists.module';
 import { SubmitEditorialListTool } from './tools/submit-editorial-list.tool';
 import { Module } from '@nestjs/common';
 import { IGDBModule } from '../igdb/igdb.module';
@@ -12,7 +12,7 @@ import { McpController } from './mcp.controller';
 import { McpAuthGuard } from './guards/mcp-auth.guard';
 
 @Module({
-  imports: [IGDBModule, GameModule, EditorialListsModule],
+  imports: [IGDBModule, GameModule, ListsModule],
   controllers: [McpController],
   providers: [
     SubmitEditorialListTool,

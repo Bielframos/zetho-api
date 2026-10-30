@@ -142,10 +142,10 @@ describe('DashboardService', () => {
     expect(listRequest).toMatchObject({ databaseId: 'app', tableId: 'lists' });
     expect(listRequest.queries[0]).toContain('isPublic');
     expect(listRequest.queries[0]).toContain('true');
-    expect(listRequest.queries[1]).toContain('$createdAt');
-    expect(listRequest.queries[2]).toContain('$id');
-    expect(listRequest.queries[3]).toContain('2');
+    expect(listRequest.queries[2]).toContain('$createdAt');
+    expect(listRequest.queries[3]).toContain('$id');
     expect(listRequest.queries[4]).toContain('2');
+    expect(listRequest.queries[5]).toContain('2');
   });
 
   it('bounds public-list pagination and skips hydration for an empty anonymous page', async () => {
@@ -167,8 +167,8 @@ describe('DashboardService', () => {
     expect(tablesDB.listRows).toHaveBeenCalledTimes(1);
     const query = tablesDB.listRows.mock.calls[0][0];
     expect(query.queries[0]).toContain('isPublic');
-    expect(query.queries[3]).toContain('50');
-    expect(query.queries[4]).toContain('0');
+    expect(query.queries[4]).toContain('50');
+    expect(query.queries[5]).toContain('0');
   });
 
   it('returns only the current user status entries for the mine scope', async () => {
@@ -249,7 +249,15 @@ describe('DashboardService', () => {
           rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
         })
         .mockResolvedValueOnce({
-          rows: [{ $id: 'list-1', likeCount: 2, saveCount: 4 }],
+          rows: [
+            {
+              $id: 'list-1',
+              isPublic: true,
+              status: 'published',
+              likeCount: 2,
+              saveCount: 4,
+            },
+          ],
         })
         .mockResolvedValueOnce({ rows: [], total: 0 })
         .mockResolvedValueOnce({ rows: [], total: 0 })
@@ -299,7 +307,15 @@ describe('DashboardService', () => {
           rows: [{ $id: 'profile-1', userId: 'user-1', fingerprint: 'me' }],
         })
         .mockResolvedValueOnce({
-          rows: [{ $id: 'list-1', likeCount: 0, saveCount: 1 }],
+          rows: [
+            {
+              $id: 'list-1',
+              isPublic: true,
+              status: 'published',
+              likeCount: 0,
+              saveCount: 1,
+            },
+          ],
         })
         .mockResolvedValueOnce({
           rows: [{ $id: 'like-1', listId: 'list-1', userId: 'user-1' }],

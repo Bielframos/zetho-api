@@ -45,7 +45,7 @@ describe('SitemapService', () => {
 
     expect(xml).toContain('<loc>https://site.example</loc>');
     expect(xml).toContain(
-      '<loc>https://site.example/listas-editoriais/zetho-list-1</loc>',
+      '<loc>https://site.example/listas/zetho-list-1</loc>',
     );
     expect(cache.set).toHaveBeenCalledWith(
       'sitemap:xml',

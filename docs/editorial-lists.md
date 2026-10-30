@@ -1,14 +1,26 @@
-# Listas editoriais e aquisição
+# Listas do sistema e publicação
 
-Frontend complementar: `Bielframos/zetho`, branch `codex/acquisition-activation`. Issues de produto: Bielframos/zetho#146, #147, #148, #149.
+As listas oficiais expandem `lists` e `list_items`. `ownerType=user|system` identifica a origem, `status=draft|published|archived` define o estado e `isPublic` continua sendo a visibilidade. Listas pessoais existentes ficam `user/published`; listas do sistema usam a identidade reservada `system:zetho`. Publicar, arquivar ou voltar para rascunho preserva a lista, os itens, URLs e vínculos sociais.
 
-## Preparação e limites
+## Fluxo
 
-`editorial_drafts` é uma tabela **privada**, sem permissões de cliente nem row security. O schema versionado contém payload, revisão, status e registro de revisão. Nenhum rascunho vai para `lists`: essa tabela tem leitura pública no schema atual. A publicação cria `lists` e `list_items` existentes, com identidade reservada `system:zetho` e jogos reais. Essa identidade não é uma conta pessoal nem pode ser assumida por um fingerprint de perfil.
+Em `/listas`, administradores criam uma lista pelo diálogo existente e selecionam “Lista oficial do Zetho”. A mesma página de detalhe `/listas/:slug` oferece edição de título, descrição, jogos e ordem, além dos critérios, fontes e datas. A publicação exige salvar e conferir a revisão atual. Listas publicadas precisam voltar para rascunho antes de editar; isso retira também o post daquela versão. Arquivadas ficam disponíveis apenas à administração. Os antigos caminhos `/listas-editoriais` redirecionam para `/listas`.
 
-`node scripts/provision-editorial-drafts.cjs` é dry-run sem rede. `--apply` exige uma instância Appwrite própria e deve ser executado pelo operador, nunca como teste em produção. Aguarde colunas disponíveis e repita para criar o índice. O script se recusa a reutilizar uma tabela com permissões públicas. O recurso editorial não funciona antes desse provisionamento; os contratos anteriores continuam funcionando.
+O MCP `submit_editorial_list_draft` e `POST /lists/drafts` (chave de sistema) criam diretamente uma lista em rascunho. Não há nova geração autônoma, cron ou contratação de IA. O material recebido é dado: campos desconhecidos são rejeitados, fontes não são executadas e o servidor não busca suas URLs.
 
-Não há contratação de provedor, chamadas de IA, geração periódica ou publicação automática. O agente que já usa MCP pode produzir uma pauta e chamar `submit_editorial_list_draft`; a ferramenta só entrega um rascunho. Falhas de provedor no agente não causam escrita/publicação no backend. Também existe `POST /editorial-lists/drafts` protegido por `SystemApiKeyGuard`.
+## Permissões e instalação
+
+As tabelas `lists` e `list_items` usam row security e **nenhuma permissão global**. Somente listas públicas publicadas têm `read(any)` na linha; listas pessoais também têm leitura pelo dono. Itens pessoais são legíveis pelo dono; os demais acessos aos itens passam pela API, que verifica o estado e a visibilidade da lista. Rascunhos oficiais são lidos via sessão administrativa na API. Feed, vitrine, salvos, ações sociais e sitemap filtram publicação.
+
+`node scripts/provision-list-lifecycle.cjs` mostra um dry-run offline. `--apply` altera somente a instância configurada e é uma operação de manutenção, nunca um teste na instalação oficial.
+
+1. Faça backup e pause escritas/acesso ao recurso durante a manutenção. Valide primeiro em uma instância própria.
+2. Execute `--apply` para criar colunas/índices; aguarde ficarem disponíveis e repita quando solicitado.
+3. O script retira permissões globais, importa `editorial_drafts` se existir e atribui permissões por linha. Falhas deixam acesso restrito e permitem retomar. Listas privadas sem conta proprietária exigem correção manual.
+4. Publique esta API após concluir a migração e depois o frontend correspondente. A versão antiga do cliente que lê itens públicos diretamente não é compatível com as novas permissões; mantenha o recurso em manutenção até atualizar o frontend e limpar caches antigos. Não reverta para a API anterior após criar rascunhos nas listas.
+5. Verifique uma lista pública, uma privada como dono/visitante e um rascunho como admin/visitante antes de reabrir acesso.
+
+A tabela legada fica como backup, sem uso em runtime. Importações preservam IDs e os itens já existentes. Posts legados `ed-*` voltam para rascunho para evitar conteúdo público desatualizado; gere e revise o post da lista importada pelo fluxo atual. Nenhum script foi aplicado automaticamente em produção.
 
 ## Contrato do rascunho
 
@@ -32,21 +44,18 @@ Exemplo estrutural; não é conteúdo pronto para publicar. Não enviar IDs, URL
 
 O contrato rejeita campos de aprovação/publicação e propriedades desconhecidas. A revisão humana verifica fontes reais, atualidade, seleção, datas, plataformas e justificativas. Um link válido sintaticamente não prova um fato. A ferramenta instrui o agente a não inventar fatos, experiência pessoal, rankings objetivos ou consenso.
 
-## Revisão, publicação e correções
 
-Todas as rotas `review` exigem sessão Appwrite e label `admin`, verificada no serviço. A chave de sistema/MCP não autoriza aprovar/publicar.
+## API e concorrência
 
-1. `GET /editorial-lists/review` lista rascunhos e itens publicados para manutenção.
-2. `GET /editorial-lists/review/:id` entrega o rascunho privado ao editor.
-3. `PATCH /editorial-lists/review/:id` substitui o payload de um rascunho e recalcula SHA-256 da revisão. A revisão transacional impede alteração concorrente à aprovação.
-4. `POST .../:id/approve` recebe `{ "revision": "hash-atual", "sourcesVerified": true }`. Confere novamente o catálogo e publica lista/itens em uma transação. Publicação repetida sequencial da mesma revisão retorna a lista existente.
-5. `POST .../:id/post` cria um post **draft**, com ID determinístico `ed-<id>`, vínculo com lista, jogos, fontes e autoria Zetho. Repetir retorna o post existente, sem duplicar. A versão publicada não é reescrita por reconversão.
-6. `POST .../:id/publish-post` recebe a revisão e publica o post após revisão da prévia. O serviço transacional confere se a lista continua publicada.
-7. `POST .../:id/withdraw` retira a lista pública e coloca o post em draft na mesma transação. List items são apagados pela relação em cascata. Para correções, envie um novo rascunho, aprove a nova versão e retire a anterior; não altere silenciosamente uma versão já aprovada. IDs/URLs são estáveis por versão.
+- `GET /lists/system`: administração, incluindo rascunhos e arquivadas.
+- `GET /lists/detail/:slug`, `GET /lists/by-id/:id` e `GET /lists/:id/items`: leitura autorizada, sem cache compartilhado. Ausência de acesso retorna 404.
+- `POST /social/lists` aceita `ownerType=system` somente para administrador; CRUD de listas/itens continua no módulo social.
+- `PATCH /lists/:id/editorial`: `{revision, content}` salva metadados e jogos, mantendo IDs dos itens existentes.
+- `POST /lists/:id/status`: `{status, revision, sourcesVerified}`. Publicação exige rascunho, revisão exata, confirmação explícita e validação de catálogo/fontes/datas.
+- `POST /lists/:id/post`: gera um post em rascunho por revisão. `POST /lists/:id/publish-post` exige a revisão pré-visualizada. Textos são escapados; publicação do post é uma ação separada.
 
-Não há instrução de publicação no MCP. `GazethoService.createPost` recusa o autor reservado para que o fluxo genérico de geração não contorne esta revisão. O texto convertido é escapado como HTML, os links mantêm fontes, e a leitura continua sanitizada no frontend. A API pública só projeta listas publicadas e não expõe reviewerId, payload privado ou metadados de aprovação. Posts editoriais usam `Article` no frontend. A seleção pública possui `ItemList` e CTAs por jogo.
+Edições e publicação disputam a mesma linha em transação. Mudanças de conteúdo invalidam a revisão; voltar para rascunho também invalida aprovações antigas. Um conflito exige recarregar e revisar novamente. Nenhuma transição recria a lista. A revisão é editorial e humana: datas mensais devem coincidir com o catálogo; seleções temáticas não fazem afirmações de lançamento.
 
-Conflitos simultâneos podem retornar 409; o editor recarrega a revisão e tenta novamente. Nenhuma falha parcial de transação pode publicar lista/itens incompletos. Validação dessa atomicidade em Appwrite real é uma etapa de homologação obrigatória.
 
 ## Conversões e convites
 
@@ -58,8 +67,3 @@ Cadastro tem recibos `registration_pending` e `registration_complete`. Perfil e 
 
 Não existe garantia de entrega exatamente uma vez em GA: recibo perdido na rede, bloqueadores ou Firebase ausente podem subcontar. Nenhum evento GA é emitido pela API; isso evita duplicação frontend/API. Recebimento no DebugView deve ser verificado em ambiente de teste, sem alterar propriedades de produção.
 
-## Fórum
-
-SSR, canonical, sanitização, `DiscussionForumPosting` e sitemap já existiam. O frontend acrescenta navegação rastreável de feed e respostas e status 404/503 corretos. A API de fórum agora declara `private, no-store`, impedindo cache compartilhado de respostas com estado de voto. Sitemap expira em cinco minutos e inclui listas editoriais aprovadas. A tabela privada ainda não provisionada é tratada como recurso editorial indisponível no sitemap, sem derrubar notícias/jogos/fórum.
-
-A exclusão física/cascata de comentários e as restrições de escrita continuam no serviço social. O schema atual não possui discussões privadas. Uma futura modalidade privada requer política única de elegibilidade em leitura, sitemap e caches antes da exposição. Não se declarou conteúdo indexado no Google.

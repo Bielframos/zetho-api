@@ -1,4 +1,4 @@
-import { EditorialListsService } from 'src/modules/editorial-lists/editorial-lists.service';
+import { ListsService } from 'src/modules/lists/lists.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -20,7 +20,7 @@ const STATIC_PATHS = [
   '',
   '/forum',
   '/noticias',
-  '/listas-editoriais',
+  '/listas',
   '/sobre',
   '/contato',
   '/termos',
@@ -40,7 +40,7 @@ export class SitemapService {
     private readonly gameService: GameService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly forumService: ForumService,
-    private readonly editorialLists: EditorialListsService,
+    private readonly editorialLists: ListsService,
   ) {}
 
   /**
@@ -129,7 +129,7 @@ export class SitemapService {
   private async getEditorialEntries(): Promise<SitemapEntry[]> {
     try {
       return (await this.editorialLists.publicIndex()).map((list) => ({
-        loc: `${this.baseUrl}/listas-editoriais/${encodeURIComponent(list.slug)}`,
+        loc: `${this.baseUrl}/listas/${encodeURIComponent(list.slug)}`,
       }));
     } catch {
       return [];

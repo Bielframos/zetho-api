@@ -1,3 +1,4 @@
+import { isPublishedList } from 'src/modules/lists/list-policy';
 import crypto from 'crypto';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Query } from 'node-appwrite';
@@ -68,7 +69,8 @@ export class TimelineService implements OnModuleDestroy {
           ],
         });
         for (const row of result.rows) {
-          if (table === 'lists' && row.isPublic) publicListIds.push(row.$id);
+          if (table === 'lists' && isPublishedList(row))
+            publicListIds.push(row.$id);
           await this.ingest(table, row, 'create', recipient.userId);
         }
         if (result.rows.length < 100) break;
@@ -158,7 +160,8 @@ export class TimelineService implements OnModuleDestroy {
         const list: any = await this.appwrite.tablesDB
           .getRow({ databaseId: 'app', tableId: 'lists', rowId: listId })
           .catch(() => null);
-        fingerprint = list?.isPublic ? list.ownerFingerprint : null;
+        fingerprint =
+          list && isPublishedList(list) ? list.ownerFingerprint : null;
       }
       if (!fingerprint) return { success: true, noOp: true };
       const profiles = await this.appwrite.tablesDB.listRows<any>({
@@ -172,7 +175,7 @@ export class TimelineService implements OnModuleDestroy {
     const valid =
       table !== 'z_entries' ||
       ['completed', 'backlog', 'playing', 'dropped'].includes(row.status);
-    const publicList = table !== 'lists' || row.isPublic === true;
+    const publicList = table !== 'lists' || isPublishedList(row);
     const connections = targetUserId
       ? null
       : await this.appwrite.tablesDB.listRows<any>({
@@ -230,7 +233,7 @@ export class TimelineService implements OnModuleDestroy {
       if (
         sourceType === 'list' &&
         action === 'update' &&
-        row.isPublic === true
+        isPublishedList(row)
       ) {
         const existingListEvent = await this.appwrite.tablesDB
           .getRow({ databaseId: 'app', tableId: 'feed_events', rowId })
@@ -340,7 +343,15 @@ export class TimelineService implements OnModuleDestroy {
     const cached = await this.redis.get(cacheKey).catch(() => null);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const result = JSON.parse(cached) as { items?: { type?: string }[] };
+        // List visibility may change without a viewer-specific invalidation.
+        // Rehydrate list events against the authoritative parent before returning them.
+        if (
+          !result.items?.some(
+            (item) => item.type === 'list' || item.type === 'list_item',
+          )
+        )
+          return result;
       } catch {
         /* Expired schema; fetch again. */
       }
@@ -555,7 +566,8 @@ export class TimelineService implements OnModuleDestroy {
         const actor = byId.get(event.actorProfileId);
         const source = sources.get(`${event.sourceType}:${event.sourceId}`);
         if (!actor || !followed.has(actor.$id) || !source) return null;
-        if (event.sourceType === 'list' && !source.isPublic) return null;
+        if (event.sourceType === 'list' && !isPublishedList(source))
+          return null;
         if (
           event.sourceType === 'status' &&
           !['completed', 'backlog', 'playing', 'dropped'].includes(
@@ -567,7 +579,11 @@ export class TimelineService implements OnModuleDestroy {
           typeof source.list === 'string' ? source.list : source.list?.$id;
         const list =
           event.sourceType === 'list_item' ? listById.get(listId) : null;
-        if (event.sourceType === 'list_item' && !list?.isPublic) return null;
+        if (
+          event.sourceType === 'list_item' &&
+          (!list || !isPublishedList(list))
+        )
+          return null;
         const gameId =
           event.sourceType === 'list_item'
             ? typeof source.game === 'string'

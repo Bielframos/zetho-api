@@ -77,24 +77,42 @@ export class SocialController {
     return this.social.voteComment(req.user.$id, id, data.type);
   }
   @Post('lists') list(@Req() req: any, @Body() data: ListInput) {
-    return this.social.createList(req.user.$id, data);
+    return this.social.createList(
+      req.user.$id,
+      data,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Patch('lists/:id') updateList(
     @Req() req: any,
     @Param('id') id: string,
     @Body() data: ListUpdateInput,
   ) {
-    return this.social.updateList(req.user.$id, id, data);
+    return this.social.updateList(
+      req.user.$id,
+      id,
+      data,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Delete('lists/:id') deleteList(@Req() req: any, @Param('id') id: string) {
-    return this.social.deleteList(req.user.$id, id);
+    return this.social.deleteList(
+      req.user.$id,
+      id,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Post('lists/:id/items') item(
     @Req() req: any,
     @Param('id') id: string,
     @Body() data: ItemInput,
   ) {
-    return this.social.createItem(req.user.$id, id, data);
+    return this.social.createItem(
+      req.user.$id,
+      id,
+      data,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Patch('lists/:id/items/:itemId') updateItem(
     @Req() req: any,
@@ -102,14 +120,25 @@ export class SocialController {
     @Param('itemId') itemId: string,
     @Body() data: ItemOrderInput,
   ) {
-    return this.social.updateItem(req.user.$id, id, itemId, data);
+    return this.social.updateItem(
+      req.user.$id,
+      id,
+      itemId,
+      data,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Delete('lists/:id/items/:itemId') deleteItem(
     @Req() req: any,
     @Param('id') id: string,
     @Param('itemId') itemId: string,
   ) {
-    return this.social.deleteItem(req.user.$id, id, itemId);
+    return this.social.deleteItem(
+      req.user.$id,
+      id,
+      itemId,
+      Boolean(req.user?.labels?.includes('admin')),
+    );
   }
   @Post('connections') follow(@Req() req: any, @Body() data: FollowInput) {
     return this.social.follow(req.user.$id, data.targetProfileId);

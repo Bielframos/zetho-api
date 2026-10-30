@@ -1,4 +1,10 @@
 import {
+  isSystemList,
+  listReadPermissions,
+  requirePrivateListTables,
+} from '../lists/list-policy';
+import { randomUUID } from 'node:crypto';
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -718,8 +724,40 @@ export class SocialService {
       viewerVote: type,
     };
   }
-  async createList(userId: string, data: any) {
+  private async editableList(
+    id: string,
+    fingerprint: string,
+    isAdmin: boolean,
+    transactionId?: string,
+  ) {
+    const row = await this.db.getRow<
+      Models.Row & {
+        ownerFingerprint: string;
+        ownerType?: string;
+        status?: string;
+        isPublic?: boolean;
+      }
+    >({
+      databaseId: 'app',
+      tableId: 'lists',
+      rowId: id,
+      ...(transactionId ? { transactionId } : {}),
+    });
+    if (isSystemList(row)) {
+      if (!isAdmin) throw new ForbiddenException();
+      if (row.status !== 'draft')
+        throw new BadRequestException(
+          'Volte a lista para rascunho antes de editar.',
+        );
+    } else if (row.ownerFingerprint !== fingerprint)
+      throw new ForbiddenException();
+    return row;
+  }
+  async createList(userId: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
+    const system = data.ownerType === 'system';
+    if (system && !isAdmin) throw new ForbiddenException();
+    if (system) await requirePrivateListTables(this.db);
     if (typeof data?.title !== 'string' || !data.title.trim())
       throw new BadRequestException('Título obrigatório');
     const clean = Object.fromEntries(
@@ -735,39 +773,63 @@ export class SocialService {
         rowId: id,
         data: {
           ...clean,
-          slug: slugify(clean.title),
+          slug: system ? `zetho-${id}` : slugify(clean.title),
           itemCount: 0,
           latestAdditions: [],
           coverImageUrls: [],
-          ownerFingerprint: profile.fingerprint,
+          ownerFingerprint: system ? 'system:zetho' : profile.fingerprint,
+          ownerType: system ? 'system' : 'user',
+          status: system ? 'draft' : 'published',
+          revision: randomUUID(),
+          ...(system ? { isPublic: true } : {}),
         },
+        permissions: listReadPermissions(
+          {
+            isPublic: system ? true : data.isPublic,
+            ownerType: system ? 'system' : 'user',
+            status: system ? 'draft' : 'published',
+          },
+          userId,
+        ),
         transactionId: txId,
       });
-      await this.event(
-        txId,
-        'lists',
-        { ...row, $id: id, ownerFingerprint: profile.fingerprint },
-        'create',
-      );
+      await this.event(txId, 'lists', { ...row, $id: id }, 'create');
       return row;
     });
   }
-  async updateList(userId: string, id: string, data: any) {
+  async updateList(userId: string, id: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', id, profile.fingerprint);
+    await this.editableList(id, profile.fingerprint, isAdmin);
     const clean = Object.fromEntries(
       ['title', 'description', 'isPublic', 'coverImageUrls']
         .filter((k) => data[k] !== undefined)
         .map((k) => [k, data[k]]),
     );
     return this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        id,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: id,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.updateRow<any>({
         databaseId: 'app',
         tableId: 'lists',
         rowId: id,
+        permissions: listReadPermissions({ ...lockedList, ...clean }, userId),
         data: {
           ...clean,
-          ...(clean.title ? { slug: slugify(clean.title) } : {}),
+          ...(!isSystemList(lockedList) && clean.title
+            ? { slug: slugify(clean.title) }
+            : {}),
         },
         transactionId: txId,
       });
@@ -775,9 +837,9 @@ export class SocialService {
       return row;
     });
   }
-  async deleteList(userId: string, id: string) {
+  async deleteList(userId: string, id: string, isAdmin = false) {
     const profile = await this.profile(userId);
-    const row = await this.ownFingerprint('lists', id, profile.fingerprint);
+    const row = await this.editableList(id, profile.fingerprint, isAdmin);
     const itemIds: string[] = [];
     let cursor: string | undefined;
     for (;;) {
@@ -796,6 +858,20 @@ export class SocialService {
       cursor = page.rows.at(-1).$id;
     }
     await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        id,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: id,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       for (let offset = 0; offset < itemIds.length; offset += 50)
         await this.outbox.enqueue(txId, {
           type: 'SOCIAL_LIST_ITEMS_DELETED',
@@ -817,9 +893,9 @@ export class SocialService {
   private relationId(value: any) {
     return typeof value === 'string' ? value : value?.$id;
   }
-  async createItem(userId: string, listId: string, data: any) {
+  async createItem(userId: string, listId: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     if (!data?.gameId || !data?.orderKey || data.orderKey.length > 48)
       throw new BadRequestException('Item inválido');
     const list = await this.row('lists', listId);
@@ -876,10 +952,45 @@ export class SocialService {
     ].slice(0, 3);
     const id = ID.unique();
     const result = await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList)) {
+        const existing = await this.db.listRows({
+          databaseId: 'app',
+          tableId: 'list_items',
+          transactionId: txId,
+          queries: [Query.equal('list', listId), Query.limit(11)],
+        });
+        if (existing.rows.length >= 10)
+          throw new BadRequestException(
+            'Listas do sistema aceitam até 10 jogos.',
+          );
+        if (
+          existing.rows.some(
+            (item) => this.relationId(item.game) === data.gameId,
+          )
+        )
+          throw new BadRequestException('Jogo já adicionado à lista.');
+      }
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.createRow<any>({
         databaseId: 'app',
         tableId: 'list_items',
         rowId: id,
+        permissions: isSystemList(lockedList)
+          ? []
+          : [Permission.read(Role.user(userId))],
         data: { list: listId, game: data.gameId, orderKey: data.orderKey },
         transactionId: txId,
       });
@@ -913,14 +1024,34 @@ export class SocialService {
     });
     return { ...result, updatedList: await this.row('lists', listId) };
   }
-  async updateItem(userId: string, listId: string, id: string, data: any) {
+  async updateItem(
+    userId: string,
+    listId: string,
+    id: string,
+    data: any,
+    isAdmin = false,
+  ) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     const item = await this.row('list_items', id);
     if (this.relationId(item.list) !== listId) throw new ForbiddenException();
     if (typeof data?.orderKey !== 'string')
       throw new BadRequestException('Ordem inválida');
     return this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.updateRow<any>({
         databaseId: 'app',
         tableId: 'list_items',
@@ -959,9 +1090,14 @@ export class SocialService {
       return row;
     });
   }
-  async deleteItem(userId: string, listId: string, id: string) {
+  async deleteItem(
+    userId: string,
+    listId: string,
+    id: string,
+    isAdmin = false,
+  ) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     const row = await this.row('list_items', id);
     if (this.relationId(row.list) !== listId) throw new ForbiddenException();
     const list = await this.row('lists', listId);
@@ -975,6 +1111,20 @@ export class SocialService {
       },
     );
     await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       await this.db.deleteRow({
         databaseId: 'app',
         tableId: 'list_items',

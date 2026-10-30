@@ -34,7 +34,7 @@
     "appwrite:provision-forum": "node scripts/provision-forum-schema.cjs",
     "secrets:check": "bash scripts/check-secrets.sh",
     "test:ci": "jest --runInBand",
-    "test:tooling": "node --test scripts/prepare-appwrite-config.spec.js scripts/seed-demo.spec.js",
+    "test:tooling": "node --test scripts/prepare-appwrite-config.spec.js scripts/seed-demo.spec.js scripts/provision-list-lifecycle.spec.cjs",
     "appwrite:configure": "node scripts/prepare-appwrite-config.js",
     "demo:seed": "node scripts/seed-demo.js"
   },
