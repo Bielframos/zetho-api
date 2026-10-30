@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -18,7 +17,6 @@ import {
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import SCORE_TABLE from 'src/modules/zcoins/score-table';
-import { ZCoinsService } from 'src/modules/zcoins/zcoins.service';
 
 import crypto from 'node:crypto';
 import type {
@@ -26,6 +24,13 @@ import type {
   UserProfilesStatus,
   ZEntriesReadOnly,
 } from 'src/infra/appwrite/appwrite';
+
+type RegistrationReceipt = { type: string; metadata: string };
+type RegistrationProfile = Models.Row &
+  Pick<UserProfiles, 'userId' | 'fingerprint' | 'gamertag' | 'inviteCode'>;
+type RegisteredProfile = RegistrationProfile & {
+  registration: { created: boolean; inviteAccepted: boolean };
+};
 
 type ProfileAuditTotals = {
   totalsCompleted: number;
@@ -46,7 +51,6 @@ export class ProfileService {
 
   constructor(
     private appwrite: Appwrite,
-    private readonly zCoinsService: ZCoinsService,
     private readonly transactionService: TransactionService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
@@ -103,71 +107,219 @@ export class ProfileService {
     });
   }
 
-  async create(user: Models.User, gamertag: string, inviteCode?: string) {
+  async create(
+    user: Models.User,
+    gamertag: string,
+    inviteCode?: string,
+    attempt = 0,
+  ): Promise<RegisteredProfile> {
+    if (
+      inviteCode !== undefined &&
+      (typeof inviteCode !== 'string' || inviteCode.length > 64)
+    )
+      throw new BadRequestException('Código de convite inválido');
     const fingerprint = this.generateFingerprint(user.email);
-
-    const existingProfile = await this.tablesDB.listRows<UserProfiles>({
-      databaseId: ProfileService.DB_ID,
-      tableId: 'user_profiles',
-      queries: [
-        Query.equal('fingerprint', fingerprint),
-        Query.select(['$id', 'inviteCode']),
-        Query.limit(1),
-      ],
-    });
-
-    if (existingProfile.total > 0) {
-      const currProfile = existingProfile.rows[0];
-
-      const updatedProfile = await this.tablesDB.updateRow<UserProfiles>({
-        databaseId: ProfileService.DB_ID,
+    const receiptId = crypto
+      .createHash('sha256')
+      .update(`registration:${user.$id}`)
+      .digest('hex')
+      .slice(0, 36);
+    try {
+      // Email can change after signup; the account ID owns the existing profile.
+      let existing = await this.tablesDB.listRows<UserProfiles>({
+        databaseId: 'app',
         tableId: 'user_profiles',
-        rowId: currProfile.$id,
-        data: {
-          userId: user.$id,
-          fingerprint,
-          gamertag,
-          inviteCode: currProfile.inviteCode ?? this.generateInviteCode(),
-        },
-        permissions: [Permission.read(Role.any())],
+        queries: [Query.equal('userId', user.$id), Query.limit(1)],
       });
-
-      return updatedProfile;
-    }
-
-    const createdProfile = await this.tablesDB.createRow<
-      Models.Row & {
-        userId: string;
-        fingerprint: string;
-        gamertag: string;
-        inviteCode: string | null;
+      if (!existing.rows.length)
+        existing = await this.tablesDB.listRows<UserProfiles>({
+          databaseId: 'app',
+          tableId: 'user_profiles',
+          queries: [Query.equal('fingerprint', fingerprint), Query.limit(1)],
+        });
+      let receipt: RegistrationReceipt | null = null;
+      try {
+        receipt = await this.tablesDB.getRow<Models.Row & RegistrationReceipt>({
+          databaseId: 'app',
+          tableId: 'app_logs',
+          rowId: receiptId,
+        });
+      } catch (error) {
+        if ((error as { code?: number }).code !== 404) throw error;
       }
-    >({
-      databaseId: ProfileService.DB_ID,
-      tableId: 'user_profiles',
-      rowId: ID.unique(),
-      data: {
-        userId: user.$id,
-        fingerprint,
-        gamertag,
-        inviteCode: this.generateInviteCode(),
-      },
-      permissions: [Permission.read(Role.any())],
-    });
-
-    await this.applyWelcomeBonus(user.$id);
-
-    await this.applyInviteReward({
-      invitedUserId: user.$id,
-      invitedProfileId: createdProfile.$id,
-      inviteCode,
-    });
-
-    return createdProfile;
+      let profile: RegistrationProfile | undefined = existing.rows[0];
+      if (profile?.userId && profile.userId !== user.$id)
+        throw new BadRequestException('Perfil já vinculado a outra conta');
+      if (profile && (!receipt || receipt.type === 'registration_complete')) {
+        // Existing/legacy accounts are never new signups and cannot claim an invitation again.
+        return {
+          ...profile,
+          registration: { created: false, inviteAccepted: false },
+        };
+      }
+      if (!profile) {
+        if (
+          typeof gamertag !== 'string' ||
+          !/^[a-zA-Z0-9_]{3,128}$/.test(gamertag)
+        )
+          throw new BadRequestException('Gamertag inválida');
+        // Reject invalid/self/deleted invitations before persisting a profile or granting rewards.
+        if (inviteCode?.trim())
+          await this.resolveInviter(inviteCode.trim(), user.$id);
+        profile = await this.transactionService.runInTransaction(
+          async ({ txId }) => {
+            const created = await this.tablesDB.createRow<RegistrationProfile>({
+              databaseId: 'app',
+              tableId: 'user_profiles',
+              rowId: ID.unique(),
+              transactionId: txId,
+              data: {
+                userId: user.$id,
+                fingerprint,
+                gamertag,
+                inviteCode: this.generateInviteCode(),
+              },
+              permissions: [Permission.read(Role.any())],
+            });
+            await this.tablesDB.createRow({
+              databaseId: 'app',
+              tableId: 'app_logs',
+              rowId: receiptId,
+              transactionId: txId,
+              data: {
+                type: 'registration_pending',
+                relatedUserId: user.$id,
+                metadata: JSON.stringify({
+                  inviteCode: inviteCode?.trim() || null,
+                }),
+              },
+            });
+            return created;
+          },
+        );
+        receipt = {
+          type: 'registration_pending',
+          metadata: JSON.stringify({ inviteCode: inviteCode?.trim() || null }),
+        };
+      }
+      if (!receipt)
+        throw new InternalServerErrorException('Recibo de cadastro ausente');
+      const metadata: unknown = JSON.parse(receipt.metadata);
+      const details = metadata && typeof metadata === 'object' ? metadata : {};
+      const acceptedCode =
+        'inviteCode' in details && typeof details.inviteCode === 'string'
+          ? details.inviteCode
+          : undefined;
+      await this.applyWelcomeBonus(user.$id, profile.$id);
+      let inviteAccepted =
+        'inviteAccepted' in details && details.inviteAccepted === true;
+      if (!inviteAccepted) {
+        try {
+          inviteAccepted = await this.applyInviteReward({
+            invitedUserId: user.$id,
+            invitedProfileId: profile.$id,
+            inviteCode: acceptedCode,
+            registrationReceiptId: receiptId,
+          });
+        } catch (error) {
+          // A code removed after validation must not strand the new account.
+          // Infrastructure failures still propagate and remain resumable.
+          if (!(error instanceof BadRequestException)) throw error;
+          inviteAccepted = false;
+        }
+      }
+      const created = await this.transactionService.runInTransaction(
+        async ({ txId }) => {
+          const current = await this.tablesDB.getRow<
+            Models.Row & RegistrationReceipt
+          >({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: receiptId,
+            transactionId: txId,
+          });
+          if (current.type === 'registration_complete') return false;
+          await this.tablesDB.updateRow({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: receiptId,
+            transactionId: txId,
+            data: {
+              type: 'registration_complete',
+              metadata: JSON.stringify({
+                inviteAccepted: inviteAccepted === true,
+              }),
+            },
+          });
+          return true;
+        },
+      );
+      return {
+        ...profile,
+        registration: { created, inviteAccepted: inviteAccepted === true },
+      };
+    } catch (error) {
+      if ((error as { code?: number }).code === 409 && attempt < 2)
+        return this.create(user, gamertag, inviteCode, attempt + 1);
+      throw error;
+    }
   }
 
-  private async applyWelcomeBonus(userId: string) {
-    await this.zCoinsService.applyInput(userId, 'welcome_bonus');
+  private async applyWelcomeBonus(userId: string, profileId: string) {
+    const rowId = crypto
+      .createHash('sha256')
+      .update(`welcome:${userId}`)
+      .digest('hex')
+      .slice(0, 36);
+    await this.transactionService.runInTransaction(async ({ txId }) => {
+      try {
+        await this.tablesDB.getRow({
+          databaseId: 'app',
+          tableId: 'zcoin_transactions',
+          rowId,
+          transactionId: txId,
+        });
+        return;
+      } catch (error) {
+        if ((error as { code?: number }).code !== 404) throw error;
+      }
+      const amount = SCORE_TABLE.input.welcome_bonus;
+      await this.tablesDB.createOperations({
+        transactionId: txId,
+        operations: [
+          {
+            action: 'increment',
+            databaseId: 'app',
+            tableId: 'user_profiles',
+            rowId: profileId,
+            data: { column: 'zcoinBalance', value: amount },
+          },
+        ],
+      });
+      await this.tablesDB.createRow({
+        databaseId: 'app',
+        tableId: 'zcoin_transactions',
+        rowId,
+        transactionId: txId,
+        data: { userId, amount, type: 'input', reason: 'welcome_bonus' },
+      });
+    });
+  }
+
+  private async resolveInviter(code: string, userId: string) {
+    const result = await this.tablesDB.listRows<UserProfiles>({
+      databaseId: 'app',
+      tableId: 'user_profiles',
+      queries: [Query.equal('inviteCode', code), Query.limit(1)],
+    });
+    const inviter = result.rows[0];
+    if (!inviter?.userId || String(inviter.status) === 'pending_deletion')
+      throw new BadRequestException('Código de convite inválido');
+    if (inviter.userId === userId)
+      throw new BadRequestException(
+        'Não é possível utilizar o próprio código de convite',
+      );
+    return inviter;
   }
 
   async getMonthlyInviteBonus(userId: string) {
@@ -472,30 +624,18 @@ export class ProfileService {
     invitedUserId: string;
     invitedProfileId: string;
     inviteCode?: string;
+    registrationReceiptId: string;
   }) {
     const rawInviteCode = params.inviteCode?.trim();
 
     if (!rawInviteCode) {
-      return;
+      return false;
     }
 
-    const inviterResult = await this.tablesDB.listRows<UserProfiles>({
-      databaseId: ProfileService.DB_ID,
-      tableId: 'user_profiles',
-      queries: [Query.equal('inviteCode', rawInviteCode), Query.limit(1)],
-    });
-
-    const inviterProfile = inviterResult.rows[0];
-
-    if (!inviterProfile || !inviterProfile.userId) {
-      throw new BadRequestException('Código de convite inválido');
-    }
-
-    if (inviterProfile.userId === params.invitedUserId) {
-      throw new BadRequestException(
-        'Não é possível utilizar o próprio código de convite',
-      );
-    }
+    const inviterProfile = await this.resolveInviter(
+      rawInviteCode,
+      params.invitedUserId,
+    );
 
     const logRowId = this.generateInviteLogRowId(
       inviterProfile.userId,
@@ -512,13 +652,13 @@ export class ProfileService {
       });
       inviteAlreadyUsed = true;
     } catch (error) {
-      if (error instanceof AppwriteException && error.code !== 404) {
+      if ((error as { code?: number }).code !== 404) {
         throw error;
       }
     }
 
     if (inviteAlreadyUsed) {
-      throw new ConflictException('Convite já utilizado para este usuário');
+      return true; // The committed reward is the source of truth on registration retry.
     }
 
     const rewardAmount = SCORE_TABLE.input.friend_joined;
@@ -567,6 +707,18 @@ export class ProfileService {
           }),
         },
       });
+      await this.tablesDB.updateRow({
+        databaseId: 'app',
+        tableId: 'app_logs',
+        rowId: params.registrationReceiptId,
+        transactionId: ctx.txId,
+        data: {
+          metadata: JSON.stringify({
+            inviteCode: rawInviteCode,
+            inviteAccepted: true,
+          }),
+        },
+      });
     });
 
     // Conexão mútua: o convidado nasce seguindo o convidante e vice-versa, para
@@ -575,6 +727,7 @@ export class ProfileService {
       params.invitedProfileId,
       inviterProfile.$id,
     );
+    return true;
   }
 
   private async createMutualConnection(

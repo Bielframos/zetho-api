@@ -1,3 +1,4 @@
+import { ListsService } from 'src/modules/lists/lists.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -19,6 +20,7 @@ const STATIC_PATHS = [
   '',
   '/forum',
   '/noticias',
+  '/listas',
   '/sobre',
   '/contato',
   '/termos',
@@ -27,7 +29,7 @@ const STATIC_PATHS = [
 ];
 
 const CACHE_KEY = 'sitemap:xml';
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class SitemapService {
@@ -38,6 +40,7 @@ export class SitemapService {
     private readonly gameService: GameService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly forumService: ForumService,
+    private readonly editorialLists: ListsService,
   ) {}
 
   /**
@@ -60,6 +63,7 @@ export class SitemapService {
       ...(await this.getNewsEntries()),
       ...(await this.getGameEntries()),
       ...(await this.getForumEntries()),
+      ...(await this.getEditorialEntries()),
     ];
 
     const xml = this.renderSitemap(entries);
@@ -115,9 +119,21 @@ export class SitemapService {
         lastmod: this.toIsoDate(post.lastmod),
       }));
     } catch (error) {
-      this.logger.error(`Falha ao montar tópicos do fórum no sitemap: ${error}`);
+      this.logger.error(
+        `Falha ao montar tópicos do fórum no sitemap: ${error}`,
+      );
       return [];
     }
+  }
+
+  private async getEditorialEntries(): Promise<SitemapEntry[]> {
+    try {
+      return (await this.editorialLists.publicIndex()).map((list) => ({
+        loc: `${this.baseUrl}/listas/${encodeURIComponent(list.slug)}`,
+      }));
+    } catch {
+      return [];
+    } // Optional until the additive private table is provisioned.
   }
 
   private toIsoDate(value?: string) {

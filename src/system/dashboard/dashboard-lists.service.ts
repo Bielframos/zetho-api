@@ -1,3 +1,7 @@
+import {
+  isPublishedList,
+  publishedListQuery,
+} from 'src/modules/lists/list-policy';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ID, Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
@@ -23,6 +27,7 @@ export class DashboardListsService {
         tableId: 'lists',
         queries: [
           Query.equal('isPublic', true),
+          publishedListQuery(),
           Query.orderDesc('likeCount'),
           Query.orderDesc('saveCount'),
           Query.orderDesc('itemCount'),
@@ -68,6 +73,7 @@ export class DashboardListsService {
       tableId: 'lists',
       queries: [
         Query.equal('isPublic', true),
+        publishedListQuery(),
         Query.orderDesc('$createdAt'),
         Query.orderDesc('$id'),
         Query.limit(safePageSize),
@@ -173,7 +179,7 @@ export class DashboardListsService {
 
     const orderedLists = saves.rows
       .map((s) => listsById.get(s.listId))
-      .filter(Boolean);
+      .filter((list) => list && isPublishedList(list));
 
     const fingerprints = Array.from(
       new Set(
@@ -278,7 +284,8 @@ export class DashboardListsService {
     });
 
     const list = result.rows[0];
-    if (!list) throw new NotFoundException('Lista não encontrada');
+    if (!list || !isPublishedList(list))
+      throw new NotFoundException('Lista não encontrada');
     return list;
   }
 

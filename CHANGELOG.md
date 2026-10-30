@@ -6,6 +6,23 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Fixed
+
+- A troca de e-mail preserva o perfil e permite entrar novamente, sem repetir bônus de cadastro.
+
+### Added
+
+- Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
+- Retomada de cadastro parcial com bônus e atribuição protegidos contra repetição.
+- Rascunhos editoriais privados via MCP, aprovação administrativa, listas oficiais e conversão revisável em posts.
+- Provisionamento de estados e permissões nas listas existentes, com importação retomável dos rascunhos anteriores.
+
+### Changed
+
+- Listas pessoais e oficiais usam `lists`/`list_items`, com estados de rascunho, publicada e arquivada; a revisão preserva IDs e vínculos sociais.
+
+- Respostas de fórum não usam cache compartilhado; sitemap inclui listas editoriais e expira em cinco minutos.
+
 ## [0.15.0] - 2026-10-22
 
 ### Added

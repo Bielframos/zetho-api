@@ -1399,9 +1399,7 @@
         },
         {
             "$id": "lists",
-            "$permissions": [
-                "read(\"any\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "Lists",
             "enabled": true,
@@ -1503,9 +1501,86 @@
                     "size": 2048,
                     "default": null,
                     "encrypt": false
+                },
+                {
+                    "key": "ownerType",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": "user",
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": "published",
+                    "encrypt": false
+                },
+                {
+                    "key": "revision",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "criteria",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 800,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "kind",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "month",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 7,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reviewedAt",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "list_lifecycle",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "ownerType",
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
+                }
+            ]
         },
         {
             "$id": "saved_lists",
@@ -1639,9 +1714,7 @@
         },
         {
             "$id": "list_items",
-            "$permissions": [
-                "read(\"any\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "List Items",
             "enabled": true,
@@ -1677,6 +1750,33 @@
                     "required": true,
                     "array": false,
                     "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reason",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 400,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "sources",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 400,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "releaseDate",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 10,
                     "default": null,
                     "encrypt": false
                 }

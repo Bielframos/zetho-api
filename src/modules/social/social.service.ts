@@ -1,4 +1,10 @@
 import {
+  isSystemList,
+  listReadPermissions,
+  requirePrivateListTables,
+} from '../lists/list-policy';
+import { randomUUID } from 'node:crypto';
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -10,6 +16,11 @@ import { TransactionService } from 'src/infra/appwrite/transaction.service';
 import { OutboxService } from 'src/infra/events/outbox.service';
 import { TimelineService } from 'src/system/dashboard/timeline.service';
 import crypto from 'node:crypto';
+import type {
+  UserProfiles,
+  ZEntries,
+  ZEntriesReadOnly,
+} from 'src/infra/appwrite/appwrite';
 import { slugify } from 'src/common/utils/slugify';
 import {
   extractPlainTextFromHtml,
@@ -72,8 +83,210 @@ export class SocialService {
       payload: { table, row, action },
     });
   }
-  async createEntry(userId: string, data: any) {
-    const profile = await this.profile(userId);
+  private receiptId(kind: string, userId: string) {
+    return crypto
+      .createHash('sha256')
+      .update(`${kind}:${userId}`)
+      .digest('hex')
+      .slice(0, 36);
+  }
+
+  private async optionalRow(
+    tableId: string,
+    rowId: string,
+    transactionId?: string,
+  ) {
+    try {
+      return await this.db.getRow<Models.Row & { metadata: string }>({
+        databaseId: 'app',
+        tableId,
+        rowId,
+        ...(transactionId ? { transactionId } : {}),
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 404) return null;
+      throw error;
+    }
+  }
+
+  /** Durable once-per-person milestone, in the same transaction as the entry. */
+  private async firstGameSaved(
+    txId: string,
+    userId: string,
+    fingerprint: string,
+  ): Promise<boolean> {
+    const rowId = this.receiptId('first_game_saved', userId);
+    if (await this.optionalRow('app_logs', rowId, txId)) return false;
+    const previous = await this.db.listRows<ZEntries>({
+      databaseId: 'app',
+      tableId: 'z_entries',
+      transactionId: txId,
+      queries: [
+        Query.equal('ownerFingerprint', fingerprint),
+        Query.isNotNull('status'),
+        Query.limit(1),
+      ],
+    });
+    const legacy = await this.db.listRows<ZEntriesReadOnly>({
+      databaseId: 'app',
+      tableId: 'z_entries_read',
+      transactionId: txId,
+      queries: [
+        Query.equal('ownerFingerprint', fingerprint),
+        Query.isNotNull('status'),
+        Query.limit(1),
+      ],
+    });
+    const first = previous.rows.length === 0 && legacy.rows.length === 0;
+    await this.db.createRow({
+      databaseId: 'app',
+      tableId: 'app_logs',
+      rowId,
+      transactionId: txId,
+      data: {
+        type: 'first_game_saved',
+        relatedUserId: userId,
+        metadata: JSON.stringify({ first }),
+      },
+    });
+    return first;
+  }
+
+  /** Explicit set operation. Legacy toggle consumers keep their existing contract. */
+  async ensureEntry(
+    userId: string,
+    data: { gameId: string; requestId: string },
+    attempt = 0,
+  ): Promise<{ saved: boolean; firstGameSaved: boolean }> {
+    if (
+      !/^[a-zA-Z0-9_-]{1,36}$/.test(data.gameId) ||
+      !/^[a-zA-Z0-9-]{1,64}$/.test(data.requestId)
+    )
+      throw new BadRequestException('Ação inválida');
+    const profile = (await this.profile(userId)) as UserProfiles;
+    await this.row('games', data.gameId);
+    const receiptId = this.receiptId(`ensure:${data.requestId}`, userId);
+    try {
+      return await this.run(async ({ txId }) => {
+        const receipt = await this.optionalRow('app_logs', receiptId, txId);
+        if (receipt) {
+          const metadata: unknown = JSON.parse(receipt.metadata);
+          if (
+            !metadata ||
+            typeof metadata !== 'object' ||
+            !('gameId' in metadata) ||
+            metadata.gameId !== data.gameId
+          )
+            throw new BadRequestException('A ação pertence a outro jogo');
+          return { saved: true, firstGameSaved: false };
+        }
+        // A shared row serializes overlapping ensure requests for this person.
+        const lockId = this.receiptId('ensure_lock', userId);
+        const lock = await this.optionalRow('app_logs', lockId, txId);
+        const lockData = {
+          type: 'entry_ensure_lock',
+          relatedUserId: userId,
+          metadata: data.requestId,
+        };
+        if (lock)
+          await this.db.updateRow({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: lockId,
+            transactionId: txId,
+            data: lockData,
+          });
+        else
+          await this.db.createRow({
+            databaseId: 'app',
+            tableId: 'app_logs',
+            rowId: lockId,
+            transactionId: txId,
+            data: lockData,
+          });
+        const history = await this.db.listRows<ZEntries>({
+          databaseId: 'app',
+          tableId: 'z_entries',
+          transactionId: txId,
+          queries: [
+            Query.equal('ownerFingerprint', profile.fingerprint),
+            Query.equal('gameId', data.gameId),
+            Query.orderDesc('$createdAt'),
+            Query.orderDesc('$id'),
+            Query.limit(1),
+          ],
+        });
+        const current = await this.db.listRows<ZEntriesReadOnly>({
+          databaseId: 'app',
+          tableId: 'z_entries_read',
+          transactionId: txId,
+          queries: [
+            Query.equal('ownerFingerprint', profile.fingerprint),
+            Query.equal('gameId', data.gameId),
+            Query.limit(1),
+          ],
+        });
+        const prior = history.rows[0] ?? current.rows[0];
+        let firstGameSaved = false;
+        if (!prior?.status) {
+          firstGameSaved = await this.firstGameSaved(
+            txId,
+            userId,
+            profile.fingerprint,
+          );
+          const fields = Object.fromEntries(
+            (
+              [
+                'liked',
+                'hyped',
+                'playedPlatform',
+                'playedPlatformId',
+                'playtimeMinutes',
+              ] as const
+            )
+              .filter((key) => prior?.[key] !== undefined)
+              .map((key) => [key, prior?.[key]]),
+          );
+          const entry = await this.db.createRow({
+            databaseId: 'app',
+            tableId: 'z_entries',
+            rowId: ID.unique(),
+            transactionId: txId,
+            data: {
+              ...fields,
+              gameId: data.gameId,
+              ownerFingerprint: profile.fingerprint,
+              status: 'wishlist',
+            },
+          });
+          await this.outbox.enqueue(txId, {
+            type: 'SOCIAL_ENTRY_SYNC',
+            payload: { entryId: entry.$id },
+          });
+          await this.event(txId, 'z_entries', entry, 'create');
+        }
+        await this.db.createRow({
+          databaseId: 'app',
+          tableId: 'app_logs',
+          rowId: receiptId,
+          transactionId: txId,
+          data: {
+            type: 'entry_ensured',
+            relatedUserId: userId,
+            metadata: JSON.stringify({ gameId: data.gameId }),
+          },
+        });
+        return { saved: true, firstGameSaved };
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 409 && attempt < 2)
+        return this.ensureEntry(userId, data, attempt + 1);
+      throw error;
+    }
+  }
+
+  async createEntry(userId: string, data: any, attempt = 0): Promise<any> {
+    const profile = (await this.profile(userId)) as UserProfiles;
     if (!data?.gameId || typeof data.gameId !== 'string')
       throw new BadRequestException('Jogo obrigatório');
     const allowed = [
@@ -131,27 +344,36 @@ export class SocialService {
     if (clean.status === null) delete clean.status;
     if (clean.status !== 'completed') clean.completionType = null;
     const id = ID.unique();
-    const row = await this.run(async ({ txId }) => {
-      const created = await this.db.createRow<any>({
-        databaseId: 'app',
-        tableId: 'z_entries',
-        rowId: id,
-        data: { ...clean, ownerFingerprint: profile.fingerprint },
-        transactionId: txId,
+    try {
+      const row = await this.run(async ({ txId }) => {
+        const firstGameSaved = clean.status
+          ? await this.firstGameSaved(txId, userId, profile.fingerprint)
+          : false;
+        const created = await this.db.createRow({
+          databaseId: 'app',
+          tableId: 'z_entries',
+          rowId: id,
+          data: { ...clean, ownerFingerprint: profile.fingerprint },
+          transactionId: txId,
+        });
+        await this.outbox.enqueue(txId, {
+          type: 'SOCIAL_ENTRY_SYNC',
+          payload: { entryId: id },
+        });
+        await this.event(
+          txId,
+          'z_entries',
+          { ...created, $id: id, ownerFingerprint: profile.fingerprint },
+          'create',
+        );
+        return { ...created, firstGameSaved };
       });
-      await this.outbox.enqueue(txId, {
-        type: 'SOCIAL_ENTRY_SYNC',
-        payload: { entryId: id },
-      });
-      await this.event(
-        txId,
-        'z_entries',
-        { ...created, $id: id, ownerFingerprint: profile.fingerprint },
-        'create',
-      );
-      return created;
-    });
-    return row;
+      return row;
+    } catch (error) {
+      if ((error as { code?: number }).code === 409 && attempt < 2)
+        return this.createEntry(userId, data, attempt + 1);
+      throw error;
+    }
   }
   async createComment(userId: string, data: any) {
     const profile = await this.profile(userId);
@@ -270,12 +492,7 @@ export class SocialService {
       return enriched;
     });
   }
-  async updateComment(
-    userId: string,
-    id: string,
-    data: any,
-    isAdmin = false,
-  ) {
+  async updateComment(userId: string, id: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
     const row = await this.row('game_comments', id);
     const owner =
@@ -507,8 +724,40 @@ export class SocialService {
       viewerVote: type,
     };
   }
-  async createList(userId: string, data: any) {
+  private async editableList(
+    id: string,
+    fingerprint: string,
+    isAdmin: boolean,
+    transactionId?: string,
+  ) {
+    const row = await this.db.getRow<
+      Models.Row & {
+        ownerFingerprint: string;
+        ownerType?: string;
+        status?: string;
+        isPublic?: boolean;
+      }
+    >({
+      databaseId: 'app',
+      tableId: 'lists',
+      rowId: id,
+      ...(transactionId ? { transactionId } : {}),
+    });
+    if (isSystemList(row)) {
+      if (!isAdmin) throw new ForbiddenException();
+      if (row.status !== 'draft')
+        throw new BadRequestException(
+          'Volte a lista para rascunho antes de editar.',
+        );
+    } else if (row.ownerFingerprint !== fingerprint)
+      throw new ForbiddenException();
+    return row;
+  }
+  async createList(userId: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
+    const system = data.ownerType === 'system';
+    if (system && !isAdmin) throw new ForbiddenException();
+    if (system) await requirePrivateListTables(this.db);
     if (typeof data?.title !== 'string' || !data.title.trim())
       throw new BadRequestException('Título obrigatório');
     const clean = Object.fromEntries(
@@ -524,39 +773,63 @@ export class SocialService {
         rowId: id,
         data: {
           ...clean,
-          slug: slugify(clean.title),
+          slug: system ? `zetho-${id}` : slugify(clean.title),
           itemCount: 0,
           latestAdditions: [],
           coverImageUrls: [],
-          ownerFingerprint: profile.fingerprint,
+          ownerFingerprint: system ? 'system:zetho' : profile.fingerprint,
+          ownerType: system ? 'system' : 'user',
+          status: system ? 'draft' : 'published',
+          revision: randomUUID(),
+          ...(system ? { isPublic: true } : {}),
         },
+        permissions: listReadPermissions(
+          {
+            isPublic: system ? true : data.isPublic,
+            ownerType: system ? 'system' : 'user',
+            status: system ? 'draft' : 'published',
+          },
+          userId,
+        ),
         transactionId: txId,
       });
-      await this.event(
-        txId,
-        'lists',
-        { ...row, $id: id, ownerFingerprint: profile.fingerprint },
-        'create',
-      );
+      await this.event(txId, 'lists', { ...row, $id: id }, 'create');
       return row;
     });
   }
-  async updateList(userId: string, id: string, data: any) {
+  async updateList(userId: string, id: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', id, profile.fingerprint);
+    await this.editableList(id, profile.fingerprint, isAdmin);
     const clean = Object.fromEntries(
       ['title', 'description', 'isPublic', 'coverImageUrls']
         .filter((k) => data[k] !== undefined)
         .map((k) => [k, data[k]]),
     );
     return this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        id,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: id,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.updateRow<any>({
         databaseId: 'app',
         tableId: 'lists',
         rowId: id,
+        permissions: listReadPermissions({ ...lockedList, ...clean }, userId),
         data: {
           ...clean,
-          ...(clean.title ? { slug: slugify(clean.title) } : {}),
+          ...(!isSystemList(lockedList) && clean.title
+            ? { slug: slugify(clean.title) }
+            : {}),
         },
         transactionId: txId,
       });
@@ -564,9 +837,9 @@ export class SocialService {
       return row;
     });
   }
-  async deleteList(userId: string, id: string) {
+  async deleteList(userId: string, id: string, isAdmin = false) {
     const profile = await this.profile(userId);
-    const row = await this.ownFingerprint('lists', id, profile.fingerprint);
+    const row = await this.editableList(id, profile.fingerprint, isAdmin);
     const itemIds: string[] = [];
     let cursor: string | undefined;
     for (;;) {
@@ -585,6 +858,20 @@ export class SocialService {
       cursor = page.rows.at(-1).$id;
     }
     await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        id,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: id,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       for (let offset = 0; offset < itemIds.length; offset += 50)
         await this.outbox.enqueue(txId, {
           type: 'SOCIAL_LIST_ITEMS_DELETED',
@@ -606,9 +893,9 @@ export class SocialService {
   private relationId(value: any) {
     return typeof value === 'string' ? value : value?.$id;
   }
-  async createItem(userId: string, listId: string, data: any) {
+  async createItem(userId: string, listId: string, data: any, isAdmin = false) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     if (!data?.gameId || !data?.orderKey || data.orderKey.length > 48)
       throw new BadRequestException('Item inválido');
     const list = await this.row('lists', listId);
@@ -665,10 +952,45 @@ export class SocialService {
     ].slice(0, 3);
     const id = ID.unique();
     const result = await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList)) {
+        const existing = await this.db.listRows({
+          databaseId: 'app',
+          tableId: 'list_items',
+          transactionId: txId,
+          queries: [Query.equal('list', listId), Query.limit(11)],
+        });
+        if (existing.rows.length >= 10)
+          throw new BadRequestException(
+            'Listas do sistema aceitam até 10 jogos.',
+          );
+        if (
+          existing.rows.some(
+            (item) => this.relationId(item.game) === data.gameId,
+          )
+        )
+          throw new BadRequestException('Jogo já adicionado à lista.');
+      }
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.createRow<any>({
         databaseId: 'app',
         tableId: 'list_items',
         rowId: id,
+        permissions: isSystemList(lockedList)
+          ? []
+          : [Permission.read(Role.user(userId))],
         data: { list: listId, game: data.gameId, orderKey: data.orderKey },
         transactionId: txId,
       });
@@ -702,14 +1024,34 @@ export class SocialService {
     });
     return { ...result, updatedList: await this.row('lists', listId) };
   }
-  async updateItem(userId: string, listId: string, id: string, data: any) {
+  async updateItem(
+    userId: string,
+    listId: string,
+    id: string,
+    data: any,
+    isAdmin = false,
+  ) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     const item = await this.row('list_items', id);
     if (this.relationId(item.list) !== listId) throw new ForbiddenException();
     if (typeof data?.orderKey !== 'string')
       throw new BadRequestException('Ordem inválida');
     return this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       const row = await this.db.updateRow<any>({
         databaseId: 'app',
         tableId: 'list_items',
@@ -748,9 +1090,14 @@ export class SocialService {
       return row;
     });
   }
-  async deleteItem(userId: string, listId: string, id: string) {
+  async deleteItem(
+    userId: string,
+    listId: string,
+    id: string,
+    isAdmin = false,
+  ) {
     const profile = await this.profile(userId);
-    await this.ownFingerprint('lists', listId, profile.fingerprint);
+    await this.editableList(listId, profile.fingerprint, isAdmin);
     const row = await this.row('list_items', id);
     if (this.relationId(row.list) !== listId) throw new ForbiddenException();
     const list = await this.row('lists', listId);
@@ -764,6 +1111,20 @@ export class SocialService {
       },
     );
     await this.run(async ({ txId }) => {
+      const lockedList = await this.editableList(
+        listId,
+        profile.fingerprint,
+        isAdmin,
+        txId,
+      );
+      if (isSystemList(lockedList))
+        await this.db.updateRow({
+          databaseId: 'app',
+          tableId: 'lists',
+          rowId: listId,
+          transactionId: txId,
+          data: { revision: randomUUID() },
+        });
       await this.db.deleteRow({
         databaseId: 'app',
         tableId: 'list_items',

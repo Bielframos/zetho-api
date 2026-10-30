@@ -71,6 +71,7 @@ export class VoteInput {
     | null;
 }
 export class ListInput {
+  @IsOptional() @IsIn(['user', 'system']) ownerType?: 'user' | 'system';
   @IsString() @MaxLength(64) title!: string;
   @IsOptional() @IsString() @MaxLength(128) description?: string;
   @IsOptional() @IsBoolean() isPublic?: boolean;
@@ -90,4 +91,9 @@ export class ItemOrderInput {
 }
 export class FollowInput {
   @IsString() targetProfileId!: string;
+}
+
+export class EnsureEntryInput {
+  @IsString() @MaxLength(36) gameId!: string;
+  @IsString() @MaxLength(64) requestId!: string;
 }
