@@ -26,9 +26,16 @@ describe('Registration completion receipts', () => {
             JSON.parse(query) as { attribute?: string; values: string[] },
         );
         const invite = parsed.find((q) => q.attribute === 'inviteCode');
+        const identity = parsed.find((q) =>
+          ['userId', 'fingerprint'].includes(q.attribute ?? ''),
+        );
         const profiles = [...rows.entries()]
           .filter(([key]) => key.startsWith('user_profiles:'))
-          .map(([, value]) => value);
+          .map(([, value]) => value)
+          .filter(
+            (profile) =>
+              !identity || profile[identity.attribute!] === identity.values[0],
+          );
         return Promise.resolve(
           invite
             ? {
@@ -128,12 +135,78 @@ describe('Registration completion receipts', () => {
     const { service, rows, db } = setup();
     rows.set('user_profiles:legacy', {
       $id: 'legacy',
+      userId: user.$id,
       gamertag: 'player',
       fingerprint: 'legacy',
     });
     expect(
       (await service.create(user, 'player', 'valid')).registration,
     ).toEqual({ created: false, inviteAccepted: false });
+    expect(db.createOperations).not.toHaveBeenCalled();
+  });
+  it('preserves the profile and rewards after the account email changes', async () => {
+    const { service, db } = setup();
+    const original = await service.create(user, 'player');
+    db.createRow.mockClear();
+    db.updateRow.mockClear();
+    db.createOperations.mockClear();
+    const changedEmail = { ...user, email: 'new@example.com' };
+
+    const restored = await service.create(changedEmail, 'player');
+
+    expect(restored).toMatchObject({
+      $id: original.$id,
+      userId: user.$id,
+      fingerprint: original.fingerprint,
+      registration: { created: false, inviteAccepted: false },
+    });
+    expect(db.createRow).not.toHaveBeenCalled();
+    expect(db.updateRow).not.toHaveBeenCalled();
+    expect(db.createOperations).not.toHaveBeenCalled();
+  });
+  it('resumes a pending receipt after an email change without repeating rewards', async () => {
+    const { service, db, rows } = setup();
+    const update = db.updateRow.getMockImplementation()!;
+    db.updateRow.mockImplementationOnce((args) => {
+      if (args.data.type === 'registration_complete')
+        return Promise.reject(new Error('completion unavailable'));
+      return update(args);
+    });
+    await expect(service.create(user, 'player')).rejects.toThrow(
+      'completion unavailable',
+    );
+    const original = [...rows.values()].find(
+      (row) => row.userId === user.$id && row.gamertag === 'player',
+    )!;
+    const restored = await service.create(
+      { ...user, email: 'new@example.com' },
+      'player',
+    );
+    expect(restored).toMatchObject({
+      $id: original.$id,
+      fingerprint: original.fingerprint,
+      registration: { created: true, inviteAccepted: false },
+    });
+    expect(
+      db.createRow.mock.calls.filter(
+        ([call]) => call.tableId === 'zcoin_transactions',
+      ),
+    ).toHaveLength(1);
+    expect(
+      db.createRow.mock.calls.filter(
+        ([call]) => call.tableId === 'user_profiles',
+      ),
+    ).toHaveLength(1);
+  });
+  it('does not claim a different account profile through its email fingerprint', async () => {
+    const { service, db } = setup();
+    await service.create(user, 'player');
+    db.createRow.mockClear();
+    db.createOperations.mockClear();
+    await expect(
+      service.create({ ...user, $id: 'another-account' }, 'other'),
+    ).rejects.toThrow('Perfil já vinculado a outra conta');
+    expect(db.createRow).not.toHaveBeenCalled();
     expect(db.createOperations).not.toHaveBeenCalled();
   });
 });

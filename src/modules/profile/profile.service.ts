@@ -125,11 +125,18 @@ export class ProfileService {
       .digest('hex')
       .slice(0, 36);
     try {
-      const existing = await this.tablesDB.listRows<UserProfiles>({
+      // Email can change after signup; the account ID owns the existing profile.
+      let existing = await this.tablesDB.listRows<UserProfiles>({
         databaseId: 'app',
         tableId: 'user_profiles',
-        queries: [Query.equal('fingerprint', fingerprint), Query.limit(1)],
+        queries: [Query.equal('userId', user.$id), Query.limit(1)],
       });
+      if (!existing.rows.length)
+        existing = await this.tablesDB.listRows<UserProfiles>({
+          databaseId: 'app',
+          tableId: 'user_profiles',
+          queries: [Query.equal('fingerprint', fingerprint), Query.limit(1)],
+        });
       let receipt: RegistrationReceipt | null = null;
       try {
         receipt = await this.tablesDB.getRow<Models.Row & RegistrationReceipt>({

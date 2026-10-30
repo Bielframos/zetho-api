@@ -6,6 +6,10 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Fixed
+
+- A troca de e-mail preserva o perfil e permite entrar novamente, sem repetir bônus de cadastro.
+
 ### Added
 
 - Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
