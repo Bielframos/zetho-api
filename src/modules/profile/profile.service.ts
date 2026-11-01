@@ -1,3 +1,5 @@
+import { FoundersService } from '../achievements/founders.service';
+import { ProfileSharingService } from './profile-sharing.service';
 import {
   BadRequestException,
   ConflictException,
@@ -48,6 +50,8 @@ export class ProfileService {
     private appwrite: Appwrite,
     private readonly zCoinsService: ZCoinsService,
     private readonly transactionService: TransactionService,
+    private readonly founders: FoundersService,
+    private readonly sharing: ProfileSharingService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -103,7 +107,16 @@ export class ProfileService {
     });
   }
 
-  async create(user: Models.User, gamertag: string, inviteCode?: string) {
+  async create(
+    user: Models.User,
+    gamertag: string,
+    inviteCode?: string,
+    profileSharingAllowed = false,
+  ) {
+    if (typeof profileSharingAllowed !== 'boolean')
+      throw new BadRequestException('Autorização inválida');
+    await this.sharing.set(user.$id, profileSharingAllowed, 'registration');
+    await this.founders.sync();
     const fingerprint = this.generateFingerprint(user.email);
 
     const existingProfile = await this.tablesDB.listRows<UserProfiles>({

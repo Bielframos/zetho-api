@@ -242,6 +242,37 @@ export class EmailTemplateService {
     });
   }
 
+  getVerificationEmailSubject() {
+    return 'Confirme seu e-mail — Zetho';
+  }
+
+  renderVerificationEmail(options?: {
+    recipientName?: string;
+    verificationUrl?: string;
+  }) {
+    return this.renderTransactionalEmail({
+      preheader: 'Confirme seu e-mail e faça parte da história do Zetho.',
+      title: 'Sua história começa aqui',
+      intro: `Olá, ${options?.recipientName?.trim() || '{{user}}'}!`,
+      sections: [
+        {
+          kind: 'paragraph',
+          text: 'Falta só um passo para confirmar sua conta no Zetho. Clique no botão abaixo para confirmar que este e-mail é seu.',
+        },
+        {
+          kind: 'paragraph',
+          text: 'Se sua conta fizer parte da edição Fundador, sua insígnia e seu número exclusivo serão liberados após a confirmação. Um reconhecimento para quem chegou no começo.',
+        },
+      ],
+      cta: {
+        label: 'Confirmar meu e-mail',
+        href: options?.verificationUrl?.trim() || '{{redirect}}',
+      },
+      footerNote:
+        'Este link é temporário. Se você não criou uma conta no Zetho, pode ignorar esta mensagem com segurança.',
+    });
+  }
+
   getPasswordRecoveryEmailSubject(projectName = 'Zetho') {
     return `Recuperação de senha - ${projectName}`;
   }

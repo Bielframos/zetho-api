@@ -35,7 +35,9 @@
     "test:ci": "jest --runInBand",
     "test:tooling": "node --test scripts/prepare-appwrite-config.spec.js scripts/seed-demo.spec.js",
     "appwrite:configure": "node scripts/prepare-appwrite-config.js",
-    "demo:seed": "node scripts/seed-demo.js"
+    "demo:seed": "node scripts/seed-demo.js",
+    "founders:provision": "ts-node -r tsconfig-paths/register scripts/provision-founders.ts",
+    "founders:backfill": "ts-node -r tsconfig-paths/register scripts/backfill-founders.ts"
   },
   "dependencies": {
     "@genkit-ai/compat-oai": "^1.33.0",

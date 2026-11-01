@@ -1,3 +1,5 @@
+import { IsBoolean } from 'class-validator';
+import { ProfileSharingService } from './profile-sharing.service';
 import {
   Body,
   Controller,
@@ -19,11 +21,17 @@ import { Roles } from 'src/common/guards/roles.decorator';
 import { ProfileEntriesService } from './profile-entries.service';
 import { ProfileEntriesQuery } from './profile-entries.dto';
 
+class ProfileSharingDto {
+  @IsBoolean() allowed!: boolean;
+}
+
+
 @Controller('profile')
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly profileEntries: ProfileEntriesService,
+    private readonly sharing: ProfileSharingService,
   ) {}
 
   @Get(':fingerprint/entries')
@@ -47,9 +55,28 @@ export class ProfileController {
     @Req() req: any,
     @Body('gamertag') gamertag: string,
     @Body('inviteCode') inviteCode?: string,
+    @Body('profileSharingAllowed') profileSharingAllowed?: boolean,
   ) {
     const user = req.user as Models.User;
-    return await this.profileService.create(user, gamertag, inviteCode);
+    return await this.profileService.create(
+      user,
+      gamertag,
+      inviteCode,
+      profileSharingAllowed,
+    );
+  }
+
+  @Get('me/profile-sharing')
+  @UseGuards(AppwriteSessionGuard)
+  getSharing(@Req() req: any) {
+    return this.sharing.get(req.user.$id);
+  }
+
+  @Patch('me/profile-sharing')
+  @UseGuards(AppwriteSessionGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  setSharing(@Req() req: any, @Body() dto: ProfileSharingDto) {
+    return this.sharing.set(req.user.$id, dto.allowed, 'settings');
   }
 
   @Patch('me')

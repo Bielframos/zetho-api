@@ -14,6 +14,7 @@ describe('Retired annual goal endpoints', () => {
     );
     const controller = new AchievementsController(
       service as AchievementsService,
+      {} as any,
     );
     for (const operation of [
       () => controller.retiredGoal(),

@@ -45,6 +45,28 @@ describe('EmailTemplateService', () => {
     );
   });
 
+  describe('verification email', () => {
+    it('reuses the established email skin and preserves the Appwrite link placeholders', () => {
+      const html = service.renderVerificationEmail();
+      expect(html).toContain('Olá, {{user}}!');
+      expect(html).toContain('href="{{redirect}}"');
+      expect(html).toContain('Confirmar meu e-mail');
+      expect(html).toContain('Se sua conta fizer parte da edição Fundador');
+      expect(html).toContain('background-color:#101113');
+      expect(html).toContain('border-radius:0');
+      expect(service.getVerificationEmailSubject()).toContain('Zetho');
+    });
+    it('escapes recipient and verification URL without exposing tokens in other markup', () => {
+      const html = service.renderVerificationEmail({
+        recipientName: '<script>x</script>',
+        verificationUrl: 'https://example.test/verify?a=<x>',
+      });
+      expect(html).not.toContain('<script>');
+      expect(html).toContain('&lt;script&gt;');
+      expect(html).toContain('href="https://example.test/verify?a=&lt;x&gt;"');
+    });
+  });
+
   describe('renderPasswordRecoveryEmail', () => {
     it('renders password recovery email with default Appwrite variables', () => {
       const html = service.renderPasswordRecoveryEmail();
