@@ -118,7 +118,8 @@ export class ProfileService {
     profileSharingAllowed = false,
     attempt = 0,
   ): Promise<RegisteredProfile> {
-    if (typeof profileSharingAllowed !== 'boolean') throw new BadRequestException('Autorização inválida');
+    if (typeof profileSharingAllowed !== 'boolean')
+      throw new BadRequestException('Autorização inválida');
     if (
       inviteCode !== undefined &&
       (typeof inviteCode !== 'string' || inviteCode.length > 64)
@@ -268,7 +269,13 @@ export class ProfileService {
       };
     } catch (error) {
       if ((error as { code?: number }).code === 409 && attempt < 2)
-        return this.create(user, gamertag, inviteCode, profileSharingAllowed, attempt + 1);
+        return this.create(
+          user,
+          gamertag,
+          inviteCode,
+          profileSharingAllowed,
+          attempt + 1,
+        );
       throw error;
     }
   }
