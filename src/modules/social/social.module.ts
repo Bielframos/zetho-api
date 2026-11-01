@@ -8,10 +8,13 @@ import { Query } from 'node-appwrite';
 import { Appwrite } from 'src/infra/appwrite/appwrite.provider';
 import { SocialController } from './social.controller';
 import { SocialService } from './social.service';
+import { ForumController } from './forum.controller';
+import { ForumService } from './forum.service';
 @Module({
   imports: [DashboardModule, WebhookModule],
-  controllers: [SocialController],
-  providers: [SocialService],
+  controllers: [SocialController, ForumController],
+  providers: [SocialService, ForumService],
+  exports: [SocialService, ForumService],
 })
 export class SocialModule implements OnModuleInit {
   constructor(

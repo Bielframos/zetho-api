@@ -6,6 +6,32 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Fixed
+
+- A troca de e-mail preserva o perfil e permite entrar novamente, sem repetir bônus de cadastro.
+
+### Added
+
+- Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
+- Retomada de cadastro parcial com bônus e atribuição protegidos contra repetição.
+- Rascunhos editoriais privados via MCP, aprovação administrativa, listas oficiais e conversão revisável em posts.
+- Provisionamento de estados e permissões nas listas existentes, com importação retomável dos rascunhos anteriores.
+
+### Changed
+
+- Listas pessoais e oficiais usam `lists`/`list_items`, com estados de rascunho, publicada e arquivada; a revisão preserva IDs e vínculos sociais.
+
+- Respostas de fórum não usam cache compartilhado; sitemap inclui listas editoriais e expira em cinco minutos.
+
+## [0.15.0] - 2026-10-22
+
+### Added
+
+- Fórum da comunidade (`/social/forum/posts`, `/social/forum/posts/:id`) com criação de publicações em rich text vinculadas a qualquer jogo, ordenação por recentes ou mais votados, filtro por jogo, exclusão pelo autor e árvore de respostas até 3 níveis.
+- Sanitização de HTML rich text no servidor para publicações e respostas do fórum e comentários de jogos.
+- Inclusão das páginas públicas `/forum` e `/forum/:id-:slug` no `sitemap.xml` com roteamento de notificações para discussões do fórum.
+- Script de migração aditiva (`appwrite:provision-forum`) para provisionar `title`, `slug` e expandir `content` na tabela `game_comments`.
+
 ## [0.14.2] - 2026-10-13
 
 ### Changed

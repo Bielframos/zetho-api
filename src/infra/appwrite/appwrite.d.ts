@@ -224,6 +224,8 @@ export type ZEntryCount = Models.Row & {
 export type GameComments = Models.Row & {
   gameId: string;
   userProfile: UserProfiles;
+  title?: string | null;
+  slug?: string | null;
   content: string;
   parentId: string | null;
   voteCount: number;
