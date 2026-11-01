@@ -69,6 +69,8 @@ describe('Registration completion receipts', () => {
         runInTransaction: <T>(work: (ctx: { txId: string }) => Promise<T>) =>
           work({ txId: 'tx' }),
       } as TransactionService,
+      { sync: jest.fn().mockResolvedValue(undefined) } as any,
+      { set: jest.fn().mockResolvedValue(undefined) } as any,
     );
     return { service, db, rows };
   }

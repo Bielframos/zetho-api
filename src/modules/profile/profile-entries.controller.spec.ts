@@ -1,3 +1,4 @@
+import { ProfileSharingService } from './profile-sharing.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -16,6 +17,7 @@ describe('GET /profile/:fingerprint/entries', () => {
       controllers: [ProfileController],
       providers: [
         { provide: ProfileService, useValue: {} },
+        { provide: ProfileSharingService, useValue: {} },
         { provide: ProfileEntriesService, useValue: { list } },
         { provide: Appwrite, useValue: {} },
         { provide: CACHE_MANAGER, useValue: {} },

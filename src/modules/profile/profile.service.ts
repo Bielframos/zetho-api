@@ -1,3 +1,5 @@
+import { FoundersService } from '../achievements/founders.service';
+import { ProfileSharingService } from './profile-sharing.service';
 import {
   BadRequestException,
   HttpException,
@@ -52,6 +54,8 @@ export class ProfileService {
   constructor(
     private appwrite: Appwrite,
     private readonly transactionService: TransactionService,
+    private readonly founders: FoundersService,
+    private readonly sharing: ProfileSharingService,
   ) {
     this.tablesDB = this.appwrite.tablesDB;
   }
@@ -111,13 +115,18 @@ export class ProfileService {
     user: Models.User,
     gamertag: string,
     inviteCode?: string,
+    profileSharingAllowed = false,
     attempt = 0,
   ): Promise<RegisteredProfile> {
+    if (typeof profileSharingAllowed !== 'boolean')
+      throw new BadRequestException('Autorização inválida');
     if (
       inviteCode !== undefined &&
       (typeof inviteCode !== 'string' || inviteCode.length > 64)
     )
       throw new BadRequestException('Código de convite inválido');
+    await this.sharing.set(user.$id, profileSharingAllowed, 'registration');
+    await this.founders.sync();
     const fingerprint = this.generateFingerprint(user.email);
     const receiptId = crypto
       .createHash('sha256')
@@ -260,7 +269,13 @@ export class ProfileService {
       };
     } catch (error) {
       if ((error as { code?: number }).code === 409 && attempt < 2)
-        return this.create(user, gamertag, inviteCode, attempt + 1);
+        return this.create(
+          user,
+          gamertag,
+          inviteCode,
+          profileSharingAllowed,
+          attempt + 1,
+        );
       throw error;
     }
   }

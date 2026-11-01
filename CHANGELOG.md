@@ -6,11 +6,18 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-01
+
 ### Fixed
 
 - A troca de e-mail preserva o perfil e permite entrar novamente, sem repetir bônus de cadastro.
 
 ### Added
+
+- Edição Fundador com reservas numeradas de #0000 a #1000 por criação de conta, com Zero em #0000 e liberação apenas para contas ativas com e-mail confirmado.
+- Consulta autenticada do reconhecimento de Fundador e diretório público de perfis elegíveis; imagem oficial servida pela API sem tornar o bucket privado público.
+- Autorização opcional e revogável para divulgar perfis nas redes do Zetho, com histórico privado da escolha, versão do texto e data do servidor.
+- Provisionamento, preenchimento retroativo e correção administrativa de contas duplicadas com conferência da sequência e proteção do fundador #0000.
 
 - Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
 - Retomada de cadastro parcial com bônus e atribuição protegidos contra repetição.
@@ -18,6 +25,9 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 - Provisionamento de estados e permissões nas listas existentes, com importação retomável dos rascunhos anteriores.
 
 ### Changed
+
+- E-mail de confirmação de conta usa o mesmo visual dos demais e-mails transacionais; sincronização de templates tem prévia e aplicação explícita por tipo.
+- Catálogo de conquistas e vitrine incluem a insígnia Fundador com seu número, independentemente da autorização de divulgação.
 
 - Listas pessoais e oficiais usam `lists`/`list_items`, com estados de rascunho, publicada e arquivada; a revisão preserva IDs e vínculos sociais.
 

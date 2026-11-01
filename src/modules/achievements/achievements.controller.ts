@@ -1,4 +1,9 @@
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { FoundersService } from './founders.service';
 import {
+  UseInterceptors,
+  Header,
+  StreamableFile,
   Body,
   Controller,
   Get,
@@ -15,12 +20,36 @@ import { AppwriteSessionGuard } from 'src/common/guards/session.guard';
 import { AchievementsService } from './achievements.service';
 class ShowcaseDto {
   @IsArray()
-  @IsIn(['soulslike_3', 'reviews_5', 'sessions_3'], { each: true })
+  @IsIn(['soulslike_3', 'reviews_5', 'sessions_3', 'founder'], { each: true })
   badges!: string[];
 }
 @Controller('achievements')
 export class AchievementsController {
-  constructor(private readonly service: AchievementsService) {}
+  constructor(
+    private readonly service: AchievementsService,
+    private readonly founders: FoundersService,
+  ) {}
+  @Get('me/founder')
+  @UseGuards(AppwriteSessionGuard)
+  @Header('Cache-Control', 'no-store')
+  founderReceipt(@Req() req: any) {
+    return this.founders.receipt(req.user.$id);
+  }
+
+  @Get('founder-badge/image')
+  @Header('Content-Type', 'image/png')
+  @Header('Cache-Control', 'public, max-age=86400')
+  async founderImage() {
+    return new StreamableFile(await this.founders.image());
+  }
+
+  @Get('founders')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(30_000)
+  @Header('Cache-Control', 'public, max-age=30')
+  foundersList() {
+    return this.founders.publicIdentities();
+  }
   // Compatibility tombstones for cached clients; never read or mutate legacy rows.
   @Get(':profileId/goals/:year')
   retiredGoal() {
