@@ -18,6 +18,13 @@ type State = Models.Row & {
 const DB = 'app';
 export const FOUNDER_LAST_NUMBER = 1000;
 
+export interface PublicFounder {
+  gamertag: string;
+  number: number;
+  profileId: string;
+  avatarUrl: string | null;
+}
+
 @Injectable()
 export class FoundersService {
   private readonly logger = new Logger(FoundersService.name);
@@ -98,8 +105,8 @@ export class FoundersService {
     }
   }
 
-  async publicIdentities() {
-    const result: { gamertag: string; number: number }[] = [];
+  async publicIdentities(): Promise<PublicFounder[]> {
+    const result: PublicFounder[] = [];
     let cursor: string | undefined;
     for (;;) {
       const page = await this.appwrite.tablesDB.listRows<Allocation>({
@@ -144,7 +151,7 @@ export class FoundersService {
             Query.equal('userId', [...numbers.keys()]),
             Query.orderAsc('$id'),
             Query.limit(100),
-            Query.select(['$id', 'gamertag', 'userId', 'status']),
+            Query.select(['$id', 'gamertag', 'avatarUrl', 'userId', 'status']),
             ...(profileCursor ? [Query.cursorAfter(profileCursor)] : []),
           ],
         });
@@ -153,6 +160,8 @@ export class FoundersService {
             result.push({
               gamertag: profile.gamertag,
               number: numbers.get(profile.userId)!,
+              profileId: profile.$id,
+              avatarUrl: profile.avatarUrl || null,
             });
         if (profiles.rows.length < 100) break;
         profileCursor = profiles.rows.at(-1).$id;
@@ -160,7 +169,9 @@ export class FoundersService {
       if (page.rows.length < 100) break;
       cursor = page.rows.at(-1)!.$id;
     }
-    return result;
+    return result.sort(
+      (a, b) => a.number - b.number || a.profileId.localeCompare(b.profileId),
+    );
   }
 
   async initialize(zeroUserId: string) {

@@ -219,7 +219,7 @@ describe('Founder reservations', () => {
     expect(app.users.list).toHaveBeenCalledTimes(4);
   });
 
-  it('publishes only the gamertag and number of active profiles, independently of consent', async () => {
+  it('publishes only public fields of active profiles, independently of consent', async () => {
     const listRows = jest.fn(async ({ tableId }) => ({
       rows:
         tableId === 'founder_allocations'
@@ -229,6 +229,8 @@ describe('Founder reservations', () => {
                 $id: 'p',
                 userId: 'zero',
                 gamertag: 'Zero',
+                avatarUrl: 'https://example.test/avatar.png',
+                email: 'private@example.test',
                 status: 'active',
                 profileSharingAllowed: false,
               },
@@ -250,12 +252,90 @@ describe('Founder reservations', () => {
       {} as any,
     );
     expect(await service.publicIdentities()).toEqual([
-      { gamertag: 'Zero', number: 0 },
+      {
+        gamertag: 'Zero',
+        number: 0,
+        profileId: 'p',
+        avatarUrl: 'https://example.test/avatar.png',
+      },
     ]);
     expect(listRows.mock.calls.map(([params]) => params.tableId)).toEqual([
       'founder_allocations',
       'user_profiles',
     ]);
+  });
+
+  it('paginates the entire edition, excludes unverified accounts and sorts by founder number', async () => {
+    const allocations = Array.from({ length: 1001 }, (_, number) => ({
+      $id: `u${String(1000 - number).padStart(4, '0')}`,
+      userId: `u${String(1000 - number).padStart(4, '0')}`,
+      number,
+    })).sort((a, b) => a.$id.localeCompare(b.$id));
+    const listRows = jest.fn(async ({ tableId, queries }) => {
+      const parsed = queries.map((query: string) => JSON.parse(query));
+      if (tableId === 'founder_allocations') {
+        const cursor = parsed.find(
+          (query: any) => query.method === 'cursorAfter',
+        )?.values[0];
+        const start = cursor
+          ? allocations.findIndex((row) => row.$id === cursor) + 1
+          : 0;
+        return { rows: allocations.slice(start, start + 100) };
+      }
+      if (parsed.some((query: any) => query.method === 'cursorAfter'))
+        return { rows: [] };
+      const ids = parsed.find(
+        (query: any) => query.attribute === 'userId',
+      ).values;
+      return {
+        rows: ids.map((id: string) => ({
+          $id: `profile-${id}`,
+          userId: id,
+          gamertag: id,
+          status: 'active',
+        })),
+      };
+    });
+    const usersList = jest.fn(async ({ queries }) => {
+      const ids = queries
+        .map((query: string) => JSON.parse(query))
+        .find((query: any) => query.attribute === '$id').values;
+      return {
+        users: ids
+          .filter((id: string) => id !== 'u0500')
+          .map(($id: string) => ({ $id })),
+      };
+    });
+    const service = new FoundersService(
+      { tablesDB: { listRows }, users: { list: usersList } } as any,
+      {} as any,
+    );
+    const result = await service.publicIdentities();
+    expect(result).toHaveLength(1000);
+    expect(result[0]).toEqual({
+      gamertag: 'u1000',
+      number: 0,
+      profileId: 'profile-u1000',
+      avatarUrl: null,
+    });
+    expect(result.at(-1)?.number).toBe(1000);
+    expect(result.some((founder) => founder.number === 500)).toBe(false);
+    expect(result.map((founder) => founder.number)).toEqual(
+      result.map((founder) => founder.number).sort((a, b) => a - b),
+    );
+    expect(usersList).toHaveBeenCalledTimes(11);
+    for (const [{ queries }] of usersList.mock.calls) {
+      const parsed = queries.map((query: string) => JSON.parse(query));
+      expect(parsed).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            attribute: 'emailVerification',
+            values: [true],
+          }),
+          expect.objectContaining({ attribute: 'status', values: [true] }),
+        ]),
+      );
+    }
   });
 
   it('rolls back the checkpoint when allocation fails and propagates infrastructure errors', async () => {
