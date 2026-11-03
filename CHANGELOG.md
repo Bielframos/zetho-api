@@ -8,6 +8,7 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ### Added
 
+- Deploy no Dokploy pelo GitHub Actions após testes e build aprovados na branch `master`, com opção de execução manual.
 - Diretório público dos fundadores inclui avatar e identificador do perfil, em ordem de número, para o painel Fundadores.
 
 ## [0.16.0] - 2026-11-01
