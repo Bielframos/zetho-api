@@ -31,7 +31,7 @@ async function main() {
     await service.initialize(zeroUserId!);
     await service.sync();
     console.log(
-      'Reservas aplicadas. Reexecuções preservam os números existentes.',
+      'Números atribuídos a contas confirmadas. Reexecuções preservam os números existentes.',
     );
     return;
   }
@@ -41,6 +41,8 @@ async function main() {
   while (number <= FOUNDER_LAST_NUMBER) {
     const batch = await app.users.list({
       queries: [
+        Query.equal('emailVerification', true),
+        Query.equal('status', true),
         Query.orderAsc('$createdAt'),
         Query.orderAsc('$id'),
         Query.limit(100),
