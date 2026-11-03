@@ -6,6 +6,10 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Added
+
+- Diretório público dos fundadores inclui avatar e identificador do perfil, em ordem de número, para o painel Fundadores.
+
 ## [0.16.0] - 2026-11-01
 
 ### Fixed

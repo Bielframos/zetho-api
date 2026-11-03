@@ -33,7 +33,7 @@ O e-mail usa o mesmo renderer dos outros e-mails transacionais. `pnpm email:sync
 ## Contratos
 
 - `GET /achievements/me/founder`: autenticado, sem cache, retorna `status` (`awarded`, `verification_required`, `pending` ou `not_eligible`); somente `awarded` contém `number` e `code`. Não aceita um ID de outra conta.
-- `GET /achievements/founders`: somente `{ gamertag, number }` dos perfis ativos associados a reservas cujas contas estão ativas e têm e-mail confirmado. Não revela contas sem perfil nem autorizações.
+- `GET /achievements/founders`: array de `{ gamertag, number, profileId, avatarUrl }`, ordenado por número (incluindo Zero #0000), dos perfis ativos associados a reservas cujas contas estão ativas e têm e-mail confirmado. `avatarUrl` é `null` quando não há foto. Os campos novos são aditivos para preservar clientes que leem apenas gamertag e número. Não revela contas sem perfil nem autorizações, IDs de conta ou e-mails.
 - `GET /achievements/:profileId/badges` e `/badges/catalog`: incluem a conquista `founder` e o campo `number`; #0000 é um número válido. A vitrine aceita `founder`, mas a identificação junto ao nome independe dela. Fundador não concede Z-Coins.
 - `POST /profile`: aceita `profileSharingAllowed` booleano, opcional, padrão `false`. Clientes antigos continuam funcionando. Uma repetição do cadastro não substitui uma autorização já registrada.
 - `GET /profile/me/profile-sharing` e `PATCH /profile/me/profile-sharing` com `{ "allowed": false }`: leitura e mudança da própria autorização, autenticadas.
