@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     name: verify
@@ -25,3 +25,40 @@ jobs:
       - run: pnpm test:tooling
       - run: pnpm test:ci
       - run: pnpm build
+  deploy:
+    name: Deploy to Dokploy
+    needs: verify
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger deployment webhook
+        env:
+          DEPLOYMENT_TRIGGER_ENDPOINT: ${{ secrets.DEPLOYMENT_TRIGGER_ENDPOINT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOYMENT_TRIGGER_ENDPOINT" ]]; then
+            echo '::error::Configure the DEPLOYMENT_TRIGGER_ENDPOINT repository secret with the Dokploy webhook URL.'
+            exit 1
+          fi
+
+          payload=$(mktemp)
+          trap 'rm -f "$payload"' EXIT
+          jq --arg ref "$GITHUB_REF" --arg sha "$GITHUB_SHA" \
+            '. + {ref: $ref, head_commit: (.head_commit // {id: $sha, message: "Manual deployment from GitHub Actions"})}' \
+            "$GITHUB_EVENT_PATH" > "$payload"
+
+          status=$(curl --silent --show-error --fail \
+            --connect-timeout 10 --max-time 60 \
+            --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header 'X-GitHub-Event: push' \
+            --data-binary "@$payload" \
+            "$DEPLOYMENT_TRIGGER_ENDPOINT")
+          if [[ "$status" != 2?? ]]; then
+            echo "::error::Dokploy rejected the deployment webhook (HTTP $status). Check the configured branch and watch paths."
+            exit 1
+          fi
+          echo 'Deployment webhook accepted by Dokploy. Follow build and rollout progress in Dokploy.'
