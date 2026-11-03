@@ -2,6 +2,10 @@ import { FoundersService } from './founders.service';
 
 describe('Founder reservations', () => {
   function setup(users: any[], initial?: any) {
+    for (const user of users) {
+      user.emailVerification ??= true;
+      user.status ??= true;
+    }
     const rows = new Map<string, any>();
     if (initial)
       rows.set('founder_state:edition-v1', { $id: 'edition-v1', ...initial });
@@ -20,27 +24,46 @@ describe('Founder reservations', () => {
         ...data,
       });
     });
+    const listRows = jest.fn(async ({ queries }) => {
+      const ids = queries
+        .map((query: string) => JSON.parse(query))
+        .find((query: any) => query.attribute === 'userId').values;
+      return {
+        rows: [...rows.entries()]
+          .filter(
+            ([key, row]) =>
+              key.startsWith('founder_allocations:') &&
+              ids.includes(row.userId),
+          )
+          .map(([, row]) => row),
+      };
+    });
     const list = jest.fn(async ({ queries }) => {
-      const state = rows.get('founder_state:edition-v1');
+      const matches = (user: any, query: any): boolean => {
+        if (query.method === 'equal')
+          return query.values.includes(user[query.attribute]);
+        if (query.method === 'greaterThan')
+          return user[query.attribute] > query.values[0];
+        if (query.method === 'lessThan')
+          return user[query.attribute] < query.values[0];
+        if (query.method === 'or')
+          return query.values.some((q: any) => matches(user, q));
+        if (query.method === 'and')
+          return query.values.every((q: any) => matches(user, q));
+        return true;
+      };
+      const parsed = queries.map((query: string) => JSON.parse(query));
       return {
         users: users
-          .filter(
-            (user) =>
-              !state?.afterCreatedAt ||
-              user.$createdAt > state.afterCreatedAt ||
-              (user.$createdAt === state.afterCreatedAt &&
-                user.$id > state.afterUserId),
-          )
+          .filter((user) => parsed.every((query: any) => matches(user, query)))
           .slice(
             0,
-            JSON.parse(
-              queries.find((query) => JSON.parse(query).method === 'limit')!,
-            ).values[0],
+            parsed.find((query: any) => query.method === 'limit').values[0],
           ),
       };
     });
     const app = {
-      tablesDB: { getRow, createRow, updateRow },
+      tablesDB: { getRow, createRow, updateRow, listRows },
       users: {
         list,
         get: jest.fn(async ({ userId }) => ({
@@ -70,7 +93,7 @@ describe('Founder reservations', () => {
       app,
     };
   }
-  it('keeps a reservation private until the email is verified, including #0000', async () => {
+  it('never reveals an existing legacy allocation until email is verified, including #0000', async () => {
     const { service, rows, app } = setup([], {
       zeroUserId: 'zero',
       nextNumber: 1,
@@ -124,7 +147,7 @@ describe('Founder reservations', () => {
     });
   });
 
-  it('reserves Zero separately and allocates by account creation, including accounts without profiles', async () => {
+  it('awards Zero separately and allocates verified accounts by creation, including accounts without profiles', async () => {
     const { service, rows } = setup([
       { $id: 'early', $createdAt: '2026-01-01' },
       { $id: 'zero', $createdAt: '2026-01-02' },
@@ -141,6 +164,58 @@ describe('Founder reservations', () => {
       'outro usuário',
     );
   });
+  it('does not reserve a number for unverified or disabled accounts', async () => {
+    const { service, rows } = setup(
+      [
+        {
+          $id: 'unverified',
+          $createdAt: '2026-01-01',
+          emailVerification: false,
+        },
+        { $id: 'disabled', $createdAt: '2026-01-02', status: false },
+        { $id: 'verified', $createdAt: '2026-01-03' },
+      ],
+      { zeroUserId: 'zero', nextNumber: 1 },
+    );
+    await service.sync();
+    expect(rows.has('founder_allocations:unverified')).toBe(false);
+    expect(rows.has('founder_allocations:disabled')).toBe(false);
+    expect(rows.get('founder_allocations:verified').number).toBe(1);
+    expect(rows.get('founder_state:edition-v1').nextNumber).toBe(2);
+  });
+
+  it('assigns an old account the next available number only after confirmation', async () => {
+    const old = {
+      $id: 'old',
+      $createdAt: '2026-01-01',
+      emailVerification: false,
+    };
+    const { service, rows } = setup(
+      [old, { $id: 'new', $createdAt: '2026-01-03' }],
+      { zeroUserId: 'zero', nextNumber: 1 },
+    );
+    await service.sync();
+    expect(rows.get('founder_allocations:new').number).toBe(1);
+    old.emailVerification = true;
+    await service.sync();
+    expect(rows.get('founder_allocations:old').number).toBe(2);
+    expect(rows.get('founder_allocations:new').number).toBe(1);
+    await service.sync();
+    expect(rows.get('founder_state:edition-v1').nextNumber).toBe(3);
+  });
+
+  it('refuses bootstrap when Zero has not confirmed email', async () => {
+    const { service, app, rows } = setup([]);
+    app.users.get.mockResolvedValueOnce({
+      emailVerification: false,
+      status: true,
+    } as any);
+    await expect(service.initialize('zero')).rejects.toThrow(
+      'e-mail confirmado',
+    );
+    expect(rows.size).toBe(0);
+  });
+
   it('does not enable allocation before an explicit bootstrap', async () => {
     const { service, app } = setup([]);
     await service.sync();
@@ -176,8 +251,30 @@ describe('Founder reservations', () => {
     expect((await service.forUser('a'))?.number).toBe(1);
     expect(tx.runInTransaction).toHaveBeenCalledTimes(2);
   });
-  it('does not move the checkpoint backwards when a zero-only batch was read before another worker committed', async () => {
+  it('retries when the checkpoint version changes even if counters are unchanged', async () => {
     const { service, rows, tx } = setup(
+      [{ $id: 'a', $createdAt: '2026-01-02' }],
+      {
+        zeroUserId: 'zero',
+        nextNumber: 1,
+        $updatedAt: 'v1',
+      },
+    );
+    const run = tx.runInTransaction.getMockImplementation()!;
+    tx.runInTransaction.mockImplementationOnce(async (fn) => {
+      rows.set('founder_state:edition-v1', {
+        ...rows.get('founder_state:edition-v1'),
+        $updatedAt: 'v2',
+      });
+      return run(fn);
+    });
+    await service.sync();
+    expect(rows.get('founder_allocations:a').number).toBe(1);
+    expect(tx.runInTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not move the checkpoint backwards when a zero-only batch was read before another worker committed', async () => {
+    const { service, rows, app } = setup(
       [{ $id: 'zero', $createdAt: '2026-01-02' }],
       {
         zeroUserId: 'zero',
@@ -186,8 +283,8 @@ describe('Founder reservations', () => {
         afterUserId: 'a',
       },
     );
-    const run = tx.runInTransaction.getMockImplementation()!;
-    tx.runInTransaction.mockImplementationOnce(async (fn) => {
+    const listRows = app.tablesDB.listRows.getMockImplementation()!;
+    app.tablesDB.listRows.mockImplementationOnce(async (params) => {
       rows.set('founder_state:edition-v1', {
         $id: 'edition-v1',
         zeroUserId: 'zero',
@@ -196,7 +293,7 @@ describe('Founder reservations', () => {
         afterUserId: 'b',
       });
       rows.set('founder_allocations:b', { userId: 'b', number: 1 });
-      return run(fn);
+      return listRows(params);
     });
     await service.sync();
     expect(rows.get('founder_state:edition-v1').nextNumber).toBe(2);

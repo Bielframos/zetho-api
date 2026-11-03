@@ -52,6 +52,8 @@ pnpm demo:seed          # somente prévia, sem gravar
 
 `pnpm secrets:check` requer Gitleaks 8.30.1 e examina arquivos atuais rastreados e novos não ignorados. A CI executa essa verificação sem credenciais de produção. Os testes não substituem uma validação ponta a ponta com Appwrite real.
 
+Para a edição Fundador, use `pnpm founders:recalculate` para conferir a prévia de migração da regra antiga de reservas. O procedimento de aplicação, a ordem de publicação e o impacto nos números existentes estão em [docs/founders.md](docs/founders.md#recálculo-único-das-reservas-anteriores).
+
 ## Deploy no Dokploy
 
 O workflow `CI` aciona o webhook de deploy depois que os testes e o build passam em um push para `master`. PRs e outras branches não acionam deploy. Também é possível executar `CI` manualmente pela aba Actions, selecionando `master`; as verificações rodam antes do webhook.

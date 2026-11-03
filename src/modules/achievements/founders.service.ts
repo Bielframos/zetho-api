@@ -79,14 +79,14 @@ export class FoundersService {
     };
   }
 
-  // Runs independently of profile creation: accounts without profiles also reserve a number.
+  // Verified accounts are eligible even before creating a profile.
   @Cron('*/1 * * * *')
   async scheduledSync() {
     try {
       await this.sync();
     } catch (error) {
       this.logger.error(
-        'Falha ao reservar números dos fundadores',
+        'Falha ao atribuir números dos fundadores',
         error instanceof Error ? error.stack : String(error),
       );
     }
@@ -182,6 +182,10 @@ export class FoundersService {
       return;
     }
     const zero = await this.appwrite.users.get({ userId: zeroUserId });
+    if (!zero.emailVerification || !zero.status)
+      throw new Error(
+        'A conta #0000 precisa estar ativa e com e-mail confirmado',
+      );
     await this.tx.runInTransaction(async ({ txId }) => {
       await this.appwrite.tablesDB.createRow({
         databaseId: DB,
@@ -206,10 +210,12 @@ export class FoundersService {
 
   // Exposed for the dry-run backfill. No email or other private account data is returned.
   async candidates(
-    after?: State,
+    after?: Pick<State, 'afterCreatedAt' | 'afterUserId'>,
   ): Promise<{ users: Models.User<Models.Preferences>[] }> {
     return this.appwrite.users.list({
       queries: [
+        Query.equal('emailVerification', true),
+        Query.equal('status', true),
         Query.orderAsc('$createdAt'),
         Query.orderAsc('$id'),
         Query.limit(50),
@@ -230,18 +236,38 @@ export class FoundersService {
   }
 
   async sync() {
+    // Restart the verified-account scan every cycle. An account created before
+    // the persisted checkpoint may have confirmed its email only seconds ago.
+    let cursor: Pick<State, 'afterCreatedAt' | 'afterUserId'> | undefined;
     for (let attempt = 0; attempt < 30; attempt++) {
       const state = await this.state();
       // Explicit bootstrap prevents a mutable nickname from claiming #0000.
       if (!state || state.nextNumber > FOUNDER_LAST_NUMBER) return;
-      const batch = await this.candidates(state);
+      const batch = await this.candidates(cursor);
       if (!batch.users.length) return;
+      const existing = await this.appwrite.tablesDB.listRows<Allocation>({
+        databaseId: DB,
+        tableId: 'founder_allocations',
+        queries: [
+          Query.equal(
+            'userId',
+            batch.users.map((user) => user.$id),
+          ),
+          Query.limit(50),
+        ],
+      });
+      const allocated = new Set(existing.rows.map((row) => row.userId));
       const available = FOUNDER_LAST_NUMBER - state.nextNumber + 1;
       const accounts = batch.users
-        .filter((user) => user.$id !== state.zeroUserId)
+        .filter(
+          (user) => user.$id !== state.zeroUserId && !allocated.has(user.$id),
+        )
         .slice(0, available);
-      const last =
-        accounts.length < available ? batch.users.at(-1)! : accounts.at(-1)!;
+      const last = batch.users.at(-1)!;
+      if (!accounts.length) {
+        cursor = { afterCreatedAt: last.$createdAt, afterUserId: last.$id };
+        continue;
+      }
       try {
         await this.tx.runInTransaction(async ({ txId }) => {
           const current = await this.appwrite.tablesDB.getRow<State>({
@@ -251,6 +277,7 @@ export class FoundersService {
             transactionId: txId,
           });
           if (
+            current.$updatedAt !== state.$updatedAt ||
             current.nextNumber !== state.nextNumber ||
             current.afterUserId !== state.afterUserId ||
             current.afterCreatedAt !== state.afterCreatedAt
@@ -284,6 +311,7 @@ export class FoundersService {
             });
           }
         });
+        cursor = { afterCreatedAt: last.$createdAt, afterUserId: last.$id };
       } catch (error) {
         if (error.code !== 409) throw error;
       }

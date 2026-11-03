@@ -2,29 +2,22 @@ import 'dotenv/config';
 import { Models, Query } from 'node-appwrite';
 import { Appwrite } from '../src/infra/appwrite/appwrite.provider';
 import { TransactionService } from '../src/infra/appwrite/transaction.service';
+import {
+  buildVerifiedFounderPlan,
+  type FounderAccount,
+} from './recalculate-founders';
 
 export function buildFounderRepairPlan(
-  accounts: { $id: string; $createdAt: string }[],
+  accounts: FounderAccount[],
   zeroUserId: string,
   removedIds: string[],
 ) {
   if (removedIds.includes(zeroUserId))
     throw new Error('A conta #0000 não pode ser removida por esta operação');
-  const remaining = accounts
-    .filter((user) => !removedIds.includes(user.$id))
-    .sort(
-      (a, b) =>
-        a.$createdAt.localeCompare(b.$createdAt) || a.$id.localeCompare(b.$id),
-    );
-  const zero = remaining.find((user) => user.$id === zeroUserId);
-  if (!zero) throw new Error('Conta #0000 ausente; operação cancelada');
-  return [zero, ...remaining.filter((user) => user.$id !== zeroUserId)]
-    .slice(0, 1001)
-    .map((user, number) => ({
-      userId: user.$id,
-      accountCreatedAt: user.$createdAt,
-      number,
-    }));
+  return buildVerifiedFounderPlan(
+    accounts.filter((user) => !removedIds.includes(user.$id)),
+    zeroUserId,
+  );
 }
 
 async function main() {
@@ -91,8 +84,9 @@ async function main() {
   ]);
   const plan = buildFounderRepairPlan(accounts, state.zeroUserId, removedIds);
   const oldByUser = new Map(allocations.map((row) => [row.userId, row]));
-  const removedAllocations = allocations.filter((row) =>
-    removedIds.includes(row.userId),
+  const plannedIds = new Set(plan.map((row) => row.userId));
+  const removedAllocations = allocations.filter(
+    (row) => !plannedIds.has(row.userId),
   );
   const changedAllocations = plan.filter(
     (row) => oldByUser.get(row.userId)?.number !== row.number,
@@ -164,9 +158,7 @@ async function main() {
         rowId: profile.$id,
         transactionId: txId,
       });
-    for (const row of allocations.filter((row) =>
-      removedIds.includes(row.userId),
-    ))
+    for (const row of removedAllocations)
       await db.deleteRow({
         databaseId: 'app',
         tableId: 'founder_allocations',

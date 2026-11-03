@@ -6,6 +6,11 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Changed
+
+- Números de Fundador passam a ser atribuídos apenas a contas ativas com e-mail confirmado; confirmações posteriores recebem o próximo número disponível, sem reserva no cadastro.
+- Comando administrativo para recalcular a edição existente, liberando reservas sem confirmação e fechando lacunas em uma transação.
+
 ### Added
 
 - Deploy no Dokploy pelo GitHub Actions após testes e build aprovados na branch `master`, com opção de execução manual.
