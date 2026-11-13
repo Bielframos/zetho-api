@@ -64,7 +64,7 @@ export class HealthController {
       throw new ServiceUnavailableException('Manutenção em andamento');
     return {
       status: 'ok',
-      version: '0.16.0',
+      version: '0.17.0',
       capabilities: ['social-writes-v1'],
     };
   }
