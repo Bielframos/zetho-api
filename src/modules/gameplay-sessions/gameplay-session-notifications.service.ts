@@ -136,12 +136,17 @@ export class GameplaySessionNotificationsService {
     }
     try {
       const comment = await this.appwrite.tablesDB.getRow<
-        Models.Row & { gameId?: string }
+        Models.Row & { gameId?: string; slug?: string; parentId?: string }
       >({
         databaseId: GameplaySessionNotificationsService.DB_ID,
         tableId: 'game_comments',
         rowId: notification.entityId,
       });
+      const rootComment = await this.resolveRootComment(comment);
+      const forumSlug = rootComment?.slug?.trim();
+      if (forumSlug) {
+        return `/forum/${encodeURIComponent(forumSlug)}?commentId=${encodeURIComponent(notification.entityId)}`;
+      }
       if (!comment.gameId) return undefined;
       const game = await this.appwrite.tablesDB.getRow<
         Models.Row & { slug?: string }
@@ -155,6 +160,31 @@ export class GameplaySessionNotificationsService {
     } catch {
       return undefined;
     }
+  }
+
+  private async resolveRootComment(
+    comment: Models.Row & { slug?: string; parentId?: string },
+  ) {
+    let current: any = comment;
+    const visited = new Set<string>(current?.$id ? [current.$id] : []);
+    for (let hop = 0; hop < 5; hop += 1) {
+      const parentId =
+        typeof current?.parentId === 'string'
+          ? current.parentId
+          : current?.parentId?.$id;
+      if (!parentId || visited.has(parentId)) break;
+      visited.add(parentId);
+      const next = await this.appwrite.tablesDB
+        .getRow<any>({
+          databaseId: GameplaySessionNotificationsService.DB_ID,
+          tableId: 'game_comments',
+          rowId: parentId,
+        })
+        .catch(() => null);
+      if (!next) break;
+      current = next;
+    }
+    return current;
   }
 
   private publicProfile(profile: UserProfiles | null) {

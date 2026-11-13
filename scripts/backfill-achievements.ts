@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Query } from 'node-appwrite';
 import { Appwrite } from '../src/infra/appwrite/appwrite.provider';
+import { FoundersService } from '../src/modules/achievements/founders.service';
 import { AchievementsService } from '../src/modules/achievements/achievements.service';
 import { TransactionService } from '../src/infra/appwrite/transaction.service';
 import { JSDOM } from 'jsdom';
@@ -47,6 +48,7 @@ async function main() {
     appwrite,
     new TransactionService(appwrite),
     {} as any,
+    new FoundersService(appwrite, new TransactionService(appwrite)),
   );
   const db = appwrite.tablesDB;
   let cursor = process.argv.find((x) => x.startsWith('--after='))?.slice(8);

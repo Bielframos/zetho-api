@@ -1276,11 +1276,29 @@
                     "side": "parent"
                 },
                 {
+                    "key": "title",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "slug",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 160,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
                     "key": "content",
                     "type": "string",
                     "required": true,
                     "array": false,
-                    "size": 350,
+                    "size": 8000,
                     "default": null,
                     "encrypt": false
                 },
@@ -1381,9 +1399,7 @@
         },
         {
             "$id": "lists",
-            "$permissions": [
-                "read(\"any\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "Lists",
             "enabled": true,
@@ -1485,9 +1501,86 @@
                     "size": 2048,
                     "default": null,
                     "encrypt": false
+                },
+                {
+                    "key": "ownerType",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": "user",
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": "published",
+                    "encrypt": false
+                },
+                {
+                    "key": "revision",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "criteria",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 800,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "kind",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "month",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 7,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reviewedAt",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "list_lifecycle",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "ownerType",
+                        "status"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC"
+                    ]
+                }
+            ]
         },
         {
             "$id": "saved_lists",
@@ -1621,9 +1714,7 @@
         },
         {
             "$id": "list_items",
-            "$permissions": [
-                "read(\"any\")"
-            ],
+            "$permissions": [],
             "databaseId": "app",
             "name": "List Items",
             "enabled": true,
@@ -1659,6 +1750,33 @@
                     "required": true,
                     "array": false,
                     "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reason",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 400,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "sources",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 400,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "releaseDate",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 10,
                     "default": null,
                     "encrypt": false
                 }
@@ -4006,6 +4124,214 @@
                     "orders": []
                 }
             ]
+        },
+        {
+            "$id": "founder_state",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "founder_state",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "zeroUserId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
+                },
+                {
+                    "key": "nextNumber",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": 1,
+                    "max": 1001
+                },
+                {
+                    "key": "afterCreatedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "afterUserId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "founder_allocations",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "founder_allocations",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
+                },
+                {
+                    "key": "number",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": 0,
+                    "max": 1000
+                },
+                {
+                    "key": "accountCreatedAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "founder_number_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "number"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "founder_user_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "userId"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "profile_sharing_consents",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "profile_sharing_consents",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
+                },
+                {
+                    "key": "allowed",
+                    "type": "boolean",
+                    "required": true,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "version",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "recordedAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "source",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "profile_sharing_consent_events",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "profile_sharing_consent_events",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
+                },
+                {
+                    "key": "allowed",
+                    "type": "boolean",
+                    "required": true,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "version",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "recordedAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null
+                },
+                {
+                    "key": "source",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
         }
     ],
     "buckets": [

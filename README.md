@@ -52,6 +52,18 @@ pnpm demo:seed          # somente prévia, sem gravar
 
 `pnpm secrets:check` requer Gitleaks 8.30.1 e examina arquivos atuais rastreados e novos não ignorados. A CI executa essa verificação sem credenciais de produção. Os testes não substituem uma validação ponta a ponta com Appwrite real.
 
+Para a edição Fundador, use `pnpm founders:recalculate` para conferir a prévia de migração da regra antiga de reservas. O procedimento de aplicação, a ordem de publicação e o impacto nos números existentes estão em [docs/founders.md](docs/founders.md#recálculo-único-das-reservas-anteriores).
+
+## Deploy no Dokploy
+
+O workflow `CI` aciona o webhook de deploy depois que os testes e o build passam em um push para `master`. PRs e outras branches não acionam deploy. Também é possível executar `CI` manualmente pela aba Actions, selecionando `master`; as verificações rodam antes do webhook.
+
+Cadastre o secret de repositório `DEPLOYMENT_TRIGGER_ENDPOINT` em **Settings → Secrets and variables → Actions**, com a URL completa do webhook da aplicação no Dokploy. A URL é uma credencial e não deve ser versionada. Não é necessário adicioná-la às variáveis de runtime da API.
+
+No Dokploy, configure a aplicação para acompanhar `master` e habilite **Auto Deploy**, exigido pelo webhook. Se existir um webhook direto do GitHub para o Dokploy, remova esse disparo paralelo para que o deploy aguarde o CI. Para usar o disparo manual, deixe os **Watch Paths** vazios, pois esse evento não contém uma lista de arquivos alterados. Veja a [documentação de Auto Deploy do Dokploy](https://docs.dokploy.com/docs/core/auto-deploy).
+
+O job envia um POST no formato de push do GitHub, com branch e commit, e aceita somente respostas HTTP 2xx. A URL e o corpo da resposta não são impressos. A aceitação do webhook confirma o disparo; acompanhe o build e a conclusão da publicação no Dokploy.
+
 ## Arquitetura
 
 - `src/modules`: regras de negócio e endpoints por domínio.

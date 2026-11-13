@@ -6,6 +6,52 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Changed
+
+- Números de Fundador passam a ser atribuídos apenas a contas ativas com e-mail confirmado; confirmações posteriores recebem o próximo número disponível, sem reserva no cadastro.
+- Comando administrativo para recalcular a edição existente, liberando reservas sem confirmação e fechando lacunas em uma transação.
+
+### Added
+
+- Deploy no Dokploy pelo GitHub Actions após testes e build aprovados na branch `master`, com opção de execução manual.
+- Diretório público dos fundadores inclui avatar e identificador do perfil, em ordem de número, para o painel Fundadores.
+
+## [0.16.0] - 2026-11-01
+
+### Fixed
+
+- A troca de e-mail preserva o perfil e permite entrar novamente, sem repetir bônus de cadastro.
+
+### Added
+
+- Edição Fundador com reservas numeradas de #0000 a #1000 por criação de conta, com Zero em #0000 e liberação apenas para contas ativas com e-mail confirmado.
+- Consulta autenticada do reconhecimento de Fundador e diretório público de perfis elegíveis; imagem oficial servida pela API sem tornar o bucket privado público.
+- Autorização opcional e revogável para divulgar perfis nas redes do Zetho, com histórico privado da escolha, versão do texto e data do servidor.
+- Provisionamento, preenchimento retroativo e correção administrativa de contas duplicadas com conferência da sequência e proteção do fundador #0000.
+
+- Inclusão idempotente de jogos por CTA e marcos persistidos de primeiro jogo e conclusão de cadastro/convite.
+- Retomada de cadastro parcial com bônus e atribuição protegidos contra repetição.
+- Rascunhos editoriais privados via MCP, aprovação administrativa, listas oficiais e conversão revisável em posts.
+- Provisionamento de estados e permissões nas listas existentes, com importação retomável dos rascunhos anteriores.
+
+### Changed
+
+- E-mail de confirmação de conta usa o mesmo visual dos demais e-mails transacionais; sincronização de templates tem prévia e aplicação explícita por tipo.
+- Catálogo de conquistas e vitrine incluem a insígnia Fundador com seu número, independentemente da autorização de divulgação.
+
+- Listas pessoais e oficiais usam `lists`/`list_items`, com estados de rascunho, publicada e arquivada; a revisão preserva IDs e vínculos sociais.
+
+- Respostas de fórum não usam cache compartilhado; sitemap inclui listas editoriais e expira em cinco minutos.
+
+## [0.15.0] - 2026-10-22
+
+### Added
+
+- Fórum da comunidade (`/social/forum/posts`, `/social/forum/posts/:id`) com criação de publicações em rich text vinculadas a qualquer jogo, ordenação por recentes ou mais votados, filtro por jogo, exclusão pelo autor e árvore de respostas até 3 níveis.
+- Sanitização de HTML rich text no servidor para publicações e respostas do fórum e comentários de jogos.
+- Inclusão das páginas públicas `/forum` e `/forum/:id-:slug` no `sitemap.xml` com roteamento de notificações para discussões do fórum.
+- Script de migração aditiva (`appwrite:provision-forum`) para provisionar `title`, `slug` e expandir `content` na tabela `game_comments`.
+
 ## [0.14.2] - 2026-10-13
 
 ### Changed

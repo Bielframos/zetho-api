@@ -198,4 +198,106 @@ describe('SocialService writes', () => {
       service.createList('u1', { title: 'My list' }),
     ).rejects.toThrow('outbox unavailable');
   });
+
+  it('creates a forum post with sanitized rich text, title, and SEO slug', async () => {
+    const createRow = jest
+      .fn()
+      .mockImplementation(async ({ rowId, data }) => ({ $id: rowId, ...data }));
+    const { service } = make({
+      listRows: jest
+        .fn()
+        .mockResolvedValue({ rows: [{ $id: 'p1', fingerprint: 'f1' }] }),
+      createRow,
+    });
+
+    const created = await service.createComment('u1', {
+      gameId: 'game-1',
+      title: 'Dicas para iniciantes no modo difícil',
+      content:
+        '<p>Use <strong>defesa perfeita</strong> contra chefes.</p><script>alert(1)</script>',
+    });
+
+    expect(created.title).toBe('Dicas para iniciantes no modo difícil');
+    expect(created.slug).toMatch(
+      /^dicas-para-iniciantes-no-modo-dificil--.+/,
+    );
+    expect(created.content).toBe(
+      '<p>Use <strong>defesa perfeita</strong> contra chefes.</p>',
+    );
+    expect(created.depth).toBe(0);
+  });
+
+  it('enforces reply depth limit of 3 and allows author or admin to edit and delete in cascade', async () => {
+    const getRow = jest.fn().mockImplementation(async ({ rowId }) => {
+      if (rowId === 'depth-3') {
+        return {
+          $id: 'depth-3',
+          gameId: 'game-1',
+          userProfile: 'p2',
+          parentId: 'depth-2',
+          depth: 3,
+        };
+      }
+      if (rowId === 'post-1') {
+        return {
+          $id: 'post-1',
+          gameId: 'game-1',
+          userProfile: 'p2',
+          parentId: null,
+          depth: 0,
+        };
+      }
+      return { $id: rowId, gameId: 'game-1', userProfile: 'p2' };
+    });
+    const listRows = jest
+      .fn()
+      .mockImplementation(async ({ tableId }) =>
+        tableId === 'user_profiles'
+          ? { rows: [{ $id: 'p1', fingerprint: 'f1' }] }
+          : { rows: [] },
+      );
+    const updateRow = jest
+      .fn()
+      .mockImplementation(async ({ rowId, data }) => ({ $id: rowId, ...data }));
+    const deleteRow = jest.fn().mockResolvedValue({});
+
+    const { service } = make({
+      getRow,
+      listRows,
+      updateRow,
+      deleteRow,
+    });
+
+    await expect(
+      service.createComment('u1', {
+        gameId: 'game-1',
+        parentId: 'depth-3',
+        content: 'Resposta além do limite',
+      }),
+    ).rejects.toThrow('Limite de profundidade de respostas atingido');
+
+    await expect(
+      service.updateComment(
+        'u1',
+        'post-1',
+        { title: 'Novo título', content: '<p>Texto atualizado</p>' },
+        false,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const updatedByAdmin = await service.updateComment(
+      'u1',
+      'post-1',
+      { title: 'Título moderado', content: '<p>Texto moderado</p>' },
+      true,
+    );
+    expect(updatedByAdmin.title).toBe('Título moderado');
+
+    await expect(
+      service.deleteComment('u1', 'post-1', false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const deletedByAdmin = await service.deleteComment('u1', 'post-1', true);
+    expect(deletedByAdmin).toEqual({ success: true, deletedCount: 1 });
+  });
 });

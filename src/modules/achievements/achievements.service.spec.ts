@@ -7,6 +7,7 @@ describe('AchievementsService', () => {
       { tablesDB: { createRow } } as any,
       {} as any,
       {} as any,
+      { forUser: jest.fn().mockResolvedValue(null) } as any,
     );
     await expect(
       service.recordCompletion('p', 'g', '2026-01-02T00:00:00Z'),
@@ -31,6 +32,7 @@ describe('AchievementsService awards and access', () => {
       { tablesDB: { getRow: jest.fn().mockResolvedValue(profile) } } as any,
       {} as any,
       {} as any,
+      { forUser: jest.fn().mockResolvedValue(null) } as any,
     );
     await expect(service.setShowcase('stranger', 'p', [])).rejects.toThrow(
       'Perfil não pertence',
@@ -76,6 +78,7 @@ describe('AchievementsService awards and access', () => {
       } as any,
       tx as any,
       {} as any,
+      { forUser: jest.fn().mockResolvedValue(null) } as any,
     );
     const result = await service.reconcile('p');
     expect(result.counts).toEqual({
@@ -101,6 +104,7 @@ describe('AchievementsService awards and access', () => {
       { tablesDB: { createOperations } } as any,
       tx as any,
       {} as any,
+      { forUser: jest.fn().mockResolvedValue(null) } as any,
     );
     await expect(
       (service as any).award(profile, 'reviews_5'),
@@ -143,6 +147,7 @@ describe('AchievementsService awards and access', () => {
       } as any,
       {} as any,
       {} as any,
+      { forUser: jest.fn().mockResolvedValue(null) } as any,
     );
     const catalog = await service.getBadgeCatalog('p');
     expect(catalog).toHaveLength(3);

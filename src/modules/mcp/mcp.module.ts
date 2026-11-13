@@ -1,3 +1,5 @@
+import { ListsModule } from '../lists/lists.module';
+import { SubmitEditorialListTool } from './tools/submit-editorial-list.tool';
 import { Module } from '@nestjs/common';
 import { IGDBModule } from '../igdb/igdb.module';
 import { GameModule } from '../game/game.module';
@@ -10,9 +12,10 @@ import { McpController } from './mcp.controller';
 import { McpAuthGuard } from './guards/mcp-auth.guard';
 
 @Module({
-  imports: [IGDBModule, GameModule],
+  imports: [IGDBModule, GameModule, ListsModule],
   controllers: [McpController],
   providers: [
+    SubmitEditorialListTool,
     RegisterIgdbGameTool,
     RegisterManualGameTool,
     {
@@ -20,8 +23,13 @@ import { McpAuthGuard } from './guards/mcp-auth.guard';
       useFactory: (
         igdbTool: RegisterIgdbGameTool,
         manualTool: RegisterManualGameTool,
-      ) => [igdbTool, manualTool],
-      inject: [RegisterIgdbGameTool, RegisterManualGameTool],
+        editorialTool: SubmitEditorialListTool,
+      ) => [igdbTool, manualTool, editorialTool],
+      inject: [
+        RegisterIgdbGameTool,
+        RegisterManualGameTool,
+        SubmitEditorialListTool,
+      ],
     },
     McpServerService,
     SseTransportManager,

@@ -10,7 +10,15 @@ describe('DashboardListsService', () => {
           rows: [{ $id: 'profile-1', userId: 'user-1' }],
         })
         .mockResolvedValueOnce({
-          rows: [{ $id: 'list-1', likeCount: 2, saveCount: 0 }],
+          rows: [
+            {
+              $id: 'list-1',
+              isPublic: true,
+              status: 'published',
+              likeCount: 2,
+              saveCount: 0,
+            },
+          ],
         })
         .mockResolvedValueOnce({ rows: [], total: 0 })
         .mockResolvedValueOnce({ rows: [], total: 0 })
@@ -18,7 +26,13 @@ describe('DashboardListsService', () => {
       createRow: jest.fn().mockResolvedValue({}),
       updateRow: jest
         .fn()
-        .mockResolvedValue({ $id: 'list-1', likeCount: 3, saveCount: 0 }),
+        .mockResolvedValue({
+          $id: 'list-1',
+          isPublic: true,
+          status: 'published',
+          likeCount: 3,
+          saveCount: 0,
+        }),
     };
     const outbox = { enqueueImmediate: jest.fn().mockResolvedValue(undefined) };
     const appwrite = { tablesDB };

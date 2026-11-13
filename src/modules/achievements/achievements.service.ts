@@ -1,3 +1,4 @@
+import { FoundersService } from './founders.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -49,6 +50,7 @@ export class AchievementsService implements OnModuleInit {
     private readonly appwrite: Appwrite,
     private readonly tx: TransactionService,
     private readonly outbox: OutboxService,
+    private readonly founders: FoundersService,
   ) {}
   onModuleInit() {
     this.outbox.registerHandler(
@@ -128,14 +130,27 @@ export class AchievementsService implements OnModuleInit {
     }
   }
   async listBadges(profileId: string) {
-    await this.profile(profileId);
+    const profile = await this.profile(profileId);
+    const founder = await this.founders.forUser(profile.userId);
     const rows = await this.page('user_badges', [
       Query.equal('profileId', profileId),
     ]);
-    return rows.map(({ badgeId, $createdAt }: Row) => ({
-      badgeId,
-      unlockedAt: $createdAt,
-    }));
+    return [
+      ...rows.map(({ badgeId, $createdAt }: Row) => ({
+        badgeId,
+        unlockedAt: $createdAt,
+        number: null as number | null,
+      })),
+      ...(founder
+        ? [
+            {
+              badgeId: 'founder',
+              unlockedAt: founder.$createdAt,
+              number: founder.number,
+            },
+          ]
+        : []),
+    ];
   }
   async getBadgeCatalog(profileId: string) {
     const profile = await this.profile(profileId);
@@ -147,7 +162,17 @@ export class AchievementsService implements OnModuleInit {
       unlocked.map((badge) => [badge.badgeId, badge.unlockedAt]),
     );
     const showcased = new Set<string>(profile.showcaseBadges ?? []);
-    return (Object.keys(BADGES) as Badge[]).map((id) => ({
+    const catalog: {
+      id: string;
+      name: string;
+      description: string;
+      threshold: number;
+      rewardZCoins: number;
+      progress: number;
+      unlockedAt: string | null;
+      showcased: boolean;
+      number: number | null;
+    }[] = (Object.keys(BADGES) as Badge[]).map((id) => ({
       id,
       ...BADGE_COPY[id],
       threshold: BADGES[id].threshold,
@@ -155,7 +180,22 @@ export class AchievementsService implements OnModuleInit {
       progress: counts[id] ?? 0,
       unlockedAt: unlockedAt.get(id) ?? null,
       showcased: showcased.has(id) && unlockedAt.has(id),
+      number: null as number | null,
     }));
+    const founder = unlocked.find((badge) => badge.badgeId === 'founder');
+    if (founder)
+      catalog.unshift({
+        id: 'founder',
+        name: `Fundador #${String(founder.number).padStart(4, '0')}`,
+        description: 'Fez parte da fundação do Zetho.',
+        threshold: 1,
+        rewardZCoins: 0,
+        progress: 1,
+        unlockedAt: founder.unlockedAt,
+        showcased: showcased.has('founder'),
+        number: founder.number,
+      });
+    return catalog;
   }
   async getShowcase(profileId: string) {
     const profile = await this.profile(profileId);
@@ -177,7 +217,9 @@ export class AchievementsService implements OnModuleInit {
       !Array.isArray(badges) ||
       badges.length > 3 ||
       new Set(badges).size !== badges.length ||
-      badges.some((x) => typeof x !== 'string' || !(x in BADGES))
+      badges.some(
+        (x) => typeof x !== 'string' || (!(x in BADGES) && x !== 'founder'),
+      )
     )
       throw new BadRequestException('Vitrine inválida');
     const unlocked = new Set(

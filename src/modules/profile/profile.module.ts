@@ -1,3 +1,5 @@
+import { AchievementsModule } from '../achievements/achievements.module';
+import { ProfileSharingService } from './profile-sharing.service';
 import { ProfileComparisonController } from './profile-comparison.controller';
 import {
   ProfileComparisonService,
@@ -10,10 +12,11 @@ import { ZCoinsModule } from 'src/modules/zcoins/zcoins.module';
 import { ProfileEntriesService } from './profile-entries.service';
 
 @Module({
-  imports: [ZCoinsModule],
+  imports: [ZCoinsModule, AchievementsModule],
   controllers: [ProfileController, ProfileComparisonController],
   providers: [
     ProfileService,
+    ProfileSharingService,
     ProfileEntriesService,
     ProfileComparisonService,
     ComparisonSessionReader,
