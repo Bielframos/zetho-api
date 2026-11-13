@@ -6,6 +6,10 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+### Added
+
+- `PATCH /profile/me` aceita `favoriteGameIds` (até 3 ids únicos de jogos existentes, em ordem de exibição). Exige a coluna `favoriteGameIds` (string[], tamanho 36) em `user_profiles`, já adicionada ao `appwrite.config.json`.
+
 ### Changed
 
 - Números de Fundador passam a ser atribuídos apenas a contas ativas com e-mail confirmado; confirmações posteriores recebem o próximo número disponível, sem reserva no cadastro.

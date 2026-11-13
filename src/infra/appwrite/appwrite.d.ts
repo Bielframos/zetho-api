@@ -170,6 +170,7 @@ export type UserProfiles = Models.Row & {
   activeThemeId: string | null;
   unlockedThemes: string[] | null;
   showcaseBadges?: string[] | null;
+  favoriteGameIds?: string[] | null;
 };
 
 export type ZEntries = Models.Row & {
