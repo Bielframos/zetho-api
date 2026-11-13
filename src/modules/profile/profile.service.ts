@@ -76,6 +76,7 @@ export class ProfileService {
       'socialSteam',
       'socialPsn',
       'socialNintendo',
+      'favoriteGameIds',
     ];
     const clean = Object.fromEntries(
       allowed
@@ -84,12 +85,29 @@ export class ProfileService {
     );
     if (!Object.keys(clean).length)
       throw new BadRequestException('Nenhum campo editável');
+    if (Array.isArray(clean.favoriteGameIds))
+      await this.assertGamesExist(clean.favoriteGameIds as string[]);
     return this.tablesDB.updateRow<UserProfiles>({
       databaseId: 'app',
       tableId: 'user_profiles',
       rowId: profile.$id,
       data: clean,
     });
+  }
+
+  private async assertGamesExist(gameIds: string[]) {
+    if (!gameIds.length) return;
+    const games = await this.tablesDB.listRows({
+      databaseId: 'app',
+      tableId: 'games',
+      queries: [
+        Query.equal('$id', gameIds),
+        Query.select(['$id']),
+        Query.limit(gameIds.length),
+      ],
+    });
+    if (games.rows.length !== new Set(gameIds).size)
+      throw new BadRequestException('Jogo favorito inválido');
   }
 
   async requestDeletion(userId: string) {

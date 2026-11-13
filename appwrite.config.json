@@ -764,6 +764,15 @@
                     "default": null,
                     "size": 64,
                     "encrypt": false
+                },
+                {
+                    "key": "favoriteGameIds",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "default": null,
+                    "size": 36,
+                    "encrypt": false
                 }
             ],
             "indexes": [
