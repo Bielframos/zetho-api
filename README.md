@@ -54,6 +54,21 @@ pnpm demo:seed          # somente prévia, sem gravar
 
 Para a edição Fundador, use `pnpm founders:recalculate` para conferir a prévia de migração da regra antiga de reservas. O procedimento de aplicação, a ordem de publicação e o impacto nos números existentes estão em [docs/founders.md](docs/founders.md#recálculo-único-das-reservas-anteriores).
 
+## Campanhas de temas especiais
+
+As campanhas ficam em `special_themes` e os resgates por conta ficam em `special_theme_claims`. A API usa a hora do servidor e trata `startsAt` como inclusivo e `endsAt` como exclusivo.
+
+O manifesto [scripts/special-themes.json](scripts/special-themes.json) inclui o Tropical 6, aberto de 18 a 20/11/2026 no fuso de Recife. O campo `appearance` identifica o visual correspondente no frontend. Para cadastrar outra campanha, acrescente uma entrada com um ID próprio e indique um visual suportado pelo Zetho.
+
+Confira o plano antes de provisionar a instância Appwrite de destino. O comando com `--apply` usa as credenciais do ambiente escolhido e cria apenas os recursos que faltam, sem sobrescrever campanhas existentes.
+
+```sh
+node scripts/provision-special-themes.cjs
+node --env-file=.env scripts/provision-special-themes.cjs --apply
+```
+
+Provisione as tabelas e a campanha antes de publicar o seletor e a página promocional.
+
 ## Deploy no Dokploy
 
 O workflow `CI` aciona o webhook de deploy depois que os testes e o build passam em um push para `master`. PRs e outras branches não acionam deploy. Também é possível executar `CI` manualmente pela aba Actions, selecionando `master`; as verificações rodam antes do webhook.
