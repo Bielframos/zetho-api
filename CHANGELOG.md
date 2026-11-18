@@ -6,6 +6,12 @@ Seguindo o formato "Keep a Changelog" e o versionamento semântico.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-18
+
+### Added
+
+- Campanhas de temas especiais com janela de resgate, desbloqueio por conta e consulta dos temas resgatados.
+
 ## [0.17.0] - 2026-11-13
 
 ### Added
