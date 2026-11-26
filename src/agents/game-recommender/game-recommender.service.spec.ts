@@ -203,7 +203,7 @@ describe('GameRecommenderService', () => {
     expect(fixture.ai.generate).toHaveBeenCalledTimes(1);
     expect(fixture.ai.generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'openai/gpt-5.4',
+        model: 'openai/gpt-6-luna',
         output: { schema: expect.anything() },
         abortSignal: expect.any(AbortSignal),
       }),
