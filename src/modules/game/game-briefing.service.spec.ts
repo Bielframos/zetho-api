@@ -55,7 +55,7 @@ describe('GameBriefingService', () => {
       highlights: ['Combate rápido', 'Progressão entre tentativas'],
       bestFor: ['Fãs de roguelikes de ação'],
       contentWarning: 'Violência de fantasia na premissa.',
-      model: 'openai/gpt-4o-mini',
+      model: 'openai/gpt-6-luna',
       promptVersion: 1,
     });
     ai.generate.mockResolvedValue({
@@ -78,7 +78,7 @@ describe('GameBriefingService', () => {
       expect.stringContaining('summaryPt'),
     );
     expect(ai.generate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'openai/gpt-4o-mini' }),
+      expect.objectContaining({ model: 'openai/gpt-6-luna' }),
     );
   });
 
@@ -159,7 +159,7 @@ describe('GameBriefingService', () => {
       highlights: ['Um', 'Dois'],
       bestFor: ['Todos'],
       contentWarning: 'Nenhum',
-      model: 'openai/gpt-4o-mini',
+      model: 'openai/gpt-6-luna',
       promptVersion: 1,
     });
     ai.generate.mockResolvedValue({
