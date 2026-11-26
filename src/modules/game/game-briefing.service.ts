@@ -36,7 +36,7 @@ type BriefingRow = Models.Row &
 const TABLE_ID = 'game_ai_briefings';
 const RECENT_GAME_DAYS = 90;
 const RECENT_BRIEFING_TTL_DAYS = 45;
-const MODEL = 'openai/gpt-4o-mini';
+const MODEL = 'openai/gpt-6-luna';
 const PROMPT_VERSION = 1;
 
 /**

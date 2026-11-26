@@ -14,7 +14,7 @@ export type RecommendationOutput = z.infer<typeof recommendationOutputSchema>;
 
 @Injectable()
 export class GameRecommendationGeneratorService {
-  private static readonly DEFAULT_MODEL = 'openai/gpt-5.4';
+  private static readonly DEFAULT_MODEL = 'openai/gpt-6-luna';
   private static readonly DEFAULT_TIMEOUT_MS = 8_000;
   readonly model =
     process.env.GAME_RECOMMENDER_MODEL ??
